@@ -1,0 +1,13 @@
+test_id,category,query,expected_mode,expected_match_status,expected_primary_citation,notes
+Q-001,exact_quran,الله لا اله الا هو الحي القيوم,verifier,Exact match found,Quran 3:2,Exact normalized verse
+Q-002,exact_quran,فان مع العسر يسرا,verifier,Exact match found,Quran 94:5,Exact normalized verse
+Q-003,partial_quran,الله لا يكلف نفسا الا وسعها,verifier,Close / partial match found,Quran 2:286,Near-exact wording with word-order difference
+Q-004,exact_quran,قل هو الله احد,verifier,Exact match found,Quran 112:1,Exact normalized verse
+Q-005,partial_quran,وما خلقت الجن والانس الا ليعبدون,verifier,Exact match found,Quran 51:56,Exact normalized verse
+Q-006,partial_quran,ولا تقربوا الزنا,verifier,Close / partial match found,Quran 17:32,Verse fragment
+Q-007,partial_quran,ولا تقتلوا النفس التي حرم الله الا بالحق,verifier,Close / partial match found,Quran 17:33,Verse fragment
+Q-008,paraphrase_quran,فان مع الشدة يسرا,verifier,No reliable match found in current corpus,,Paraphrase not expected to hit lexically yet
+Q-009,too_short,رحمة,verifier,Cannot assess,,Single generic word
+Q-010,too_short,نور,verifier,Cannot assess,,Single generic word
+Q-011,ask_like,What is the punishment of zina?,ask_engine,Cannot assess,,Should route to ask engine
+Q-012,ask_like,ما حكم الزنا؟,ask_engine,Cannot assess,,Should route to ask engine
