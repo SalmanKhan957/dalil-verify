@@ -1,0 +1,13 @@
+test_id,category,query,expected_preferred_lane,expected_match_status,expected_primary_citation,acceptable_citations,requires_longer_passage_support,notes
+P-001,passage_2_ayah,فويل للمصلين الذين هم عن صلاتهم ساهون,passage,Exact match found,Quran 107:4-5,Quran 107:4-5;Quran 107:4;Quran 107:5,no,Two adjacent ayat
+P-002,passage_2_ayah,فان مع العسر يسرا ان مع العسر يسرا,passage,Exact match found,Quran 94:5-6,Quran 94:5-6,no,Two adjacent ayat
+P-003,passage_3_ayah,قل هو الله احد الله الصمد لم يلد ولم يولد,passage,Exact match found,Quran 112:1-3,Quran 112:1-3,no,Three adjacent ayat
+P-004,passage_3_ayah,وما ادراك ما يوم الدين ثم ما ادراك ما يوم الدين يوم لا تملك نفس لنفس شيئا,passage,Close / partial match found,Quran 82:17-19,Quran 82:17-19,no,Three adjacent ayat with long combined excerpt
+P-005,ayah_preferred_single,فان مع العسر يسرا,ayah,Exact match found,Quran 94:5,Quran 94:5,no,Single ayah should not be promoted to passage
+P-006,ayah_preferred_single,قل هو الله احد,ayah,Exact match found,Quran 112:1,Quran 112:1,no,Single ayah
+P-007,future_longer_passage,اهدنا الصراط المستقيم صراط الذين انعمت عليهم غير المغضوب عليهم ولا الضالين,passage,Exact match found,Quran 1:6-7,Quran 1:6-7;Quran 1:6;Quran 1:7,yes,Two ayat but may still be split depending on ranking
+P-008,future_longer_passage,تبت يدا ابي لهب وتب ما اغنى عنه ماله وما كسب سيصلى نارا ذات لهب وامرأته حمالة الحطب,passage,Exact match found,Quran 111:1-4,Quran 111:1-4;Quran 111:1;Quran 111:2;Quran 111:3;Quran 111:4,yes,Four ayat combined; future-scope stress test
+P-009,future_longer_passage,ويل لكل همزة لمزة الذي جمع مالا وعدده يحسب ان ماله اخلده كلا لينبذن في الحطمة,passage,Exact match found,Quran 104:1-4,Quran 104:1-4;Quran 104:1;Quran 104:2;Quran 104:3;Quran 104:4,yes,Four ayat combined; future-scope stress test
+P-010,mixed_single_vs_passage,فويل للمصلين,ayah,Exact match found,Quran 107:4,Quran 107:4,no,Short fragment should stay ayah-first
+P-011,mixed_single_vs_passage,الله لا اله الا هو الحي القيوم لا تاخذه سنة ولا نوم,ayah,Close / partial match found,Quran 2:255,Quran 2:255,no,Long excerpt but still one ayah
+P-012,ask_like_question,Where is the passage about woe to those who pray but are heedless?,ask_engine,Cannot assess,,,no,Question should route away from verifier

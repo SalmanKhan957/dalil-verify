@@ -5,10 +5,33 @@ import re
 ARABIC_DIACRITICS_RE = re.compile(
     r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]"
 )
-QURANIC_MARKS_RE = re.compile(r"[\u06D6-\u06ED]")
-PUNCTUATION_RE = re.compile(r"[^\w\s\u0600-\u06FF]")
 WHITESPACE_RE = re.compile(r"\s+")
 TATWEEL = "\u0640"
+
+# Explicit punctuation and Quranic stop marks to strip in aggressive normalization
+ARABIC_PUNCT_TRANSLATION = str.maketrans({
+    "،": " ",
+    "؛": " ",
+    "؟": " ",
+    "۔": " ",
+    ",": " ",
+    ";": " ",
+    "?": " ",
+    "!": " ",
+    ":": " ",
+    ".": " ",
+    "…": " ",
+    "ۚ": " ",
+    "ۖ": " ",
+    "ۗ": " ",
+    "ۘ": " ",
+    "ۙ": " ",
+    "ۛ": " ",
+    "ۜ": " ",
+    "۝": " ",
+    "۞": " ",
+    "۩": " ",
+})
 
 
 def collapse_whitespace(text: str) -> str:
@@ -56,8 +79,9 @@ def normalize_arabic_aggressive(text: str) -> str:
     for src, dst in aggressive_replacements.items():
         text = text.replace(src, dst)
 
-    text = QURANIC_MARKS_RE.sub("", text)
-    text = PUNCTUATION_RE.sub(" ", text)
+    # Strip Arabic punctuation and Quranic stop marks explicitly
+    text = text.translate(ARABIC_PUNCT_TRANSLATION)
+
     text = collapse_whitespace(text)
     return text
 

@@ -1,0 +1,31 @@
+test_id,category,query,expected_mode,expected_match_status,expected_primary_citation,notes
+Q-001,exact_quran,الله لا اله الا هو الحي القيوم,verifier,Exact match found,Quran 3:2,Exact normalized verse
+Q-002,exact_quran,فان مع العسر يسرا,verifier,Exact match found,Quran 94:5,Exact normalized verse
+Q-003,partial_quran,الله لا يكلف نفسا الا وسعها,verifier,Close / partial match found,Quran 2:286,Near-exact wording with word-order difference
+Q-004,exact_quran,قل هو الله احد,verifier,Exact match found,Quran 112:1,Exact normalized verse
+Q-005,exact_quran,وما خلقت الجن والانس الا ليعبدون,verifier,Exact match found,Quran 51:56,Exact normalized verse
+Q-006,partial_quran,ولا تقربوا الزنا,verifier,Close / partial match found,Quran 17:32,Verse fragment
+Q-007,partial_quran,ولا تقتلوا النفس التي حرم الله الا بالحق,verifier,Close / partial match found,Quran 17:33,Verse fragment
+Q-008,paraphrase_quran,فان مع الشدة يسرا,verifier,No reliable match found in current corpus,,Paraphrase not expected to hit lexically yet
+Q-009,too_short,رحمة,verifier,Cannot assess,,Single generic word
+Q-010,too_short,نور,verifier,Cannot assess,,Single generic word
+Q-011,ask_like,What is the punishment of zina?,ask_engine,Cannot assess,,Should route to ask engine
+Q-012,ask_like,ما حكم الزنا؟,ask_engine,Cannot assess,,Should route to ask engine
+Q-013,normalization_hamza,اهدنا الصراط المستقيم,verifier,Exact match found,Quran 1:6,Common unvowelled form
+Q-014,normalization_alif_maqsura,ان الهدى هدى الله,verifier,Close / partial match found,Quran 2:120,Alif maqsura variation
+Q-015,normalization_ta_marbuta,ان رحمه الله قريب من المحسنين,verifier,Close / partial match found,Quran 7:56,Ta marbuta variation
+Q-016,normalization_diacritics,إِنَّ مَعَ الْعُسْرِ يُسْرًا,verifier,Exact match found,Quran 94:6,Fully vowelled input
+Q-017,normalization_diacritics,ان مع العسر يسرا,verifier,Exact match found,Quran 94:6,Unvowelled input
+Q-018,normalization_fragment,الله الصمد,verifier,Exact match found,Quran 112:2,Short but specific exact verse
+Q-019,normalization_fragment,ولم يكن له كفوا احد,verifier,Exact match found,Quran 112:4,Common unvowelled form
+Q-020,normalization_quranic_orthography,لا تاخذه سنة ولا نوم,verifier,Close / partial match found,Quran 2:255,Common keyboard form
+Q-021,normalization_quranic_orthography,وسع كرسيه السماوات والارض,verifier,Close / partial match found,Quran 2:255,Common keyboard form
+Q-022,normalization_spacing,  فان   مع   العسر   يسرا  ,verifier,Exact match found,Quran 94:5,Whitespace normalization
+Q-023,normalization_punctuation,فان مع العسر يسرا،,verifier,Close / partial match found,Quran 94:5,Trailing punctuation
+Q-024,normalization_generic_word,جنة,verifier,Cannot assess,,Single generic word
+Q-025,normalization_generic_word,هدى,verifier,Cannot assess,,Single generic word
+Q-026,normalization_question,ما معنى الله الصمد؟,ask_engine,Cannot assess,,Question should route to ask engine
+Q-027,normalization_question,Where is Allahu la ilaha illa Huwa al-Hayyul-Qayyum?,ask_engine,Cannot assess,,English question routes away from verifier
+Q-028,partial_quran,ربنا لا تزغ قلوبنا بعد اذ هديتنا,verifier,Close / partial match found,Quran 3:8,Verse fragment
+Q-029,partial_quran,فويل للمصلين الذين هم عن صلاتهم ساهون,verifier,Close / partial match found,Quran 107:4,Verse fragment
+Q-030,exact_quran,تبت يدا ابي لهب وتب,verifier,Exact match found,Quran 111:1,Exact normalized verse

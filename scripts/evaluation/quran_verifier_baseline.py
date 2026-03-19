@@ -208,12 +208,19 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     if len(query_norm) < 6 or len(query_tokens) < 2:
         return "Cannot assess"
 
+    # True exact match only on display or light normalization
     if (
         best_candidate["exact_display"] == 100.0
         or best_candidate["exact_normalized_light"] == 100.0
     ):
         return "Exact match found"
 
+    # If aggressive normalization matches exactly, treat it as a close match.
+    # Covers punctuation stripping, rough keyboard forms, etc.
+    if best_candidate["exact_normalized_aggressive"] == 100.0:
+        return "Close / partial match found"
+
+    # Strong fragment containment
     if (
         (
             best_candidate["contains_query_in_text_light"] == 100.0
@@ -224,6 +231,7 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     ):
         return "Close / partial match found"
 
+    # Near-exact wording with minor variation
     if (
         max(
             best_candidate["token_set_score"],
@@ -234,6 +242,17 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     ):
         return "Close / partial match found"
 
+    # Slightly looser fallback for strong aggressive lexical overlap.
+    # This is meant to rescue cases like رحمه vs رحمت where retrieval is correct
+    # but the spelling drift prevents aggressive exact equality.
+    if (
+        best_candidate["aggressive_token_set_score"] >= 85.0
+        and best_candidate["token_coverage"] >= 80.0
+        and len(query_tokens) >= 4
+    ):
+        return "Close / partial match found"
+
+    # Strong general lexical match
     if best_candidate["score"] >= 60.0 and best_candidate["token_coverage"] >= 50.0:
         return "Close / partial match found"
 
