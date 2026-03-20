@@ -43,9 +43,6 @@ def load_quran_dataset(csv_path: Path) -> list[dict[str, Any]]:
 
 
 def classify_query(query: str) -> str:
-    """
-    Very simple routing and guardrails.
-    """
     q = query.strip()
     q_norm = normalize_arabic_light(q)
     q_tokens = tokenize(q_norm)
@@ -71,21 +68,23 @@ def compute_candidate_score(
     query_tokens: list[str],
     row: dict[str, Any],
     original_query: str,
+    *,
+    aggressive_query: str | None = None,
+    aggressive_query_tokens: list[str] | None = None,
 ) -> dict[str, Any]:
-    light_query = normalize_arabic_light(original_query)
-    aggressive_query = normalize_arabic_aggressive(original_query)
+    light_query = normalized_query
+    aggressive_query = aggressive_query if aggressive_query is not None else normalize_arabic_aggressive(original_query)
 
     text_display = row["text_display"]
     text_light = row["text_normalized_light"]
     text_aggressive = row["text_normalized_aggressive"]
-    text_tokens = row["tokens_light"]
 
     query_len = max(len(light_query), 1)
     text_len = max(len(text_light), 1)
     length_ratio = min(query_len, text_len) / max(query_len, text_len)
 
-    light_query_tokens = tokenize(light_query)
-    aggressive_query_tokens = tokenize(aggressive_query)
+    light_query_tokens = query_tokens
+    aggressive_query_tokens = aggressive_query_tokens if aggressive_query_tokens is not None else tokenize(aggressive_query)
 
     light_query_token_set = set(light_query_tokens)
     aggressive_query_token_set = set(aggressive_query_tokens)
@@ -116,8 +115,8 @@ def compute_candidate_score(
     exact_normalized_light = 100.0 if light_query == text_light else 0.0
     exact_normalized_aggressive = 100.0 if aggressive_query == text_aggressive else 0.0
 
-    contains_query_in_text_light = 100.0 if light_query in text_light else 0.0
-    contains_query_in_text_aggressive = 100.0 if aggressive_query in text_aggressive else 0.0
+    contains_query_in_text_light = 100.0 if light_query and light_query in text_light else 0.0
+    contains_query_in_text_aggressive = 100.0 if aggressive_query and aggressive_query in text_aggressive else 0.0
     contains_text_in_query_light = 100.0 if text_light and text_light in light_query else 0.0
 
     ratio_score = float(fuzz.ratio(light_query, text_light))
@@ -134,16 +133,16 @@ def compute_candidate_score(
 
     composite_score = (
         (0.25 * exact_normalized_light)
-        + (0.08 * exact_normalized_aggressive)
-        + (0.10 * exact_display)
+        + (0.12 * exact_normalized_aggressive)
+        + (0.08 * exact_display)
         + (0.18 * contains_query_in_text_light)
-        + (0.07 * contains_query_in_text_aggressive)
-        + (0.15 * token_coverage)
-        + (0.08 * token_set_score)
+        + (0.10 * contains_query_in_text_aggressive)
+        + (0.12 * token_coverage)
+        + (0.06 * token_set_score)
         + (0.04 * aggressive_token_set_score)
-        + (0.03 * token_sort_score)
-        + (0.05 * ratio_score)
-        + (0.02 * adjusted_partial)
+        + (0.02 * token_sort_score)
+        + (0.02 * ratio_score)
+        + (0.01 * adjusted_partial)
     ) - short_candidate_penalty
 
     return {
@@ -177,7 +176,9 @@ def compute_best_matches(
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     normalized_query = normalize_arabic_light(query)
+    aggressive_query = normalize_arabic_aggressive(query)
     query_tokens = tokenize(normalized_query)
+    aggressive_query_tokens = tokenize(aggressive_query)
 
     candidates: list[dict[str, Any]] = []
     for row in rows:
@@ -186,6 +187,8 @@ def compute_best_matches(
             query_tokens=query_tokens,
             row=row,
             original_query=query,
+            aggressive_query=aggressive_query,
+            aggressive_query_tokens=aggressive_query_tokens,
         )
         candidates.append(candidate)
 
@@ -193,7 +196,9 @@ def compute_best_matches(
         key=lambda x: (
             x["score"],
             x["exact_normalized_light"],
+            x["exact_normalized_aggressive"],
             x["contains_query_in_text_light"],
+            x["contains_query_in_text_aggressive"],
             x["token_coverage"],
         ),
         reverse=True,
@@ -208,19 +213,33 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     if len(query_norm) < 6 or len(query_tokens) < 2:
         return "Cannot assess"
 
-    # True exact match only on display or light normalization
     if (
         best_candidate["exact_display"] == 100.0
         or best_candidate["exact_normalized_light"] == 100.0
     ):
         return "Exact match found"
 
-    # If aggressive normalization matches exactly, treat it as a close match.
-    # Covers punctuation stripping, rough keyboard forms, etc.
+    if (
+        best_candidate["exact_normalized_aggressive"] == 100.0
+        and best_candidate["token_coverage"] >= 95.0
+        and best_candidate["length_ratio"] >= 0.98
+    ):
+        return "Exact match found"
+
     if best_candidate["exact_normalized_aggressive"] == 100.0:
         return "Close / partial match found"
 
-    # Strong fragment containment
+    if (
+        (
+            best_candidate["contains_query_in_text_light"] == 100.0
+            or best_candidate["contains_query_in_text_aggressive"] == 100.0
+        )
+        and best_candidate["token_coverage"] >= 90.0
+        and best_candidate["length_ratio"] >= 0.9
+        and len(query_tokens) >= 4
+    ):
+        return "Exact match found"
+
     if (
         (
             best_candidate["contains_query_in_text_light"] == 100.0
@@ -231,7 +250,6 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     ):
         return "Close / partial match found"
 
-    # Near-exact wording with minor variation
     if (
         max(
             best_candidate["token_set_score"],
@@ -242,9 +260,6 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     ):
         return "Close / partial match found"
 
-    # Slightly looser fallback for strong aggressive lexical overlap.
-    # This is meant to rescue cases like رحمه vs رحمت where retrieval is correct
-    # but the spelling drift prevents aggressive exact equality.
     if (
         best_candidate["aggressive_token_set_score"] >= 85.0
         and best_candidate["token_coverage"] >= 80.0
@@ -252,7 +267,6 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     ):
         return "Close / partial match found"
 
-    # Strong general lexical match
     if best_candidate["score"] >= 60.0 and best_candidate["token_coverage"] >= 50.0:
         return "Close / partial match found"
 

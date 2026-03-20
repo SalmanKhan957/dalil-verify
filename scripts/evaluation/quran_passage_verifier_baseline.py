@@ -11,7 +11,7 @@ from scripts.evaluation.quran_verifier_baseline import (
     compute_candidate_score,
     determine_match_status,
 )
-from scripts.common.text_normalization import normalize_arabic_light, tokenize
+from scripts.common.text_normalization import normalize_arabic_light, normalize_arabic_aggressive, tokenize
 
 
 def load_quran_passage_dataset(csv_path: Path) -> list[dict[str, Any]]:
@@ -49,7 +49,9 @@ def compute_best_passage_matches(
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     normalized_query = normalize_arabic_light(query)
+    aggressive_query = normalize_arabic_aggressive(query)
     query_tokens = tokenize(normalized_query)
+    aggressive_query_tokens = tokenize(aggressive_query)
 
     candidates: list[dict[str, Any]] = []
     for row in rows:
@@ -58,6 +60,8 @@ def compute_best_passage_matches(
             query_tokens=query_tokens,
             row=row,
             original_query=query,
+            aggressive_query=aggressive_query,
+            aggressive_query_tokens=aggressive_query_tokens,
         )
         candidates.append(candidate)
 
@@ -65,7 +69,9 @@ def compute_best_passage_matches(
         key=lambda x: (
             x["score"],
             x["exact_normalized_light"],
+            x["exact_normalized_aggressive"],
             x["contains_query_in_text_light"],
+            x["contains_query_in_text_aggressive"],
             x["token_coverage"],
         ),
         reverse=True,
