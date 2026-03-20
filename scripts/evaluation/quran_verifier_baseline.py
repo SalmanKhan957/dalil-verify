@@ -28,8 +28,9 @@ def load_quran_dataset(csv_path: Path) -> list[dict[str, Any]]:
             row["translation_name"] = row.get("translation_name") or ""
             row["bismillah"] = row.get("bismillah") or ""
 
-            row["text_normalized_light"] = row.get("text_normalized_light") or ""
-            row["text_normalized_aggressive"] = row.get("text_normalized_aggressive") or ""
+            text_display = row.get("text_display") or ""
+            row["text_normalized_light"] = normalize_arabic_light(text_display)
+            row["text_normalized_aggressive"] = normalize_arabic_aggressive(text_display)
 
             row["tokens_light"] = tokenize(row["text_normalized_light"])
             row["tokens_aggressive"] = tokenize(row["text_normalized_aggressive"])

@@ -5,6 +5,7 @@ import re
 ARABIC_DIACRITICS_RE = re.compile(
     r"[ؐ-ًؚ-ٰٟۖ-ۭ]"
 )
+QURANIC_ANNOTATION_RE = re.compile(r"[ٰۣ۪ۭٖٜٟ۟۠ۡۢۤۧۨ۫۬ٗ٘ٙٚٛٝٞ]")
 WHITESPACE_RE = re.compile(r"\s+")
 TATWEEL = "ـ"
 
@@ -49,22 +50,41 @@ def collapse_whitespace(text: str) -> str:
     return WHITESPACE_RE.sub(" ", text).strip()
 
 
-def sanitize_quran_text_for_matching(text: str) -> str:
+def sanitize_quran_text_for_matching_with_meta(text: str) -> tuple[str, dict]:
     """
     Strip copy/paste artifacts that should not affect Quran matching.
 
     This is intentionally matcher-side sanitation, not user-facing display cleanup.
+    Returns both the sanitized text and lightweight preprocessing metadata.
     """
-    if not text:
-        return ""
+    original = text or ""
+    if not original:
+        return "", {
+            "original_char_count": 0,
+            "sanitized_char_count": 0,
+            "was_sanitized": False,
+        }
 
-    text = text.strip()
-    text = FORMAT_CONTROL_RE.sub("", text)
-    text = text.replace(TATWEEL, "")
-    text = VERSE_ORNAMENTS_RE.sub(" ", text)
-    text = STANDALONE_VERSE_NUMBER_RE.sub(" ", text)
-    text = text.translate(ARABIC_PUNCT_TRANSLATION)
-    return collapse_whitespace(text)
+    working = original.strip()
+    working = FORMAT_CONTROL_RE.sub("", working)
+    working = working.replace(TATWEEL, "")
+    working = VERSE_ORNAMENTS_RE.sub(" ", working)
+    working = STANDALONE_VERSE_NUMBER_RE.sub(" ", working)
+    working = QURANIC_ANNOTATION_RE.sub("", working)
+    working = working.translate(ARABIC_PUNCT_TRANSLATION)
+    working = collapse_whitespace(working)
+
+    meta = {
+        "original_char_count": len(original),
+        "sanitized_char_count": len(working),
+        "was_sanitized": working != original.strip(),
+    }
+    return working, meta
+
+
+def sanitize_quran_text_for_matching(text: str) -> str:
+    sanitized, _ = sanitize_quran_text_for_matching_with_meta(text)
+    return sanitized
 
 
 def normalize_arabic_light(text: str) -> str:
@@ -82,8 +102,13 @@ def normalize_arabic_light(text: str) -> str:
         "إ": "ا",
         "آ": "ا",
         "ٱ": "ا",
+        "ٲ": "ا",
+        "ٳ": "ا",
+        "ٵ": "ا",
+        "ء": "",
         "ؤ": "و",
         "ئ": "ي",
+        "ى": "ي",
     }
     for src, dst in replacements.items():
         text = text.replace(src, dst)
@@ -118,3 +143,5 @@ def tokenize(text: str) -> list[str]:
     if not text:
         return []
     return [t for t in text.split(" ") if t]
+
+

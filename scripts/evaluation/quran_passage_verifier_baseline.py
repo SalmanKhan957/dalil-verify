@@ -27,8 +27,9 @@ def load_quran_passage_dataset(csv_path: Path) -> list[dict[str, Any]]:
             row["start_ayah"] = int(row["start_ayah"])
             row["end_ayah"] = int(row["end_ayah"])
             row["translation_name"] = row.get("translation_name") or ""
-            row["text_normalized_light"] = row.get("text_normalized_light") or ""
-            row["text_normalized_aggressive"] = row.get("text_normalized_aggressive") or ""
+            text_display = row.get("text_display") or ""
+            row["text_normalized_light"] = normalize_arabic_light(text_display)
+            row["text_normalized_aggressive"] = normalize_arabic_aggressive(text_display)
             row["component_citations_json"] = row.get("component_citations_json") or "[]"
             row["component_source_ids_json"] = row.get("component_source_ids_json") or "[]"
 
