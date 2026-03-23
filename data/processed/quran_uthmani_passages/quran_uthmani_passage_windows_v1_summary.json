@@ -1,0 +1,8 @@
+{
+  "total_windows": 18024,
+  "counts_by_window_size": {
+    "2": 6122,
+    "3": 6008,
+    "4": 5894
+  }
+}

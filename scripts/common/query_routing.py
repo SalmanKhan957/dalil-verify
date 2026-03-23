@@ -16,13 +16,6 @@ ROUTE_AMBIGUOUS_BOTH = "AMBIGUOUS_BOTH"
 
 
 def detect_quran_query_route(raw_query: str) -> dict[str, Any]:
-    """
-    Deterministic routing based on raw user input before sanitation.
-
-    Key design choice:
-    - distinguish strong Uthmani representation signals from weak pasted transport noise
-    - verse ornaments / digits alone should not force UTHMANI_FIRST
-    """
     text = (raw_query or "").strip()
     if not text:
         return {
@@ -45,7 +38,8 @@ def detect_quran_query_route(raw_query: str) -> dict[str, Any]:
     special_marks = len(SPECIAL_MARK_RE.findall(text))
     if special_marks:
         indicators.append("special_marks")
-        strong_score += 4
+        # treat as weak transport/layout signal unless reinforced by real Uthmani markers
+        weak_score += 1
 
     wasla_alif_count = len(WASLA_ALIF_RE.findall(text))
     if wasla_alif_count:
@@ -55,7 +49,7 @@ def detect_quran_query_route(raw_query: str) -> dict[str, Any]:
     annotation_count = len(QURANIC_ANNOTATION_RE.findall(text))
     if annotation_count >= 2:
         indicators.append("quranic_annotations")
-        strong_score += 3
+        strong_score += 4
 
     arabic_indic_digits = len(ARABIC_INDIC_DIGIT_RE.findall(text))
     if arabic_indic_digits >= 2:
@@ -69,11 +63,12 @@ def detect_quran_query_route(raw_query: str) -> dict[str, Any]:
 
     total_score = strong_score + weak_score
 
-    if strong_score >= 5:
+    # Professional routing rule:
+    # - only genuine Uthmani markers (wasla / annotation signs) should force UTHMANI_FIRST
+    # - ornaments, digits, waqf glyphs, and tashkeel-like high signs alone should not drag simple text into ambiguous routing
+    if wasla_alif_count > 0 or annotation_count >= 2:
         route = ROUTE_UTHMANI_FIRST
     elif strong_score >= 3:
-        route = ROUTE_AMBIGUOUS_BOTH
-    elif weak_score >= 4:
         route = ROUTE_AMBIGUOUS_BOTH
     else:
         route = ROUTE_SIMPLE_FIRST

@@ -1,17 +1,32 @@
 ﻿# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .venv/
 venv/
+env/
+.python-version
 
-# Env
+# Test / coverage / type-check caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Env / local config
 .env
+.env.*
+!.env.example
+
+# Logs / runtime artifacts
+logs/*.jsonl
+*.log
 
 # Data
-data/raw/**
-!data/raw/.gitkeep
-data/processed/**
-!data/processed/.gitkeep
+data/processed/evaluation/**
+
 
 # OS / IDE
 .DS_Store
