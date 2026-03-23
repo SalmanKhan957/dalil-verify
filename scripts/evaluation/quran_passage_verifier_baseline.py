@@ -8,9 +8,9 @@ from typing import Any
 
 from scripts.evaluation.quran_verifier_baseline import (
     classify_query,
-    compute_candidate_score,
     determine_match_status,
 )
+from scripts.common.quran_scoring import compute_candidate_score
 from scripts.common.text_normalization import normalize_arabic_light, normalize_arabic_aggressive, tokenize
 
 

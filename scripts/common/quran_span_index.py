@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from scripts.common.text_normalization import normalize_arabic_aggressive, normalize_arabic_light, tokenize
-from scripts.evaluation.quran_verifier_baseline import compute_candidate_score
+from scripts.common.quran_scoring import compute_candidate_score
 
 
 GIANT_ANCHOR_SIZE = 5
