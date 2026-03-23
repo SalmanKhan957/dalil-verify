@@ -8,7 +8,6 @@ from typing import Any
 
 from rapidfuzz import fuzz
 
-from scripts.common.quran_ranking import sort_verifier_candidates
 from scripts.common.text_normalization import (
     normalize_arabic_light,
     normalize_arabic_aggressive,
@@ -194,7 +193,40 @@ def compute_best_matches(
         )
         candidates.append(candidate)
 
-    return sort_verifier_candidates(candidates, top_k=top_k)
+    candidates.sort(
+        key=lambda x: (
+            x["score"],
+            x["exact_normalized_light"],
+            x["exact_normalized_aggressive"],
+            x["contains_query_in_text_light"],
+            x["contains_query_in_text_aggressive"],
+            x["token_coverage"],
+        ),
+        reverse=True,
+    )
+    return candidates[:top_k]
+
+
+def is_exact_excerpt_match(query: str, best_candidate: dict[str, Any], *, min_query_tokens: int = 4) -> bool:
+    query_norm = normalize_arabic_light(query)
+    query_tokens = tokenize(query_norm)
+    if len(query_norm) < 6 or len(query_tokens) < min_query_tokens:
+        return False
+
+    contains_light = float(best_candidate.get("contains_query_in_text_light") or 0.0)
+    contains_aggressive = float(best_candidate.get("contains_query_in_text_aggressive") or 0.0)
+    if contains_light != 100.0 and contains_aggressive != 100.0:
+        return False
+
+    # Excerpt-exact is for a contiguous normalized substring inside the canonical text.
+    # Keep this strict enough to avoid promoting fuzzy token-set matches.
+    coverage = float(best_candidate.get("token_coverage") or 0.0)
+    partial_raw = float(best_candidate.get("partial_raw") or 0.0)
+    if coverage < 95.0:
+        return False
+    if partial_raw < 100.0:
+        return False
+    return True
 
 
 def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
@@ -217,19 +249,11 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
     ):
         return "Exact match found"
 
+    if is_exact_excerpt_match(query, best_candidate):
+        return "Exact match found"
+
     if best_candidate["exact_normalized_aggressive"] == 100.0:
         return "Close / partial match found"
-
-    if (
-        (
-            best_candidate["contains_query_in_text_light"] == 100.0
-            or best_candidate["contains_query_in_text_aggressive"] == 100.0
-        )
-        and best_candidate["token_coverage"] >= 90.0
-        and best_candidate["length_ratio"] >= 0.9
-        and len(query_tokens) >= 4
-    ):
-        return "Exact match found"
 
     if (
         (
