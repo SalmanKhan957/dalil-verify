@@ -8,9 +8,10 @@ from typing import Any
 
 from scripts.evaluation.quran_verifier_baseline import (
     classify_query,
+    compute_candidate_score,
     determine_match_status,
 )
-from scripts.common.quran_scoring import compute_candidate_score
+from scripts.common.quran_ranking import sort_verifier_candidates
 from scripts.common.text_normalization import normalize_arabic_light, normalize_arabic_aggressive, tokenize
 
 
@@ -66,18 +67,7 @@ def compute_best_passage_matches(
         )
         candidates.append(candidate)
 
-    candidates.sort(
-        key=lambda x: (
-            x["score"],
-            x["exact_normalized_light"],
-            x["exact_normalized_aggressive"],
-            x["contains_query_in_text_light"],
-            x["contains_query_in_text_aggressive"],
-            x["token_coverage"],
-        ),
-        reverse=True,
-    )
-    return candidates[:top_k]
+    return sort_verifier_candidates(candidates, top_k=top_k)
 
 
 def build_passage_result(query: str, candidates: list[dict[str, Any]]) -> dict[str, Any]:

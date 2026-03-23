@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import time
@@ -25,6 +25,8 @@ from scripts.common.query_routing import (
     detect_quran_query_route,
 )
 from scripts.common.retrieval_shortlist import QuranShortlistIndex
+from scripts.common.quran_ranking import sort_verifier_candidates
+from scripts.common.quran_status import get_status_rank
 from scripts.common.text_normalization import (
     normalize_arabic_aggressive,
     normalize_arabic_light,
@@ -199,16 +201,7 @@ def _dedupe_candidates(candidates: list[dict], limit: int = 5) -> list[dict]:
 
 
 def _sort_candidates(candidates: list[dict], limit: int = 5) -> list[dict]:
-    ordered = sorted(
-        candidates,
-        key=lambda x: (
-            x.get("score", 0.0),
-            x.get("exact_normalized_light", 0.0),
-            x.get("contains_query_in_text_light", 0.0),
-            x.get("token_coverage", 0.0),
-        ),
-        reverse=True,
-    )
+    ordered = sort_verifier_candidates(candidates)
     return _dedupe_candidates(ordered, limit=limit)
 
 
@@ -466,12 +459,7 @@ def compact_result_for_api(
 
 
 def _status_rank(status: str) -> int:
-    return {
-        "Exact match found": 3,
-        "Close / partial match found": 2,
-        "No reliable match found in current corpus": 1,
-        "Cannot assess": 0,
-    }.get(status or "", 0)
+    return get_status_rank(status)
 
 
 def _confidence_rank(confidence: str) -> int:

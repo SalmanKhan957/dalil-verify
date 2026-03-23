@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.common.text_normalization import normalize_arabic_light, tokenize
+from scripts.common.quran_status import get_result_status_rank
 from scripts.evaluation.quran_verifier_baseline import (
     build_result as build_ayah_result,
     compute_best_matches as compute_ayah_matches,
@@ -18,23 +19,11 @@ from scripts.evaluation.quran_passage_verifier_baseline import (
 )
 
 
-STATUS_RANK = {
-    "Cannot assess": 0,
-    "No reliable match found in current corpus": 1,
-    "Close / partial match found": 2,
-    "Exact match found": 3,
-}
-
-
 def get_best_score(result: dict[str, Any]) -> float:
     best = result.get("best_match")
     if not best:
         return 0.0
     return float(best.get("score", 0.0))
-
-
-def get_status_rank(result: dict[str, Any]) -> int:
-    return STATUS_RANK.get(result.get("match_status", ""), 0)
 
 
 def get_query_token_count(query: str) -> int:
@@ -68,8 +57,8 @@ def choose_preferred_lane(
             "Input is too short, too vague, or unsuitable for reliable verification.",
         )
 
-    ayah_rank = get_status_rank(ayah_result)
-    passage_rank = get_status_rank(passage_result)
+    ayah_rank = get_result_status_rank(ayah_result)
+    passage_rank = get_result_status_rank(passage_result)
 
     ayah_score = get_best_score(ayah_result)
     passage_score = get_best_score(passage_result)
@@ -182,8 +171,8 @@ def build_fusion_output(
         "ayah_result": ayah_result,
         "passage_result": passage_result,
         "analytics": {
-            "ayah_status_rank": get_status_rank(ayah_result),
-            "passage_status_rank": get_status_rank(passage_result),
+            "ayah_status_rank": get_result_status_rank(ayah_result),
+            "passage_status_rank": get_result_status_rank(passage_result),
             "ayah_score": get_best_score(ayah_result),
             "passage_score": get_best_score(passage_result),
             "score_delta_passage_minus_ayah": round(get_best_score(passage_result) - get_best_score(ayah_result), 2),
