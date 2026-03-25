@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import time
@@ -18,6 +18,7 @@ from apps.api.quran_long_span_fastpath import (
     is_long_span_fastpath_enabled,
     try_long_span_exact_match,
 )
+from scripts.common.quran_status import get_status_rank
 from scripts.common.query_routing import (
     ROUTE_AMBIGUOUS_BOTH,
     ROUTE_SIMPLE_FIRST,
@@ -473,15 +474,6 @@ def compact_result_for_api(
     return response
 
 
-def _status_rank(status: str) -> int:
-    return {
-        "Exact match found": 3,
-        "Close / partial match found": 2,
-        "No reliable match found in current corpus": 1,
-        "Cannot assess": 0,
-    }.get(status or "", 0)
-
-
 def _confidence_rank(confidence: str) -> int:
     return {"high": 3, "medium": 2, "low": 1}.get(confidence or "", 0)
 
@@ -500,7 +492,7 @@ def _response_strength(public_response: dict) -> tuple[int, int, float, float]:
     score = float(best.get("score") or 0.0)
     coverage = float((best.get("scoring_breakdown") or {}).get("token_coverage") or 0.0)
     return (
-        _status_rank(public_response.get("match_status", "")),
+        get_status_rank(public_response.get("match_status", "")),
         _confidence_rank(public_response.get("confidence", "")),
         score,
         coverage,
@@ -588,40 +580,71 @@ def _evaluate_runtime(
         passage_candidates = giant_fastpath_candidates
         dynamic_passage_meta = giant_fastpath_meta
     elif exact_ayah_row is None and giant_query and runtime.surah_span_index is not None:
+        # Giant query, but do not skip ayah lane blindly.
+        # First give ayah scoring one bounded rescue pass for clipped single-ayah exact excerpts
+        # such as long ayah 2:282 pasted without the full ayah boundaries.
         stage_start_ms = _now_ms()
-        giant_partial_candidates, giant_partial_meta = runtime.surah_span_index.find_giant_partial_passage_candidates(
+        ayah_limit = LONG_QUERY_AYAH_SHORTLIST_LIMIT if long_query else 250
+        ayah_shortlist_rows, ayah_shortlist_meta = runtime.ayah_shortlist_index.shortlist_rows(
             matching_query,
-            likely_surahs=None,
-            min_window_size=2,
-            top_k=5,
+            limit=ayah_limit,
         )
-        stage_timings["giant_partial_ms"] = _elapsed_ms(stage_start_ms)
+        stage_timings["ayah_shortlist_ms"] = _elapsed_ms(stage_start_ms)
 
-        ayah_shortlist_rows = []
-        ayah_shortlist_meta = {
-            "strategy": "skipped_due_to_giant_partial_pipeline",
-            "candidate_count": 0,
-            "reason": giant_partial_meta.get("reason", "giant_partial_pipeline"),
-        }
-        ayah_candidates = []
-        stage_timings["ayah_shortlist_ms"] = 0.0
-        stage_timings["ayah_scoring_ms"] = 0.0
-        passage_shortlist_rows = []
-        passage_shortlist_meta = {
-            "strategy": f"{runtime.label}_giant_partial_anchor",
-            "candidate_count": 0,
-            "lookup_source": giant_partial_meta.get("lookup_source"),
-            "surah_scope": giant_partial_meta.get("surah_scope"),
-        }
-        passage_candidates = giant_partial_candidates
-        dynamic_passage_meta = giant_partial_meta
-        if not giant_partial_candidates:
-            dynamic_passage_meta = {
-                **giant_partial_meta,
-                "engine": giant_partial_meta.get("engine") or "giant_partial_anchor",
-                "reason": giant_partial_meta.get("reason", "giant_partial_no_match_fast_fail"),
+        stage_start_ms = _now_ms()
+        ayah_candidates = compute_ayah_matches(
+            matching_query,
+            ayah_shortlist_rows,
+            top_k=LONG_QUERY_AYAH_TOP_K if long_query else 5,
+        )
+        stage_timings["ayah_scoring_ms"] = _elapsed_ms(stage_start_ms)
+
+        exact_ayah_candidate_hit = _best_candidate_is_exact_match(matching_query, ayah_candidates)
+        likely_surahs = _likely_surahs_from_ayah_candidates(ayah_candidates, limit=3) if ayah_candidates else []
+
+        if exact_ayah_candidate_hit:
+            passage_shortlist_rows = []
+            passage_shortlist_meta = {
+                "strategy": f"{runtime.label}_skipped_after_exact_ayah_giant_rescue",
                 "candidate_count": 0,
+                "reason": "skip_passage_after_exact_ayah_giant_rescue",
+                "source": "ayah_scoring",
             }
+            passage_candidates = []
+            dynamic_passage_meta = {
+                "engine": "skipped_after_exact_ayah",
+                "candidate_count": 0,
+                "reason": "skip_passage_after_exact_ayah_giant_rescue",
+                "source": "ayah_scoring",
+            }
+            stage_timings["giant_partial_ms"] = 0.0
+        else:
+            stage_start_ms = _now_ms()
+            giant_partial_candidates, giant_partial_meta = runtime.surah_span_index.find_giant_partial_passage_candidates(
+                matching_query,
+                likely_surahs=likely_surahs or None,
+                min_window_size=2,
+                top_k=5,
+            )
+            stage_timings["giant_partial_ms"] = _elapsed_ms(stage_start_ms)
+
+            passage_shortlist_rows = []
+            passage_shortlist_meta = {
+                "strategy": f"{runtime.label}_giant_partial_anchor",
+                "candidate_count": 0,
+                "lookup_source": giant_partial_meta.get("lookup_source"),
+                "surah_scope": giant_partial_meta.get("surah_scope"),
+                "ayah_rescue_attempted": True,
+            }
+            passage_candidates = giant_partial_candidates
+            dynamic_passage_meta = giant_partial_meta
+            if not giant_partial_candidates:
+                dynamic_passage_meta = {
+                    **giant_partial_meta,
+                    "engine": giant_partial_meta.get("engine") or "giant_partial_anchor",
+                    "reason": giant_partial_meta.get("reason", "giant_partial_no_match_fast_fail"),
+                    "candidate_count": 0,
+                }
     else:
         stage_start_ms = _now_ms()
         if exact_ayah_row is not None:

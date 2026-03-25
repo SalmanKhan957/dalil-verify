@@ -6,8 +6,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+from scripts.common.quran_ranking import sort_verifier_candidates
+from scripts.common.quran_scoring import compute_candidate_score
 from scripts.common.text_normalization import normalize_arabic_aggressive, normalize_arabic_light, tokenize
-from scripts.evaluation.quran_verifier_baseline import compute_candidate_score
 
 
 GIANT_ANCHOR_SIZE = 5
@@ -1268,17 +1269,7 @@ class QuranSurahSpanIndex:
 
     @staticmethod
     def _rank_candidates(candidates: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
-        candidates.sort(
-            key=lambda x: (
-                x.get("score", 0.0),
-                x.get("exact_normalized_light", 0.0),
-                x.get("contains_query_in_text_light", 0.0),
-                x.get("token_coverage", 0.0),
-                x.get("token_subsequence_coverage", 0.0),
-            ),
-            reverse=True,
-        )
-        return candidates[:top_k]
+        return sort_verifier_candidates(candidates, top_k=top_k)
 
     @staticmethod
     def _map_char_span_to_ayahs(

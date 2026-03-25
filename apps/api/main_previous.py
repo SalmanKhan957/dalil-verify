@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from apps.api.logging_utils import append_jsonl_log
 from apps.api.schemas import VerifyQuranRequest, VerifyQuranResponse
 from apps.api.translation_support import attach_english_translation, load_english_translation_map
-from scripts.common.quran_span_index import QuranSurahSpanIndex
+from scripts.common.quran_span_index import GIANT_MIN_TOKEN_COUNT, QuranSurahSpanIndex
 
 from apps.api.quran_long_span_fastpath import (
     build_long_span_debug_block,
@@ -270,6 +270,14 @@ def _is_long_query(query: str) -> bool:
     return len(tokenize(normalize_arabic_light(query))) >= LONG_QUERY_TOKEN_THRESHOLD
 
 
+def _query_token_count(query: str) -> int:
+    return len(tokenize(normalize_arabic_light(query)))
+
+
+def _is_giant_query(query: str) -> bool:
+    return _query_token_count(query) >= GIANT_MIN_TOKEN_COUNT
+
+
 def _likely_surahs_from_ayah_candidates(candidates: list[dict], limit: int = 3) -> list[int]:
     scores: dict[int, float] = {}
     for candidate in candidates[:12]:
@@ -336,29 +344,20 @@ def _merge_passage_candidates(
     *,
     static_candidates: list[dict],
     ayah_candidates: list[dict],
-    likely_surahs: list[int] | None = None,
 ) -> tuple[list[dict], dict]:
     if runtime.surah_span_index is None or not _is_long_query(query):
         return _sort_candidates(static_candidates, limit=5), {"engine": "static_window", "candidate_count": len(static_candidates[:5])}
 
-    dynamic_candidates, dynamic_meta = runtime.surah_span_index.find_long_passage_candidates_pipeline(
+    dynamic_candidates, dynamic_meta = runtime.surah_span_index.find_long_passage_candidates(
         query,
         ayah_seed_candidates=ayah_candidates,
         passage_seed_candidates=static_candidates,
-        likely_surahs=likely_surahs,
         min_window_size=2,
         max_window_size=40,
         top_k=5,
     )
     if not dynamic_candidates:
-        return _sort_candidates(static_candidates, limit=5), {
-            "engine": "static_window",
-            "candidate_count": len(static_candidates[:5]),
-            **dynamic_meta,
-        }
-
-    if _is_terminal_exact_passage_engine(dynamic_meta.get("engine")) or _best_candidate_is_exact_match(query, dynamic_candidates, min_window_size=2):
-        return _sort_candidates(dynamic_candidates, limit=5), dynamic_meta
+        return _sort_candidates(static_candidates, limit=5), {"engine": "static_window", "candidate_count": len(static_candidates[:5])}
 
     merged = _sort_candidates(dynamic_candidates + static_candidates, limit=5)
     engine = dynamic_meta.get("engine") or "static_window"
@@ -555,6 +554,7 @@ def _evaluate_runtime(
         raise HTTPException(status_code=500, detail=f"{runtime.label} runtime indexes are not loaded.")
 
     long_query = _is_long_query(matching_query)
+    giant_query = _is_giant_query(matching_query)
 
     stage_start_ms = _now_ms()
     exact_ayah_row, exact_ayah_meta = _resolve_exact_ayah_row(matching_query, runtime)
@@ -587,6 +587,41 @@ def _evaluate_runtime(
         }
         passage_candidates = giant_fastpath_candidates
         dynamic_passage_meta = giant_fastpath_meta
+    elif exact_ayah_row is None and giant_query and runtime.surah_span_index is not None:
+        stage_start_ms = _now_ms()
+        giant_partial_candidates, giant_partial_meta = runtime.surah_span_index.find_giant_partial_passage_candidates(
+            matching_query,
+            likely_surahs=None,
+            min_window_size=2,
+            top_k=5,
+        )
+        stage_timings["giant_partial_ms"] = _elapsed_ms(stage_start_ms)
+
+        ayah_shortlist_rows = []
+        ayah_shortlist_meta = {
+            "strategy": "skipped_due_to_giant_partial_pipeline",
+            "candidate_count": 0,
+            "reason": giant_partial_meta.get("reason", "giant_partial_pipeline"),
+        }
+        ayah_candidates = []
+        stage_timings["ayah_shortlist_ms"] = 0.0
+        stage_timings["ayah_scoring_ms"] = 0.0
+        passage_shortlist_rows = []
+        passage_shortlist_meta = {
+            "strategy": f"{runtime.label}_giant_partial_anchor",
+            "candidate_count": 0,
+            "lookup_source": giant_partial_meta.get("lookup_source"),
+            "surah_scope": giant_partial_meta.get("surah_scope"),
+        }
+        passage_candidates = giant_partial_candidates
+        dynamic_passage_meta = giant_partial_meta
+        if not giant_partial_candidates:
+            dynamic_passage_meta = {
+                **giant_partial_meta,
+                "engine": giant_partial_meta.get("engine") or "giant_partial_anchor",
+                "reason": giant_partial_meta.get("reason", "giant_partial_no_match_fast_fail"),
+                "candidate_count": 0,
+            }
     else:
         stage_start_ms = _now_ms()
         if exact_ayah_row is not None:
@@ -655,20 +690,75 @@ def _evaluate_runtime(
                 }
             elif long_query and runtime.surah_span_index is not None:
                 stage_start_ms = _now_ms()
-                passage_candidates, dynamic_passage_meta = _merge_passage_candidates(
-                    runtime,
+                exact_long_candidates, exact_long_meta = runtime.surah_span_index.find_exact_span_lookup_candidates(
                     matching_query,
-                    static_candidates=static_passage_candidates,
-                    ayah_candidates=ayah_candidates,
-                    likely_surahs=likely_surahs,
+                    min_window_size=2,
+                    top_k=5,
+                    surah_scope=likely_surahs or None,
                 )
                 stage_timings["dynamic_passage_ms"] = stage_timings.get("dynamic_passage_ms", 0.0) + _elapsed_ms(stage_start_ms)
-                if dynamic_passage_meta.get("precheck_engine"):
+
+                if exact_long_candidates:
+                    passage_candidates = exact_long_candidates
+                    dynamic_passage_meta = exact_long_meta
                     passage_shortlist_meta = {
                         **passage_shortlist_meta,
-                        "exact_precheck_engine": dynamic_passage_meta.get("precheck_engine"),
-                        "exact_precheck_lookup_source": dynamic_passage_meta.get("precheck_lookup_source"),
+                        "exact_precheck_engine": exact_long_meta.get("engine"),
+                        "exact_precheck_lookup_source": exact_long_meta.get("lookup_source"),
                     }
+                else:
+                    stage_start_ms = _now_ms()
+                    medium_partial_candidates, medium_partial_meta = runtime.surah_span_index.find_medium_partial_passage_candidates(
+                        matching_query,
+                        ayah_seed_candidates=ayah_candidates,
+                        passage_seed_candidates=static_passage_candidates,
+                        likely_surahs=likely_surahs,
+                        min_window_size=2,
+                        max_window_size=8,
+                        top_k=5,
+                    )
+                    stage_timings["dynamic_passage_ms"] = stage_timings.get("dynamic_passage_ms", 0.0) + _elapsed_ms(stage_start_ms)
+
+                    if medium_partial_candidates:
+                        passage_candidates = _sort_candidates(static_passage_candidates + medium_partial_candidates, limit=5)
+                        dynamic_passage_meta = medium_partial_meta
+                        passage_shortlist_meta = {
+                            **passage_shortlist_meta,
+                            "exact_precheck_engine": exact_long_meta.get("engine"),
+                            "exact_precheck_lookup_source": exact_long_meta.get("lookup_source"),
+                            "medium_partial_engine": medium_partial_meta.get("engine"),
+                            "medium_partial_lookup_source": medium_partial_meta.get("lookup_source"),
+                        }
+                    else:
+                        stage_start_ms = _now_ms()
+                        passage_candidates, dynamic_passage_meta = _merge_passage_candidates(
+                            runtime,
+                            matching_query,
+                            static_candidates=static_passage_candidates,
+                            ayah_candidates=ayah_candidates,
+                        )
+                        stage_timings["dynamic_passage_ms"] = stage_timings.get("dynamic_passage_ms", 0.0) + _elapsed_ms(stage_start_ms)
+
+                        if (
+                            runtime.surah_span_index is not None
+                            and likely_surahs
+                            and not _is_terminal_exact_passage_engine(dynamic_passage_meta.get("engine"))
+                            and not _best_candidate_is_exact_match(matching_query, passage_candidates, min_window_size=2)
+                        ):
+                            stage_start_ms = _now_ms()
+                            extra_dynamic, extra_meta = runtime.surah_span_index.find_long_passage_candidates(
+                                matching_query,
+                                ayah_seed_candidates=ayah_candidates,
+                                passage_seed_candidates=static_passage_candidates,
+                                likely_surahs=likely_surahs,
+                                min_window_size=2,
+                                max_window_size=40,
+                                top_k=5,
+                            )
+                            stage_timings["dynamic_passage_ms"] = stage_timings.get("dynamic_passage_ms", 0.0) + _elapsed_ms(stage_start_ms)
+                            if extra_dynamic:
+                                passage_candidates = _sort_candidates(passage_candidates + extra_dynamic, limit=5)
+                                dynamic_passage_meta = extra_meta
             else:
                 passage_candidates = _sort_candidates(static_passage_candidates, limit=5)
                 dynamic_passage_meta = {

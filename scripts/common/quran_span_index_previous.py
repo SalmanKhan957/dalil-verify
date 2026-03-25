@@ -7,11 +7,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from scripts.common.text_normalization import normalize_arabic_aggressive, normalize_arabic_light, tokenize
-from scripts.evaluation.quran_verifier_baseline import compute_candidate_score, determine_match_status
+from scripts.evaluation.quran_verifier_baseline import compute_candidate_score
 
 
 GIANT_ANCHOR_SIZE = 5
 GIANT_MIN_TOKEN_COUNT = 60
+GIANT_PARTIAL_MIN_COVERAGE = 0.55
+GIANT_PARTIAL_MAX_SURAHS = 2
+GIANT_PARTIAL_MAX_EXPANSION_AYAHS = 2
+MEDIUM_PARTIAL_MAX_WINDOW_SIZE = 8
+MEDIUM_PARTIAL_MIN_SCORE = 35.0
+MEDIUM_PARTIAL_MIN_COVERAGE = 65.0
 
 
 @dataclass
@@ -210,6 +216,115 @@ class QuranSurahSpanIndex:
             "lookup_source": "precomputed_exact_span_map",
         }
 
+    def find_medium_partial_passage_candidates(
+        self,
+        query: str,
+        *,
+        ayah_seed_candidates: list[dict[str, Any]] | None = None,
+        passage_seed_candidates: list[dict[str, Any]] | None = None,
+        likely_surahs: list[int] | None = None,
+        min_window_size: int = 2,
+        max_window_size: int = MEDIUM_PARTIAL_MAX_WINDOW_SIZE,
+        top_k: int = 5,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        seed_ranges = self._collect_seed_ranges(
+            ayah_seed_candidates=ayah_seed_candidates or [],
+            passage_seed_candidates=passage_seed_candidates or [],
+        )
+        seed_surahs = sorted({surah_no for surah_no, _, _ in seed_ranges})
+        surah_scope = sorted({*([int(s) for s in (likely_surahs or [])] or []), *seed_surahs})
+        if not surah_scope and not seed_ranges:
+            return [], {"engine": "none", "candidate_count": 0, "reason": "no_seed_scope"}
+
+        candidate_pool: list[dict[str, Any]] = []
+        lookup_source = "none"
+        contained = self._find_contained_span_candidates(
+            query,
+            min_window_size=1,
+            top_k=max(top_k * 4, 12),
+            surah_scope=surah_scope or None,
+        )
+        if contained:
+            lookup_source = "contained_partial_span"
+            contained_seed_ranges: list[tuple[int, int, int]] = []
+            for candidate in contained:
+                row = candidate.get("row") or {}
+                surah_no = int(row.get("surah_no") or 0)
+                start_ayah = int(row.get("start_ayah") or row.get("ayah_no") or 0)
+                end_ayah = int(row.get("end_ayah") or row.get("ayah_no") or 0)
+                if surah_no and start_ayah and end_ayah:
+                    contained_seed_ranges.append((surah_no, start_ayah, end_ayah))
+                if int(row.get("window_size") or 1) >= min_window_size:
+                    promoted = dict(candidate)
+                    promoted["retrieval_engine"] = "surah_span_partial"
+                    promoted["span_match_type"] = promoted.get("span_match_type") or "contained_partial"
+                    candidate_pool.append(promoted)
+
+            if contained_seed_ranges:
+                expanded_from_contained = self._expand_around_seed_ranges(
+                    query,
+                    seed_ranges=contained_seed_ranges,
+                    min_window_size=min_window_size,
+                    max_window_size=max_window_size,
+                    top_k=max(top_k * 4, 12),
+                )
+                for candidate in expanded_from_contained:
+                    candidate["retrieval_engine"] = "surah_span_partial"
+                    candidate["span_match_type"] = "contained_partial_expand"
+                candidate_pool.extend(expanded_from_contained)
+
+        if not candidate_pool and seed_ranges:
+            lookup_source = "bounded_seed_expand"
+            bounded_seed_candidates = self._expand_around_seed_ranges(
+                query,
+                seed_ranges=seed_ranges,
+                min_window_size=min_window_size,
+                max_window_size=max_window_size,
+                top_k=max(top_k * 4, 12),
+            )
+            for candidate in bounded_seed_candidates:
+                candidate["retrieval_engine"] = "surah_span_partial"
+                candidate["span_match_type"] = "bounded_seed_partial"
+            candidate_pool.extend(bounded_seed_candidates)
+
+        filtered: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for candidate in candidate_pool:
+            row = candidate.get("row") or {}
+            if int(row.get("window_size") or 1) < min_window_size:
+                continue
+            score = float(candidate.get("score") or 0.0)
+            coverage = float(candidate.get("token_coverage") or 0.0)
+            contains_light = float(candidate.get("contains_query_in_text_light") or 0.0)
+            if score < MEDIUM_PARTIAL_MIN_SCORE and coverage < MEDIUM_PARTIAL_MIN_COVERAGE and contains_light < 100.0:
+                continue
+            key = row.get("canonical_source_id")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            filtered.append(candidate)
+
+        ranked = self._rank_candidates(filtered, top_k=top_k)
+        if not ranked:
+            return [], {
+                "engine": "none",
+                "candidate_count": 0,
+                "reason": "no_medium_partial_match",
+                "surah_scope": surah_scope,
+                "seed_surahs": seed_surahs,
+                "lookup_source": lookup_source,
+                "max_window_size": max_window_size,
+            }
+
+        return ranked, {
+            "engine": "surah_span_partial",
+            "candidate_count": len(ranked),
+            "surah_scope": sorted({int(c["row"]["surah_no"]) for c in ranked}),
+            "seed_surahs": seed_surahs,
+            "lookup_source": lookup_source,
+            "max_window_size": max_window_size,
+        }
+
 
     def find_giant_exact_passage_candidates(
         self,
@@ -288,128 +403,6 @@ class QuranSurahSpanIndex:
             "surah_scope": requested_scope or sorted(self.surah_index),
             "anchor_size": anchor_size,
             "query_token_count": len(light_query_tokens),
-        }
-
-    @staticmethod
-    def _candidate_is_exact_match(
-        query: str,
-        candidate: dict[str, Any] | None,
-        *,
-        min_window_size: int = 1,
-    ) -> bool:
-        if not candidate:
-            return False
-        row = candidate.get("row") or {}
-        if int(row.get("window_size") or 1) < min_window_size:
-            return False
-        try:
-            return determine_match_status(query, candidate) == "Exact match found"
-        except Exception:
-            return False
-
-    @classmethod
-    def _best_candidate_is_exact_match(
-        cls,
-        query: str,
-        candidates: list[dict[str, Any]] | None,
-        *,
-        min_window_size: int = 1,
-    ) -> bool:
-        return cls._candidate_is_exact_match(
-            query,
-            candidates[0] if candidates else None,
-            min_window_size=min_window_size,
-        )
-
-    @staticmethod
-    def _is_terminal_exact_passage_engine(engine: str | None) -> bool:
-        return engine in {"static_exact_window", "surah_span_exact", "giant_exact_anchor"}
-
-    def find_long_passage_candidates_pipeline(
-        self,
-        query: str,
-        *,
-        ayah_seed_candidates: list[dict[str, Any]] | None = None,
-        passage_seed_candidates: list[dict[str, Any]] | None = None,
-        likely_surahs: list[int] | None = None,
-        min_window_size: int = 4,
-        max_window_size: int = 12,
-        top_k: int = 5,
-    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        scope = likely_surahs or None
-
-        exact_candidates, exact_meta = self.find_exact_span_lookup_candidates(
-            query,
-            min_window_size=min_window_size,
-            top_k=top_k,
-            surah_scope=scope,
-        )
-        if exact_candidates:
-            return exact_candidates[:top_k], {
-                **exact_meta,
-                "pipeline_stage": "exact_precheck",
-                "retry_applied": False,
-            }
-
-        initial_candidates, initial_meta = self.find_long_passage_candidates(
-            query,
-            ayah_seed_candidates=ayah_seed_candidates,
-            passage_seed_candidates=passage_seed_candidates,
-            min_window_size=min_window_size,
-            max_window_size=max_window_size,
-            top_k=top_k,
-        )
-
-        if not likely_surahs:
-            return initial_candidates[:top_k], {
-                **initial_meta,
-                "pipeline_stage": "initial_dynamic",
-                "retry_applied": False,
-                "precheck_engine": exact_meta.get("engine"),
-                "precheck_lookup_source": exact_meta.get("lookup_source"),
-            }
-
-        if (
-            not initial_candidates
-            or self._is_terminal_exact_passage_engine(initial_meta.get("engine"))
-            or self._best_candidate_is_exact_match(query, initial_candidates, min_window_size=min_window_size)
-        ):
-            return initial_candidates[:top_k], {
-                **initial_meta,
-                "pipeline_stage": "initial_dynamic",
-                "retry_applied": False,
-                "precheck_engine": exact_meta.get("engine"),
-                "precheck_lookup_source": exact_meta.get("lookup_source"),
-            }
-
-        retry_candidates, retry_meta = self.find_long_passage_candidates(
-            query,
-            ayah_seed_candidates=ayah_seed_candidates,
-            passage_seed_candidates=passage_seed_candidates,
-            likely_surahs=likely_surahs,
-            min_window_size=min_window_size,
-            max_window_size=max_window_size,
-            top_k=top_k,
-        )
-        if not retry_candidates:
-            return initial_candidates[:top_k], {
-                **initial_meta,
-                "pipeline_stage": "initial_dynamic",
-                "retry_applied": True,
-                "retry_candidate_count": 0,
-                "precheck_engine": exact_meta.get("engine"),
-                "precheck_lookup_source": exact_meta.get("lookup_source"),
-            }
-
-        merged = self._rank_candidates(initial_candidates + retry_candidates, top_k=top_k)
-        return merged[:top_k], {
-            **retry_meta,
-            "pipeline_stage": "retry_merge",
-            "retry_applied": True,
-            "retry_candidate_count": len(retry_candidates[:top_k]),
-            "initial_engine": initial_meta.get("engine"),
-            "precheck_engine": exact_meta.get("engine"),
-            "precheck_lookup_source": exact_meta.get("lookup_source"),
         }
 
     def find_long_passage_candidates(
@@ -588,6 +581,356 @@ class QuranSurahSpanIndex:
         if anchor_start_token_idx is not None:
             candidate["anchor_start_token_idx"] = anchor_start_token_idx
         return candidate
+
+    def find_giant_partial_passage_candidates(
+        self,
+        query: str,
+        *,
+        likely_surahs: list[int] | None = None,
+        min_window_size: int = 2,
+        top_k: int = 5,
+        anchor_size: int = GIANT_ANCHOR_SIZE,
+        min_token_count: int = GIANT_MIN_TOKEN_COUNT,
+        min_coverage: float = GIANT_PARTIAL_MIN_COVERAGE,
+        max_surahs: int = GIANT_PARTIAL_MAX_SURAHS,
+        max_expansion_ayahs: int = GIANT_PARTIAL_MAX_EXPANSION_AYAHS,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        light_query = normalize_arabic_light(query)
+        aggressive_query = normalize_arabic_aggressive(query)
+        light_query_tokens = tokenize(light_query)
+        aggressive_query_tokens = tokenize(aggressive_query)
+        if len(light_query_tokens) < max(min_token_count, anchor_size * 2):
+            return [], {
+                "engine": "none",
+                "candidate_count": 0,
+                "reason": "query_below_giant_threshold",
+                "query_token_count": len(light_query_tokens),
+                "anchor_size": anchor_size,
+            }
+
+        requested_scope = [int(s) for s in (likely_surahs or []) if int(s) in self.surah_index]
+        inferred_scope = requested_scope or self._infer_giant_surah_scope(
+            light_query_tokens=light_query_tokens,
+            aggressive_query_tokens=aggressive_query_tokens,
+            anchor_size=anchor_size,
+            max_surahs=max_surahs,
+        )
+        scope_order = inferred_scope[:max_surahs]
+        if not scope_order:
+            return [], {
+                "engine": "giant_partial_anchor",
+                "candidate_count": 0,
+                "reason": "no_anchor_surah_scope",
+                "query_token_count": len(light_query_tokens),
+                "anchor_size": anchor_size,
+            }
+
+        anchor_candidates = self._find_giant_anchor_span_candidates_for_scope(
+            query=query,
+            light_query=light_query,
+            aggressive_query=aggressive_query,
+            light_query_tokens=light_query_tokens,
+            aggressive_query_tokens=aggressive_query_tokens,
+            scope_order=scope_order,
+            min_window_size=min_window_size,
+            max_expansion_ayahs=max_expansion_ayahs,
+            top_k=top_k,
+            anchor_size=anchor_size,
+        )
+        subsequence_candidates = self._find_giant_partial_candidates_for_scope(
+            query=query,
+            light_query=light_query,
+            aggressive_query=aggressive_query,
+            light_query_tokens=light_query_tokens,
+            aggressive_query_tokens=aggressive_query_tokens,
+            scope_order=scope_order,
+            min_window_size=min_window_size,
+            min_coverage=min_coverage,
+            max_expansion_ayahs=max_expansion_ayahs,
+            top_k=top_k,
+        )
+        candidates = self._rank_candidates(anchor_candidates + subsequence_candidates, top_k=top_k)
+        return candidates[:top_k], {
+            "engine": "giant_partial_anchor",
+            "candidate_count": len(candidates[:top_k]),
+            "surah_scope": scope_order,
+            "lookup_source": "anchor_surah_token_subsequence",
+            "anchor_size": anchor_size,
+            "query_token_count": len(light_query_tokens),
+            "min_coverage": round(min_coverage * 100, 2),
+            "reason": "ok" if candidates else "giant_partial_no_match",
+        }
+
+    def _infer_giant_surah_scope(
+        self,
+        *,
+        light_query_tokens: list[str],
+        aggressive_query_tokens: list[str],
+        anchor_size: int,
+        max_surahs: int,
+    ) -> list[int]:
+        def sample_anchors(tokens: list[str]) -> list[tuple[str, ...]]:
+            if len(tokens) < anchor_size:
+                return []
+            offsets = [0]
+            mid = max((len(tokens) // 2) - (anchor_size // 2), 0)
+            tail = max(len(tokens) - anchor_size, 0)
+            quarter = max((len(tokens) // 4) - (anchor_size // 2), 0)
+            three_quarter = max(((3 * len(tokens)) // 4) - (anchor_size // 2), 0)
+            for off in (quarter, mid, three_quarter, tail):
+                if off not in offsets:
+                    offsets.append(off)
+            anchors: list[tuple[str, ...]] = []
+            for off in offsets:
+                anchor = tuple(tokens[off : off + anchor_size])
+                if len(anchor) == anchor_size and anchor not in anchors:
+                    anchors.append(anchor)
+            return anchors
+
+        light_anchors = sample_anchors(light_query_tokens)
+        aggressive_anchors = sample_anchors(aggressive_query_tokens)
+        if not light_anchors and not aggressive_anchors:
+            return []
+
+        surah_scores: dict[int, float] = defaultdict(float)
+        for surah_no, index in self.surah_index.items():
+            for anchor in light_anchors:
+                positions = index.light_ngram_positions.get(anchor, [])
+                if positions:
+                    surah_scores[surah_no] += 3.0 + min(len(positions), 4) * 0.25
+            for anchor in aggressive_anchors:
+                positions = index.aggressive_ngram_positions.get(anchor, [])
+                if positions:
+                    surah_scores[surah_no] += 2.0 + min(len(positions), 4) * 0.2
+
+        ordered = sorted(surah_scores.items(), key=lambda item: item[1], reverse=True)
+        if ordered:
+            return [surah_no for surah_no, _ in ordered[:max_surahs]]
+
+        rare_token_scores: dict[int, float] = defaultdict(float)
+
+        def vote_with_rare_tokens(query_tokens: list[str], *, aggressive: bool) -> None:
+            token_candidates = [token for token in set(query_tokens) if len(token) >= 3]
+            token_rarity: list[tuple[int, str]] = []
+            for token in token_candidates:
+                surah_hits = 0
+                for index in self.surah_index.values():
+                    positions = (index.aggressive_token_positions if aggressive else index.light_token_positions).get(token)
+                    if positions:
+                        surah_hits += 1
+                if surah_hits:
+                    token_rarity.append((surah_hits, token))
+            token_rarity.sort(key=lambda item: (item[0], -len(item[1]), item[1]))
+            for surah_hits, token in token_rarity[:12]:
+                for surah_no, index in self.surah_index.items():
+                    positions = (index.aggressive_token_positions if aggressive else index.light_token_positions).get(token, [])
+                    if positions:
+                        boost = (2.0 if not aggressive else 1.5) / max(surah_hits, 1)
+                        rare_token_scores[surah_no] += boost + min(len(positions), 4) * 0.05
+
+        vote_with_rare_tokens(light_query_tokens, aggressive=False)
+        vote_with_rare_tokens(aggressive_query_tokens, aggressive=True)
+        fallback_ordered = sorted(rare_token_scores.items(), key=lambda item: item[1], reverse=True)
+        return [surah_no for surah_no, _ in fallback_ordered[:max_surahs]]
+
+    def _find_giant_anchor_span_candidates_for_scope(
+        self,
+        *,
+        query: str,
+        light_query: str,
+        aggressive_query: str,
+        light_query_tokens: list[str],
+        aggressive_query_tokens: list[str],
+        scope_order: list[int],
+        min_window_size: int,
+        max_expansion_ayahs: int,
+        top_k: int,
+        anchor_size: int,
+    ) -> list[dict[str, Any]]:
+        def sample_anchor_specs(tokens: list[str]) -> list[tuple[int, tuple[str, ...]]]:
+            if len(tokens) < anchor_size:
+                return []
+            offsets = [0]
+            quarter = max((len(tokens) // 4) - (anchor_size // 2), 0)
+            mid = max((len(tokens) // 2) - (anchor_size // 2), 0)
+            three_quarter = max(((3 * len(tokens)) // 4) - (anchor_size // 2), 0)
+            tail = max(len(tokens) - anchor_size, 0)
+            for off in (quarter, mid, three_quarter, tail):
+                if off not in offsets:
+                    offsets.append(off)
+            specs: list[tuple[int, tuple[str, ...]]] = []
+            for off in offsets:
+                anchor = tuple(tokens[off : off + anchor_size])
+                if len(anchor) == anchor_size and all(anchor != existing for _, existing in specs):
+                    specs.append((off, anchor))
+            return specs
+
+        candidates: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        mode_specs = (
+            (
+                "giant_partial_anchor_span_light",
+                light_query_tokens,
+                "light_token_ayahs",
+                "light_ngram_positions",
+            ),
+            (
+                "giant_partial_anchor_span_aggressive",
+                aggressive_query_tokens,
+                "aggressive_token_ayahs",
+                "aggressive_ngram_positions",
+            ),
+        )
+
+        for surah_no in scope_order:
+            index = self.surah_index.get(surah_no)
+            if index is None:
+                continue
+            ayah_count = len(index.rows)
+
+            for match_mode, query_tokens, ayahs_attr, ngram_attr in mode_specs:
+                anchor_specs = sample_anchor_specs(query_tokens)
+                if len(anchor_specs) < 2:
+                    continue
+                token_ayahs = getattr(index, ayahs_attr)
+                ngram_positions: dict[tuple[str, ...], list[int]] = getattr(index, ngram_attr)
+
+                matched: list[tuple[int, int]] = []
+                last_pos = -1
+                for q_offset, anchor in anchor_specs:
+                    positions = ngram_positions.get(anchor, [])
+                    chosen = next((pos for pos in positions if pos > last_pos), None)
+                    if chosen is None:
+                        continue
+                    matched.append((q_offset, chosen))
+                    last_pos = chosen
+
+                if len(matched) < 2:
+                    continue
+
+                anchor_match_ratio = len(matched) / len(anchor_specs)
+                if anchor_match_ratio < 0.6:
+                    continue
+
+                start_token_idx = matched[0][1]
+                end_token_idx = matched[-1][1] + anchor_size
+                if end_token_idx > len(token_ayahs):
+                    continue
+
+                ayah_start = token_ayahs[start_token_idx]
+                ayah_end = token_ayahs[end_token_idx - 1]
+                if ayah_start is None or ayah_end is None:
+                    continue
+
+                for expansion in range(0, max_expansion_ayahs + 1):
+                    start_ayah = max(1, int(ayah_start) - expansion)
+                    end_ayah = min(ayah_count, int(ayah_end) + expansion)
+                    if end_ayah - start_ayah + 1 < min_window_size:
+                        continue
+                    row = self._get_dynamic_row(surah_no, start_ayah, end_ayah)
+                    key = row["canonical_source_id"]
+                    if key in seen:
+                        continue
+                    candidate = compute_candidate_score(
+                        normalized_query=light_query,
+                        query_tokens=light_query_tokens,
+                        row=row,
+                        original_query=query,
+                        aggressive_query=aggressive_query,
+                        aggressive_query_tokens=aggressive_query_tokens,
+                    )
+                    candidate["retrieval_engine"] = "giant_partial_anchor"
+                    candidate["span_match_type"] = match_mode
+                    candidate["anchor_match_ratio"] = round(anchor_match_ratio * 100, 2)
+                    candidate["giant_partial_expansion_ayahs"] = expansion
+                    seen.add(key)
+                    candidates.append(candidate)
+
+        return self._rank_candidates(candidates, top_k=top_k)
+
+    def _find_giant_partial_candidates_for_scope(
+        self,
+        *,
+        query: str,
+        light_query: str,
+        aggressive_query: str,
+        light_query_tokens: list[str],
+        aggressive_query_tokens: list[str],
+        scope_order: list[int],
+        min_window_size: int,
+        min_coverage: float,
+        max_expansion_ayahs: int,
+        top_k: int,
+    ) -> list[dict[str, Any]]:
+        candidates: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        mode_specs = (
+            (
+                "giant_partial_subsequence_light",
+                light_query_tokens,
+                "light_tokens",
+                "light_token_ayahs",
+                "light_token_positions",
+            ),
+            (
+                "giant_partial_subsequence_aggressive",
+                aggressive_query_tokens,
+                "aggressive_tokens",
+                "aggressive_token_ayahs",
+                "aggressive_token_positions",
+            ),
+        )
+
+        for surah_no in scope_order:
+            index = self.surah_index.get(surah_no)
+            if index is None:
+                continue
+
+            ayah_count = len(index.rows)
+            for match_mode, query_tokens, tokens_attr, ayahs_attr, positions_attr in mode_specs:
+                if len(query_tokens) < 8:
+                    continue
+                best = self._best_token_subsequence_span(
+                    query_tokens=query_tokens,
+                    surah_tokens=getattr(index, tokens_attr),
+                    surah_token_ayahs=getattr(index, ayahs_attr),
+                    token_positions=getattr(index, positions_attr),
+                )
+                if not best:
+                    continue
+
+                coverage = float(best.get("coverage") or 0.0)
+                ayah_start = best.get("ayah_start")
+                ayah_end = best.get("ayah_end")
+                if coverage < min_coverage or ayah_start is None or ayah_end is None:
+                    continue
+
+                for expansion in range(0, max_expansion_ayahs + 1):
+                    start_ayah = max(1, int(ayah_start) - expansion)
+                    end_ayah = min(ayah_count, int(ayah_end) + expansion)
+                    if end_ayah - start_ayah + 1 < min_window_size:
+                        continue
+                    row = self._get_dynamic_row(surah_no, start_ayah, end_ayah)
+                    key = row["canonical_source_id"]
+                    if key in seen:
+                        continue
+                    candidate = compute_candidate_score(
+                        normalized_query=light_query,
+                        query_tokens=light_query_tokens,
+                        row=row,
+                        original_query=query,
+                        aggressive_query=aggressive_query,
+                        aggressive_query_tokens=aggressive_query_tokens,
+                    )
+                    candidate["retrieval_engine"] = "giant_partial_anchor"
+                    candidate["span_match_type"] = match_mode
+                    candidate["token_subsequence_coverage"] = round(coverage * 100, 2)
+                    candidate["giant_partial_expansion_ayahs"] = expansion
+                    seen.add(key)
+                    candidates.append(candidate)
+
+        return self._rank_candidates(candidates, top_k=top_k)
 
     def _find_giant_exact_candidates_for_mode(
         self,
