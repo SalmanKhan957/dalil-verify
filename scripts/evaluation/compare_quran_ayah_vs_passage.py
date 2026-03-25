@@ -7,6 +7,11 @@ from typing import Any
 
 from scripts.common.text_normalization import normalize_arabic_light, tokenize
 from scripts.common.quran_status import get_result_status_rank
+from scripts.common.quran_citation_units import (
+    annotate_result_with_canonical_unit,
+    get_result_canonical_unit_rank,
+    get_result_canonical_unit_type,
+)
 from scripts.evaluation.quran_verifier_baseline import (
     build_result as build_ayah_result,
     compute_best_matches as compute_ayah_matches,
@@ -18,6 +23,9 @@ from scripts.evaluation.quran_passage_verifier_baseline import (
     load_quran_passage_dataset,
 )
 
+CANONICAL_UNIT_SCORE_TIE_MARGIN = 8.0
+CANONICAL_UNIT_MIN_SCORE = 80.0
+
 
 def get_best_score(result: dict[str, Any]) -> float:
     best = result.get("best_match")
@@ -28,6 +36,72 @@ def get_best_score(result: dict[str, Any]) -> float:
 
 def get_query_token_count(query: str) -> int:
     return len(tokenize(normalize_arabic_light(query)))
+
+
+def _maybe_prefer_by_canonical_unit(
+    ayah_result: dict[str, Any],
+    passage_result: dict[str, Any],
+) -> tuple[str, str, str] | None:
+    ayah_unit_type = get_result_canonical_unit_type(ayah_result, lane="ayah")
+    passage_unit_type = get_result_canonical_unit_type(passage_result, lane="passage")
+
+    ayah_unit_rank = get_result_canonical_unit_rank(ayah_result, lane="ayah")
+    passage_unit_rank = get_result_canonical_unit_rank(passage_result, lane="passage")
+
+    if ayah_unit_rank == passage_unit_rank:
+        return None
+
+    ayah_status = ayah_result.get("match_status")
+    passage_status = passage_result.get("match_status")
+
+    ayah_score = get_best_score(ayah_result)
+    passage_score = get_best_score(passage_result)
+
+    # If both are exact, prefer the more canonical Quranic unit.
+    if ayah_status == passage_status == "Exact match found":
+        if ayah_unit_rank > passage_unit_rank:
+            return (
+                "ayah",
+                "canonical_unit_precedence_exact",
+                (
+                    f"Both lanes are exact; preferring the more canonical Quranic unit "
+                    f"({ayah_unit_type} over {passage_unit_type})."
+                ),
+            )
+        return (
+            "passage",
+            "canonical_unit_precedence_exact",
+            (
+                f"Both lanes are exact; preferring the more canonical Quranic unit "
+                f"({passage_unit_type} over {ayah_unit_type})."
+            ),
+        )
+
+    # If both have the same status and are both strong/close, prefer the more canonical unit.
+    if ayah_status == passage_status:
+        if (
+            min(ayah_score, passage_score) >= CANONICAL_UNIT_MIN_SCORE
+            and abs(ayah_score - passage_score) <= CANONICAL_UNIT_SCORE_TIE_MARGIN
+        ):
+            if ayah_unit_rank > passage_unit_rank:
+                return (
+                    "ayah",
+                    "canonical_unit_precedence_close_tie",
+                    (
+                        f"Both lanes are similarly strong; preferring the more canonical Quranic unit "
+                        f"({ayah_unit_type} over {passage_unit_type})."
+                    ),
+                )
+            return (
+                "passage",
+                "canonical_unit_precedence_close_tie",
+                (
+                    f"Both lanes are similarly strong; preferring the more canonical Quranic unit "
+                    f"({passage_unit_type} over {ayah_unit_type})."
+                ),
+            )
+
+    return None
 
 
 def choose_preferred_lane(
@@ -100,6 +174,10 @@ def choose_preferred_lane(
             "Both lanes are weak; defaulting to ayah lane for stricter precision.",
         )
 
+    canonical_preference = _maybe_prefer_by_canonical_unit(ayah_result, passage_result)
+    if canonical_preference is not None:
+        return canonical_preference
+
     if ayah_contains_query and ayah_score >= (passage_score - 8.0):
         return (
             "ayah",
@@ -145,6 +223,11 @@ def build_fusion_output(
     ayah_result: dict[str, Any],
     passage_result: dict[str, Any],
 ) -> dict[str, Any]:
+    # Important: annotate here, not inside passage baseline, because apps/api/main.py
+    # may stamp retrieval_engine onto passage best_match before fusion.
+    annotate_result_with_canonical_unit(ayah_result, lane="ayah")
+    annotate_result_with_canonical_unit(passage_result, lane="passage")
+
     preferred_lane, decision_rule, rationale = choose_preferred_lane(query, ayah_result, passage_result)
 
     if preferred_lane == "passage":
@@ -178,12 +261,17 @@ def build_fusion_output(
             "score_delta_passage_minus_ayah": round(get_best_score(passage_result) - get_best_score(ayah_result), 2),
             "ayah_citation": ayah_best.get("citation"),
             "passage_citation": passage_best.get("citation"),
+            "ayah_canonical_unit_type": ayah_best.get("canonical_unit_type"),
+            "ayah_canonical_unit_rank": ayah_best.get("canonical_unit_rank"),
+            "passage_canonical_unit_type": passage_best.get("canonical_unit_type"),
+            "passage_canonical_unit_rank": passage_best.get("canonical_unit_rank"),
             "passage_window_size": passage_best.get("window_size"),
             "passage_spans_multiple": (
                 passage_best.get("start_ayah") is not None
                 and passage_best.get("end_ayah") is not None
                 and passage_best.get("start_ayah") != passage_best.get("end_ayah")
             ),
+            "decision_basis": decision_rule,
         },
     }
 

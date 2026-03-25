@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
-
+from scripts.common.quran_citation_units import get_result_canonical_unit_type
 from fastapi import FastAPI, HTTPException, Request
 
 from apps.api.logging_utils import append_jsonl_log
@@ -295,13 +295,18 @@ def _likely_surahs_from_ayah_candidates(candidates: list[dict], limit: int = 3) 
 def _strong_passage_win(public_response: dict) -> bool:
     best = public_response.get("best_match") or {}
     coverage = float((best.get("scoring_breakdown") or {}).get("token_coverage") or 0.0)
+    unit_type = best.get("canonical_unit_type") or get_result_canonical_unit_type(
+        {"best_match": best},
+        lane="passage",
+    )
+
     return (
         public_response.get("preferred_lane") == "passage"
         and public_response.get("match_status") == "Exact match found"
         and public_response.get("confidence") == "high"
         and coverage >= 95.0
         and float(best.get("score") or 0.0) >= 80.0
-        and (best.get("retrieval_engine") in {"surah_span_exact", "token_subsequence", "local_seed_expand"} or best.get("window_size", 0) >= 5)
+        and unit_type in {"single_ayah", "contiguous_span"}
     )
 
 
