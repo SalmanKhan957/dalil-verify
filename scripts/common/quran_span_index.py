@@ -157,12 +157,12 @@ class QuranSurahSpanIndex:
                 if aggressive_text:
                     self._exact_span_aggressive_map[aggressive_text].append(key)
 
-    def find_exact_span_lookup_candidates(
+    def _collect_exact_span_lookup_candidates(
         self,
         query: str,
         *,
         min_window_size: int = 4,
-        top_k: int = 5,
+        top_k: int | None = 5,
         surah_scope: list[int] | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         light_query = normalize_arabic_light(query)
@@ -216,6 +216,35 @@ class QuranSurahSpanIndex:
             "surah_scope": sorted({int(c["row"]["surah_no"]) for c in ranked}),
             "lookup_source": "precomputed_exact_span_map",
         }
+
+    def find_exact_span_lookup_candidates(
+        self,
+        query: str,
+        *,
+        min_window_size: int = 4,
+        top_k: int = 5,
+        surah_scope: list[int] | None = None,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        return self._collect_exact_span_lookup_candidates(
+            query,
+            min_window_size=min_window_size,
+            top_k=top_k,
+            surah_scope=surah_scope,
+        )
+
+    def find_all_exact_span_lookup_candidates(
+        self,
+        query: str,
+        *,
+        min_window_size: int = 2,
+        surah_scope: list[int] | None = None,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        return self._collect_exact_span_lookup_candidates(
+            query,
+            min_window_size=min_window_size,
+            top_k=None,
+            surah_scope=surah_scope,
+        )
 
     def find_medium_partial_passage_candidates(
         self,
@@ -1268,7 +1297,9 @@ class QuranSurahSpanIndex:
         return self._rank_candidates(candidates, top_k=top_k)
 
     @staticmethod
-    def _rank_candidates(candidates: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
+    def _rank_candidates(candidates: list[dict[str, Any]], top_k: int | None) -> list[dict[str, Any]]:
+        if top_k is None:
+            return sort_verifier_candidates(candidates, top_k=max(len(candidates), 1))
         return sort_verifier_candidates(candidates, top_k=top_k)
 
     @staticmethod

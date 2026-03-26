@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from rapidfuzz import fuzz
-
+from scripts.common.quran_ranking import sort_verifier_candidates
+from scripts.common.quran_scoring import compute_candidate_score
 from scripts.common.text_normalization import (
     normalize_arabic_light,
     normalize_arabic_aggressive,
@@ -42,133 +42,129 @@ def load_quran_dataset(csv_path: Path) -> list[dict[str, Any]]:
 
     return rows
 
+GENERIC_SHORT_TOKENS = {
+    "من", "في", "على", "الى", "إلى", "عن", "ما", "ماذا", "كيف", "هل",
+    "قال", "قالوا", "الله", "للَّه", "الناس", "يوم", "رب", "ربك", "ربهم",
+    "هذا", "هذه", "ذلك", "تلك", "كل", "بعض", "ان", "إن", "لا", "لن",
+}
 
-def classify_query(query: str) -> str:
-    q = query.strip()
+ARABIC_QUESTION_PREFIXES = ("ما ", "ماذا ", "كيف ", "هل ", "أين ", "اين ", "متى ", "لماذا ", "كم ", "من ")
+ENGLISH_QUESTION_PREFIXES = ("what ", "how ", "where ", "when ", "why ", "is this", "does this", "which ")
+META_QUERY_MARKERS = ("هل هذه آية", "هل هذا من القرآن", "اين ورد", "أين ورد", "في القرآن", "في القران")
+
+
+def _is_generic_two_token_input(tokens: list[str]) -> bool:
+    if len(tokens) != 2:
+        return False
+    if tokens[0] == tokens[1]:
+        return True
+    generic_hits = sum(1 for token in tokens if token in GENERIC_SHORT_TOKENS)
+    short_hits = sum(1 for token in tokens if len(token) <= 3)
+    return generic_hits == 2 or (generic_hits >= 1 and short_hits == 2)
+
+
+def _is_short_repeated_phrase(tokens: list[str]) -> bool:
+    return len(tokens) <= 3 and len(set(tokens)) < len(tokens)
+
+
+def _has_low_structural_signal(tokens: list[str]) -> bool:
+    if not tokens:
+        return True
+    tiny_tokens = sum(1 for token in tokens if len(token) <= 1)
+    if tiny_tokens >= max(2, (len(tokens) + 1) // 2):
+        return True
+    if len(tokens) >= 3 and len(set(tokens)) == 1:
+        return True
+    return False
+
+
+def assess_verifier_query(query: str) -> dict[str, Any]:
+    q = (query or "").strip()
     q_norm = normalize_arabic_light(q)
     q_tokens = tokenize(q_norm)
-
-    if len(q_norm) < 6:
-        return "cannot_assess"
-
-    if len(q_tokens) < 2:
-        return "cannot_assess"
-
     lowered = q.lower().strip()
-    if "?" in q or lowered.startswith("what ") or lowered.startswith("how "):
-        return "ask_like"
 
-    if q.startswith("ما ") or q.startswith("ماذا ") or q.startswith("كيف "):
-        return "ask_like"
+    if not q_norm:
+        return {
+            "mode": "cannot_assess",
+            "reason": "empty_after_normalization",
+            "boundary_note": "Input is empty or unsuitable for reliable verification.",
+        }
 
-    return "verify_like"
+    if (
+        "?" in q
+        or lowered.startswith(ENGLISH_QUESTION_PREFIXES)
+        # or q.startswith(ARABIC_QUESTION_PREFIXES)
+        or any(marker in q for marker in META_QUERY_MARKERS)
+    ):
+        return {
+            "mode": "ask_like",
+            "reason": "question_or_meta_query",
+            "boundary_note": (
+                "This looks like a question or meta-query rather than source-verification input. "
+                "Route this to the ask engine, not the verifier."
+            ),
+        }
 
+    if len(q_norm) < 6 or len(q_tokens) < 2:
+        return {
+            "mode": "cannot_assess",
+            "reason": "too_short",
+            "boundary_note": "Input is too short, too generic, or too vague for reliable verification.",
+        }
 
-def compute_candidate_score(
-    normalized_query: str,
-    query_tokens: list[str],
-    row: dict[str, Any],
-    original_query: str,
-    *,
-    aggressive_query: str | None = None,
-    aggressive_query_tokens: list[str] | None = None,
-) -> dict[str, Any]:
-    light_query = normalized_query
-    aggressive_query = aggressive_query if aggressive_query is not None else normalize_arabic_aggressive(original_query)
+    if _is_generic_two_token_input(q_tokens):
+        return {
+            "mode": "cannot_assess",
+            "reason": "generic_two_token_input",
+            "boundary_note": "Input is too short or too generic to verify reliably against the Quran corpus.",
+        }
 
-    text_display = row["text_display"]
-    text_light = row["text_normalized_light"]
-    text_aggressive = row["text_normalized_aggressive"]
+    if _is_short_repeated_phrase(q_tokens):
+        return {
+            "mode": "cannot_assess",
+            "reason": "short_repeated_phrase",
+            "boundary_note": "Input is a very short repeated phrase and is too ambiguous for reliable verification.",
+        }
 
-    query_len = max(len(light_query), 1)
-    text_len = max(len(text_light), 1)
-    length_ratio = min(query_len, text_len) / max(query_len, text_len)
-
-    light_query_tokens = query_tokens
-    aggressive_query_tokens = aggressive_query_tokens if aggressive_query_tokens is not None else tokenize(aggressive_query)
-
-    light_query_token_set = set(light_query_tokens)
-    aggressive_query_token_set = set(aggressive_query_tokens)
-
-    light_text_token_set = set(row["tokens_light"])
-    aggressive_text_token_set = set(row["tokens_aggressive"])
-
-    token_overlap_count_light = len(light_query_token_set.intersection(light_text_token_set))
-    token_overlap_count_aggressive = len(
-        aggressive_query_token_set.intersection(aggressive_text_token_set)
-    )
-
-    token_coverage_light = (
-        (token_overlap_count_light / len(light_query_token_set)) * 100
-        if light_query_token_set
-        else 0.0
-    )
-
-    token_coverage_aggressive = (
-        (token_overlap_count_aggressive / len(aggressive_query_token_set)) * 100
-        if aggressive_query_token_set
-        else 0.0
-    )
-
-    token_coverage = max(token_coverage_light, token_coverage_aggressive)
-
-    exact_display = 100.0 if original_query.strip() == text_display.strip() else 0.0
-    exact_normalized_light = 100.0 if light_query == text_light else 0.0
-    exact_normalized_aggressive = 100.0 if aggressive_query == text_aggressive else 0.0
-
-    contains_query_in_text_light = 100.0 if light_query and light_query in text_light else 0.0
-    contains_query_in_text_aggressive = 100.0 if aggressive_query and aggressive_query in text_aggressive else 0.0
-    contains_text_in_query_light = 100.0 if text_light and text_light in light_query else 0.0
-
-    ratio_score = float(fuzz.ratio(light_query, text_light))
-    token_set_score = float(fuzz.token_set_ratio(light_query, text_light))
-    token_sort_score = float(fuzz.token_sort_ratio(light_query, text_light))
-    partial_raw = float(fuzz.partial_ratio(light_query, text_light))
-    aggressive_token_set_score = float(fuzz.token_set_ratio(aggressive_query, text_aggressive))
-
-    adjusted_partial = partial_raw * length_ratio
-
-    short_candidate_penalty = 0.0
-    if text_len < max(6, int(query_len * 0.35)) and exact_normalized_light != 100.0:
-        short_candidate_penalty = 25.0
-
-    composite_score = (
-        (0.25 * exact_normalized_light)
-        + (0.12 * exact_normalized_aggressive)
-        + (0.08 * exact_display)
-        + (0.18 * contains_query_in_text_light)
-        + (0.10 * contains_query_in_text_aggressive)
-        + (0.12 * token_coverage)
-        + (0.06 * token_set_score)
-        + (0.04 * aggressive_token_set_score)
-        + (0.02 * token_sort_score)
-        + (0.02 * ratio_score)
-        + (0.01 * adjusted_partial)
-    ) - short_candidate_penalty
+    if _has_low_structural_signal(q_tokens):
+        return {
+            "mode": "cannot_assess",
+            "reason": "low_structural_signal",
+            "boundary_note": "Input appears too noisy or structurally weak for reliable Quran verification.",
+        }
 
     return {
-        "score": round(max(composite_score, 0.0), 2),
-        "exact_display": round(exact_display, 2),
-        "exact_normalized_light": round(exact_normalized_light, 2),
-        "exact_normalized_aggressive": round(exact_normalized_aggressive, 2),
-        "contains_query_in_text_light": round(contains_query_in_text_light, 2),
-        "contains_query_in_text_aggressive": round(contains_query_in_text_aggressive, 2),
-        "contains_text_in_query_light": round(contains_text_in_query_light, 2),
-        "ratio_score": round(ratio_score, 2),
-        "token_set_score": round(token_set_score, 2),
-        "aggressive_token_set_score": round(aggressive_token_set_score, 2),
-        "token_sort_score": round(token_sort_score, 2),
-        "partial_raw": round(partial_raw, 2),
-        "adjusted_partial": round(adjusted_partial, 2),
-        "token_overlap_count_light": token_overlap_count_light,
-        "token_overlap_count_aggressive": token_overlap_count_aggressive,
-        "token_coverage_light": round(token_coverage_light, 2),
-        "token_coverage_aggressive": round(token_coverage_aggressive, 2),
-        "token_coverage": round(token_coverage, 2),
-        "length_ratio": round(length_ratio, 4),
-        "short_candidate_penalty": round(short_candidate_penalty, 2),
-        "row": row,
+        "mode": "verify_like",
+        "reason": "sufficient_signal",
+        "boundary_note": "",
     }
+
+
+def classify_query(query: str) -> str:
+    return assess_verifier_query(query)["mode"]
+
+
+# def classify_query(query: str) -> str:
+#     q = query.strip()
+#     q_norm = normalize_arabic_light(q)
+#     q_tokens = tokenize(q_norm)
+
+#     if len(q_norm) < 6:
+#         return "cannot_assess"
+
+#     if len(q_tokens) < 2:
+#         return "cannot_assess"
+
+#     lowered = q.lower().strip()
+#     if "?" in q or lowered.startswith("what ") or lowered.startswith("how "):
+#         return "ask_like"
+
+#     if q.startswith("ما ") or q.startswith("ماذا ") or q.startswith("كيف "):
+#         return "ask_like"
+
+#     return "verify_like"
+
 
 
 def compute_best_matches(
@@ -193,18 +189,7 @@ def compute_best_matches(
         )
         candidates.append(candidate)
 
-    candidates.sort(
-        key=lambda x: (
-            x["score"],
-            x["exact_normalized_light"],
-            x["exact_normalized_aggressive"],
-            x["contains_query_in_text_light"],
-            x["contains_query_in_text_aggressive"],
-            x["token_coverage"],
-        ),
-        reverse=True,
-    )
-    return candidates[:top_k]
+    return sort_verifier_candidates(candidates, top_k=top_k)
 
 
 def is_exact_excerpt_match(query: str, best_candidate: dict[str, Any], *, min_query_tokens: int = 4) -> bool:
@@ -228,19 +213,27 @@ def is_exact_excerpt_match(query: str, best_candidate: dict[str, Any], *, min_qu
         return False
     return True
 
+def is_full_exact_match(best_candidate: dict[str, Any] | None) -> bool:
+    if not best_candidate:
+        return False
+    return (
+        best_candidate.get("exact_display") == 100.0
+        or best_candidate.get("exact_normalized_light") == 100.0
+    )
+
 
 def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
-    query_norm = normalize_arabic_light(query)
-    query_tokens = tokenize(query_norm)
+    # Important exception:
+    # A full exact ayah hit should still count as exact even if the query is only one token.
+    if is_full_exact_match(best_candidate):
+        return "Exact match found"
 
-    if len(query_norm) < 6 or len(query_tokens) < 2:
+    assessment = assess_verifier_query(query)
+    if assessment["mode"] != "verify_like":
         return "Cannot assess"
 
-    if (
-        best_candidate["exact_display"] == 100.0
-        or best_candidate["exact_normalized_light"] == 100.0
-    ):
-        return "Exact match found"
+    query_norm = normalize_arabic_light(query)
+    query_tokens = tokenize(query_norm)
 
     if (
         best_candidate["exact_normalized_aggressive"] == 100.0
@@ -289,18 +282,24 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
 
 
 def build_result(query: str, candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    mode = classify_query(query)
+    assessment = assess_verifier_query(query)
+    mode = assessment["mode"]
 
+    # Important exception:
+    # If the best candidate is a full exact ayah, allow it even for otherwise unassessable short input.
     if mode == "cannot_assess":
-        return {
-            "query": query,
-            "mode": "verifier",
-            "match_status": "Cannot assess",
-            "confidence": "low",
-            "boundary_note": "Input is too short, too generic, or too vague for reliable verification.",
-            "best_match": None,
-            "alternatives": [],
-        }
+        if candidates and is_full_exact_match(candidates[0]):
+            mode = "verify_like"
+        else:
+            return {
+                "query": query,
+                "mode": "verifier",
+                "match_status": "Cannot assess",
+                "confidence": "low",
+                "boundary_note": assessment["boundary_note"],
+                "best_match": None,
+                "alternatives": [],
+            }
 
     if mode == "ask_like":
         return {
@@ -308,10 +307,7 @@ def build_result(query: str, candidates: list[dict[str, Any]]) -> dict[str, Any]
             "mode": "ask_engine",
             "match_status": "Cannot assess",
             "confidence": "low",
-            "boundary_note": (
-                "This looks like a question rather than a source-verification input. "
-                "Route this to the ask engine, not the verifier."
-            ),
+            "boundary_note": assessment["boundary_note"],
             "best_match": None,
             "alternatives": [],
         }

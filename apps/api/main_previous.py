@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
-
+from scripts.common.quran_citation_units import get_result_canonical_unit_type
 from fastapi import FastAPI, HTTPException, Request
 
 from apps.api.logging_utils import append_jsonl_log
@@ -18,6 +18,7 @@ from apps.api.quran_long_span_fastpath import (
     is_long_span_fastpath_enabled,
     try_long_span_exact_match,
 )
+from scripts.common.quran_status import get_status_rank
 from scripts.common.query_routing import (
     ROUTE_AMBIGUOUS_BOTH,
     ROUTE_SIMPLE_FIRST,
@@ -42,6 +43,7 @@ from scripts.evaluation.quran_verifier_baseline import (
     compute_best_matches as compute_ayah_matches,
     determine_match_status,
     load_quran_dataset,
+    assess_verifier_query,
 )
 
 QURAN_DATA_PATH = Path("data/processed/quran/quran_arabic_canonical.csv")
@@ -61,8 +63,14 @@ class CorpusRuntime:
     ayah_shortlist_index: QuranShortlistIndex | None
     passage_shortlist_index: QuranShortlistIndex | None
     surah_span_index: QuranSurahSpanIndex | None
+
+    exact_light_groups: dict[str, list[dict]]
+    exact_aggressive_groups: dict[str, list[dict]]
     exact_light_map: dict[str, dict | None]
     exact_aggressive_map: dict[str, dict | None]
+
+    passage_exact_light_groups: dict[str, list[dict]]
+    passage_exact_aggressive_groups: dict[str, list[dict]]
 
 
 SIMPLE_RUNTIME: CorpusRuntime | None = None
@@ -211,6 +219,24 @@ def _sort_candidates(candidates: list[dict], limit: int = 5) -> list[dict]:
     )
     return _dedupe_candidates(ordered, limit=limit)
 
+def _build_non_retrieval_response(
+    query: str,
+    *,
+    preferred_lane: str,
+    boundary_note: str,
+    debug_payload: dict | None = None,
+) -> dict:
+    return {
+        "query": query,
+        "preferred_lane": preferred_lane,
+        "match_status": "Cannot assess",
+        "confidence": "low",
+        "boundary_note": boundary_note,
+        "best_match": None,
+        "also_related": [],
+        "debug": debug_payload,
+    }
+
 
 def _empty_ayah_result(query: str) -> dict:
     return {
@@ -277,6 +303,29 @@ def _query_token_count(query: str) -> int:
 def _is_giant_query(query: str) -> bool:
     return _query_token_count(query) >= GIANT_MIN_TOKEN_COUNT
 
+def _has_any_runtime_exact_ayah_signal(query: str) -> bool:
+    """
+    Allow ultra-short canonical ayah input to bypass the Cannot-assess gate
+    if the query has an exact-ayah signal in any active runtime.
+
+    This covers both:
+    - unique exact ayah hits (row is not None)
+    - repeated exact ayah strings like الم where the exact map is ambiguous
+      because the same normalized text exists in multiple ayat
+    """
+    for runtime in [SIMPLE_RUNTIME, UTHMANI_RUNTIME]:
+        if runtime is None:
+            continue
+
+        row, meta = _resolve_exact_ayah_row(query, runtime)
+        if row is not None:
+            return True
+
+        if bool(meta.get("ambiguous")):
+            return True
+
+    return False
+
 
 def _likely_surahs_from_ayah_candidates(candidates: list[dict], limit: int = 3) -> list[int]:
     scores: dict[int, float] = {}
@@ -294,13 +343,18 @@ def _likely_surahs_from_ayah_candidates(candidates: list[dict], limit: int = 3) 
 def _strong_passage_win(public_response: dict) -> bool:
     best = public_response.get("best_match") or {}
     coverage = float((best.get("scoring_breakdown") or {}).get("token_coverage") or 0.0)
+    unit_type = best.get("canonical_unit_type") or get_result_canonical_unit_type(
+        {"best_match": best},
+        lane="passage",
+    )
+
     return (
         public_response.get("preferred_lane") == "passage"
         and public_response.get("match_status") == "Exact match found"
         and public_response.get("confidence") == "high"
         and coverage >= 95.0
         and float(best.get("score") or 0.0) >= 80.0
-        and (best.get("retrieval_engine") in {"surah_span_exact", "token_subsequence", "local_seed_expand"} or best.get("window_size", 0) >= 5)
+        and unit_type in {"single_ayah", "contiguous_span"}
     )
 
 
@@ -473,15 +527,6 @@ def compact_result_for_api(
     return response
 
 
-def _status_rank(status: str) -> int:
-    return {
-        "Exact match found": 3,
-        "Close / partial match found": 2,
-        "No reliable match found in current corpus": 1,
-        "Cannot assess": 0,
-    }.get(status or "", 0)
-
-
 def _confidence_rank(confidence: str) -> int:
     return {"high": 3, "medium": 2, "low": 1}.get(confidence or "", 0)
 
@@ -500,7 +545,7 @@ def _response_strength(public_response: dict) -> tuple[int, int, float, float]:
     score = float(best.get("score") or 0.0)
     coverage = float((best.get("scoring_breakdown") or {}).get("token_coverage") or 0.0)
     return (
-        _status_rank(public_response.get("match_status", "")),
+        get_status_rank(public_response.get("match_status", "")),
         _confidence_rank(public_response.get("confidence", "")),
         score,
         coverage,
@@ -588,40 +633,71 @@ def _evaluate_runtime(
         passage_candidates = giant_fastpath_candidates
         dynamic_passage_meta = giant_fastpath_meta
     elif exact_ayah_row is None and giant_query and runtime.surah_span_index is not None:
+        # Giant query, but do not skip ayah lane blindly.
+        # First give ayah scoring one bounded rescue pass for clipped single-ayah exact excerpts
+        # such as long ayah 2:282 pasted without the full ayah boundaries.
         stage_start_ms = _now_ms()
-        giant_partial_candidates, giant_partial_meta = runtime.surah_span_index.find_giant_partial_passage_candidates(
+        ayah_limit = LONG_QUERY_AYAH_SHORTLIST_LIMIT if long_query else 250
+        ayah_shortlist_rows, ayah_shortlist_meta = runtime.ayah_shortlist_index.shortlist_rows(
             matching_query,
-            likely_surahs=None,
-            min_window_size=2,
-            top_k=5,
+            limit=ayah_limit,
         )
-        stage_timings["giant_partial_ms"] = _elapsed_ms(stage_start_ms)
+        stage_timings["ayah_shortlist_ms"] = _elapsed_ms(stage_start_ms)
 
-        ayah_shortlist_rows = []
-        ayah_shortlist_meta = {
-            "strategy": "skipped_due_to_giant_partial_pipeline",
-            "candidate_count": 0,
-            "reason": giant_partial_meta.get("reason", "giant_partial_pipeline"),
-        }
-        ayah_candidates = []
-        stage_timings["ayah_shortlist_ms"] = 0.0
-        stage_timings["ayah_scoring_ms"] = 0.0
-        passage_shortlist_rows = []
-        passage_shortlist_meta = {
-            "strategy": f"{runtime.label}_giant_partial_anchor",
-            "candidate_count": 0,
-            "lookup_source": giant_partial_meta.get("lookup_source"),
-            "surah_scope": giant_partial_meta.get("surah_scope"),
-        }
-        passage_candidates = giant_partial_candidates
-        dynamic_passage_meta = giant_partial_meta
-        if not giant_partial_candidates:
-            dynamic_passage_meta = {
-                **giant_partial_meta,
-                "engine": giant_partial_meta.get("engine") or "giant_partial_anchor",
-                "reason": giant_partial_meta.get("reason", "giant_partial_no_match_fast_fail"),
+        stage_start_ms = _now_ms()
+        ayah_candidates = compute_ayah_matches(
+            matching_query,
+            ayah_shortlist_rows,
+            top_k=LONG_QUERY_AYAH_TOP_K if long_query else 5,
+        )
+        stage_timings["ayah_scoring_ms"] = _elapsed_ms(stage_start_ms)
+
+        exact_ayah_candidate_hit = _best_candidate_is_exact_match(matching_query, ayah_candidates)
+        likely_surahs = _likely_surahs_from_ayah_candidates(ayah_candidates, limit=3) if ayah_candidates else []
+
+        if exact_ayah_candidate_hit:
+            passage_shortlist_rows = []
+            passage_shortlist_meta = {
+                "strategy": f"{runtime.label}_skipped_after_exact_ayah_giant_rescue",
                 "candidate_count": 0,
+                "reason": "skip_passage_after_exact_ayah_giant_rescue",
+                "source": "ayah_scoring",
             }
+            passage_candidates = []
+            dynamic_passage_meta = {
+                "engine": "skipped_after_exact_ayah",
+                "candidate_count": 0,
+                "reason": "skip_passage_after_exact_ayah_giant_rescue",
+                "source": "ayah_scoring",
+            }
+            stage_timings["giant_partial_ms"] = 0.0
+        else:
+            stage_start_ms = _now_ms()
+            giant_partial_candidates, giant_partial_meta = runtime.surah_span_index.find_giant_partial_passage_candidates(
+                matching_query,
+                likely_surahs=likely_surahs or None,
+                min_window_size=2,
+                top_k=5,
+            )
+            stage_timings["giant_partial_ms"] = _elapsed_ms(stage_start_ms)
+
+            passage_shortlist_rows = []
+            passage_shortlist_meta = {
+                "strategy": f"{runtime.label}_giant_partial_anchor",
+                "candidate_count": 0,
+                "lookup_source": giant_partial_meta.get("lookup_source"),
+                "surah_scope": giant_partial_meta.get("surah_scope"),
+                "ayah_rescue_attempted": True,
+            }
+            passage_candidates = giant_partial_candidates
+            dynamic_passage_meta = giant_partial_meta
+            if not giant_partial_candidates:
+                dynamic_passage_meta = {
+                    **giant_partial_meta,
+                    "engine": giant_partial_meta.get("engine") or "giant_partial_anchor",
+                    "reason": giant_partial_meta.get("reason", "giant_partial_no_match_fast_fail"),
+                    "candidate_count": 0,
+                }
     else:
         stage_start_ms = _now_ms()
         if exact_ayah_row is not None:
@@ -870,13 +946,46 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
         raise HTTPException(status_code=400, detail="Input text cannot be empty.")
 
     stage_start_ms = _now_ms()
-    query_route = detect_quran_query_route(raw_query)
-    routing_ms = _elapsed_ms(stage_start_ms)
-    stage_start_ms = _now_ms()
     matching_query, preprocessing_meta = sanitize_quran_text_for_matching_with_meta(raw_query)
     preprocessing_ms = _elapsed_ms(stage_start_ms)
     if not matching_query:
         raise HTTPException(status_code=400, detail="Input text cannot be empty after sanitation.")
+
+    stage_start_ms = _now_ms()
+    query_assessment = assess_verifier_query(raw_query)
+    assessment_ms = _elapsed_ms(stage_start_ms)
+
+    if query_assessment.get("mode") != "verify_like":
+        # Important exception:
+        # allow genuine single-word / ultra-short exact ayah hits to proceed.
+        exact_ayah_override = _has_any_runtime_exact_ayah_signal(matching_query)
+
+        if not exact_ayah_override:
+            preferred_lane = "ask_engine" if query_assessment.get("mode") == "ask_like" else "none"
+            public_response = _build_non_retrieval_response(
+                raw_query,
+                preferred_lane=preferred_lane,
+                boundary_note=query_assessment.get("boundary_note") or "Input is not suitable for reliable verification.",
+                debug_payload=(
+                    {
+                        "decision_rule": query_assessment.get("reason"),
+                        "rationale": query_assessment.get("boundary_note"),
+                        "query_preprocessing": preprocessing_meta,
+                        "stage_timings": {
+                            "preprocessing_ms": preprocessing_ms,
+                            "assessment_ms": assessment_ms,
+                            "request_total_ms": _elapsed_ms(request_start_ms),
+                        },
+                    }
+                    if debug
+                    else None
+                ),
+            )
+            return VerifyQuranResponse(**public_response)
+
+    stage_start_ms = _now_ms()
+    query_route = detect_quran_query_route(raw_query)
+    routing_ms = _elapsed_ms(stage_start_ms)
 
     evaluations: list[dict] = []
     fallback_trigger_reason = "single_runtime_only"

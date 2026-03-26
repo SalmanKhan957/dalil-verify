@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import time
@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 from scripts.common.quran_citation_units import get_result_canonical_unit_type
+from scripts.common.quran_match_collections import (
+    build_exact_groups,
+    build_lane_match_collections,
+    build_unique_exact_map,
+)
 from fastapi import FastAPI, HTTPException, Request
 
 from apps.api.logging_utils import append_jsonl_log
@@ -63,8 +68,12 @@ class CorpusRuntime:
     ayah_shortlist_index: QuranShortlistIndex | None
     passage_shortlist_index: QuranShortlistIndex | None
     surah_span_index: QuranSurahSpanIndex | None
+    exact_light_groups: dict[str, list[dict]]
+    exact_aggressive_groups: dict[str, list[dict]]
     exact_light_map: dict[str, dict | None]
     exact_aggressive_map: dict[str, dict | None]
+    passage_exact_light_groups: dict[str, list[dict]]
+    passage_exact_aggressive_groups: dict[str, list[dict]]
 
 
 SIMPLE_RUNTIME: CorpusRuntime | None = None
@@ -95,18 +104,6 @@ app = FastAPI(
 )
 
 
-def _build_unique_exact_map(rows: list[dict], field: str) -> dict[str, dict | None]:
-    exact_map: dict[str, dict | None] = {}
-    for row in rows:
-        key = (row.get(field) or "").strip()
-        if not key:
-            continue
-        if key in exact_map:
-            exact_map[key] = None
-        else:
-            exact_map[key] = row
-    return exact_map
-
 
 def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required: bool) -> CorpusRuntime | None:
     if not quran_path.exists() or not passage_path.exists():
@@ -120,6 +117,10 @@ def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required:
 
     rows = load_quran_dataset(quran_path)
     passage_rows = load_quran_passage_dataset(passage_path)
+    exact_light_groups = build_exact_groups(rows, "text_normalized_light")
+    exact_aggressive_groups = build_exact_groups(rows, "text_normalized_aggressive")
+    passage_exact_light_groups = build_exact_groups(passage_rows, "text_normalized_light")
+    passage_exact_aggressive_groups = build_exact_groups(passage_rows, "text_normalized_aggressive")
     return CorpusRuntime(
         label=label,
         quran_path=quran_path,
@@ -129,8 +130,12 @@ def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required:
         ayah_shortlist_index=QuranShortlistIndex(rows),
         passage_shortlist_index=QuranShortlistIndex(passage_rows),
         surah_span_index=QuranSurahSpanIndex(rows),
-        exact_light_map=_build_unique_exact_map(rows, "text_normalized_light"),
-        exact_aggressive_map=_build_unique_exact_map(rows, "text_normalized_aggressive"),
+        exact_light_groups=exact_light_groups,
+        exact_aggressive_groups=exact_aggressive_groups,
+        exact_light_map=build_unique_exact_map(exact_light_groups),
+        exact_aggressive_map=build_unique_exact_map(exact_aggressive_groups),
+        passage_exact_light_groups=passage_exact_light_groups,
+        passage_exact_aggressive_groups=passage_exact_aggressive_groups,
     )
 
 
@@ -227,6 +232,8 @@ def _build_non_retrieval_response(
         "confidence": "low",
         "boundary_note": boundary_note,
         "best_match": None,
+        "exact_matches": [],
+        "strong_matches": [],
         "also_related": [],
         "debug": debug_payload,
     }
@@ -438,6 +445,8 @@ def compact_result_for_api(
     selected_runtime: str | None = None,
     runtime_evaluations: list[dict] | None = None,
     stage_timings: dict | None = None,
+    exact_matches: list[dict[str, Any]] | None = None,
+    strong_matches: list[dict[str, Any]] | None = None,
 ) -> dict:
     preferred_lane = fusion_output.get("preferred_lane", "none")
     preferred_result = fusion_output.get("preferred_result") or {}
@@ -459,6 +468,8 @@ def compact_result_for_api(
             "Based only on the current indexed Quran sources.",
         ),
         "best_match": preferred_best,
+        "exact_matches": [dict(item) for item in (exact_matches or [])],
+        "strong_matches": [dict(item) for item in (strong_matches or [])],
         "also_related": [],
         "debug": None,
     }
@@ -466,6 +477,10 @@ def compact_result_for_api(
     seen_citations = set()
     if preferred_best and preferred_best.get("citation"):
         seen_citations.add(preferred_best["citation"])
+    for item in response["exact_matches"] + response["strong_matches"]:
+        citation = item.get("citation")
+        if citation:
+            seen_citations.add(citation)
 
     if secondary_best:
         secondary_best = attach_english_translation(secondary_best, english_translation_map or {})
@@ -878,8 +893,11 @@ def _evaluate_runtime(
 
     return {
         "runtime": runtime.label,
+        "runtime_obj": runtime,
         "fusion_output": fusion_output,
         "public_response": public_response,
+        "ayah_candidates": ayah_candidates,
+        "passage_candidates": passage_candidates,
         "exact_ayah_meta": exact_ayah_meta,
         "ayah_shortlist_meta": ayah_shortlist_meta,
         "passage_shortlist_meta": passage_shortlist_meta,
@@ -999,6 +1017,17 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
 
     selected_evaluation, evaluations = _choose_runtime_evaluation(query_route, evaluations)
     fusion_output = selected_evaluation["fusion_output"]
+    preferred_result = fusion_output.get("preferred_result") or {}
+    exact_matches, strong_matches = build_lane_match_collections(
+        matching_query,
+        preferred_lane=fusion_output.get("preferred_lane", "none"),
+        runtime=selected_evaluation["runtime_obj"],
+        ayah_candidates=selected_evaluation.get("ayah_candidates") or [],
+        passage_candidates=selected_evaluation.get("passage_candidates") or [],
+        english_translation_map=ENGLISH_TRANSLATION_MAP,
+        matching_corpus=selected_evaluation["runtime"],
+        best_match=preferred_result.get("best_match"),
+    )
     stage_start_ms = _now_ms()
     public_response = compact_result_for_api(
         fusion_output,
@@ -1023,6 +1052,8 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
             "preprocessing_ms": preprocessing_ms,
             "request_total_ms": _elapsed_ms(request_start_ms),
         },
+        exact_matches=exact_matches,
+        strong_matches=strong_matches,
     )
 
     request_id = str(uuid4())

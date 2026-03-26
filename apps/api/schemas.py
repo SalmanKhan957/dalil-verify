@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class VerifyQuranRequest(BaseModel):
-    text: str = Field(..., min_length=1, description="User input to verify against Quran sources.")
+    text: str
 
 
 class VerifyQuranResponse(BaseModel):
@@ -16,5 +14,7 @@ class VerifyQuranResponse(BaseModel):
     confidence: str
     boundary_note: str
     best_match: dict[str, Any] | None
-    also_related: list[dict[str, Any]]
+    exact_matches: list[dict[str, Any]] = Field(default_factory=list)
+    strong_matches: list[dict[str, Any]] = Field(default_factory=list)
+    also_related: list[dict[str, Any]] = Field(default_factory=list)
     debug: dict[str, Any] | None = None
