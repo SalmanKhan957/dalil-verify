@@ -58,6 +58,42 @@ def _candidate_row_citation_key(candidate: dict[str, Any]) -> str:
         or ""
     )
 
+def _passage_span_tuple(item: dict[str, Any]) -> tuple[int, int, int] | None:
+    surah_no = item.get("surah_no")
+    start_ayah = item.get("start_ayah")
+    end_ayah = item.get("end_ayah")
+    if surah_no is None or start_ayah is None or end_ayah is None:
+        return None
+    return int(surah_no), int(start_ayah), int(end_ayah)
+
+
+def _candidate_passage_span_tuple(candidate: dict[str, Any]) -> tuple[int, int, int] | None:
+    row = candidate.get("row") or {}
+    surah_no = row.get("surah_no")
+    start_ayah = row.get("start_ayah")
+    end_ayah = row.get("end_ayah")
+    if surah_no is None or start_ayah is None or end_ayah is None:
+        return None
+    return int(surah_no), int(start_ayah), int(end_ayah)
+
+
+def _span_contains(a: tuple[int, int, int], b: tuple[int, int, int]) -> bool:
+    a_surah, a_start, a_end = a
+    b_surah, b_start, b_end = b
+    return a_surah == b_surah and a_start <= b_start and a_end >= b_end
+
+
+def _should_suppress_passage_wrapper(
+    candidate_span: tuple[int, int, int] | None,
+    anchor_spans: list[tuple[int, int, int]],
+) -> bool:
+    if candidate_span is None:
+        return False
+    for anchor_span in anchor_spans:
+        if _span_contains(candidate_span, anchor_span) or _span_contains(anchor_span, candidate_span):
+            return True
+    return False
+
 
 
 def _dedupe_by_citation(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -407,26 +443,42 @@ def collect_strong_passage_matches(
     matching_corpus: str,
     exclude_citations: set[str],
     limit: int = 3,
+    anchor_items: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen = set(exclude_citations)
+
+    anchor_spans: list[tuple[int, int, int]] = []
+    for item in anchor_items or []:
+        span = _passage_span_tuple(item)
+        if span is not None:
+            anchor_spans.append(span)
+
     for candidate in candidates:
         citation_key = _candidate_row_citation_key(candidate)
         if not citation_key or citation_key in seen:
             continue
         if not _candidate_is_strong(query, candidate):
             continue
+
         formatted = _format_passage_candidate(
             candidate,
             english_translation_map=english_translation_map,
             matching_corpus=matching_corpus,
         )
+
         if formatted.get("canonical_unit_type") == "heuristic_expansion":
             continue
+
+        candidate_span = _candidate_passage_span_tuple(candidate)
+        if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
+            continue
+
         items.append(formatted)
         seen.add(citation_key)
         if len(items) >= limit:
             break
+
     return items
 
 
@@ -441,6 +493,7 @@ def build_lane_match_collections(
     english_translation_map: dict[tuple[int, int], dict] | None,
     matching_corpus: str,
     best_match: dict[str, Any] | None,
+    related_ayah_candidates: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     exact_matches: list[dict[str, Any]] = []
     strong_matches: list[dict[str, Any]] = []
@@ -456,9 +509,10 @@ def build_lane_match_collections(
             matching_corpus=matching_corpus,
         )
         exclude_citations.update(_candidate_citation_key(item) for item in exact_matches if _candidate_citation_key(item))
+        strong_source_candidates = related_ayah_candidates if related_ayah_candidates is not None else ayah_candidates
         strong_matches = collect_strong_ayah_matches(
             query,
-            candidates=ayah_candidates,
+            candidates=strong_source_candidates,
             english_translation_map=english_translation_map,
             matching_corpus=matching_corpus,
             exclude_citations=exclude_citations,
@@ -474,6 +528,12 @@ def build_lane_match_collections(
             matching_corpus=matching_corpus,
         )
         exclude_citations.update(_candidate_citation_key(item) for item in exact_matches if _candidate_citation_key(item))
+
+        anchor_items: list[dict[str, Any]] = []
+        if best_match:
+            anchor_items.append(best_match)
+        anchor_items.extend(exact_matches)
+
         strong_matches = collect_strong_passage_matches(
             query,
             candidates=passage_candidates,
@@ -481,6 +541,7 @@ def build_lane_match_collections(
             matching_corpus=matching_corpus,
             exclude_citations=exclude_citations,
             limit=3,
+            anchor_items=anchor_items,
         )
         return exact_matches, strong_matches
 

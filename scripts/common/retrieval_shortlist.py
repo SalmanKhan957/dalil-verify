@@ -97,6 +97,7 @@ class QuranShortlistIndex:
         query: str,
         *,
         limit: int = 250,
+        allow_exact_shortcircuit: bool = True,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         light_query = normalize_arabic_light(query)
         aggressive_query = normalize_arabic_aggressive(query)
@@ -107,7 +108,7 @@ class QuranShortlistIndex:
         exact_indices = set(self.exact_light.get(light_query, []))
         exact_indices.update(self.exact_aggressive.get(aggressive_query, []))
 
-        if exact_indices:
+        if exact_indices and allow_exact_shortcircuit:
             ordered = sorted(exact_indices)
             return [self.rows[i] for i in ordered[:limit]], {
                 "strategy": "exact",

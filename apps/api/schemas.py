@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class VerifyQuranRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, description="User input to verify against Quran sources.")
 
 
 class VerifyQuranResponse(BaseModel):

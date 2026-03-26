@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import time
@@ -12,6 +12,7 @@ from scripts.common.quran_match_collections import (
     build_unique_exact_map,
 )
 from fastapi import FastAPI, HTTPException, Request
+from typing import Any
 
 from apps.api.logging_utils import append_jsonl_log
 from apps.api.schemas import VerifyQuranRequest, VerifyQuranResponse
@@ -359,6 +360,34 @@ def _strong_passage_win(public_response: dict) -> bool:
     )
 
 
+
+def _build_related_ayah_candidates_for_strong_matches(
+    runtime: CorpusRuntime,
+    *,
+    query: str,
+    long_query: bool,
+    base_limit: int,
+) -> tuple[list[dict], dict]:
+    if runtime.ayah_shortlist_index is None:
+        return [], {"strategy": "unavailable", "candidate_count": 0, "reason": "ayah_shortlist_index_missing"}
+
+    shortlist_rows, shortlist_meta = runtime.ayah_shortlist_index.shortlist_rows(
+        query,
+        limit=base_limit,
+        allow_exact_shortcircuit=False,
+    )
+    candidates = compute_ayah_matches(
+        query,
+        shortlist_rows,
+        top_k=LONG_QUERY_AYAH_TOP_K if long_query else 5,
+    )
+    return candidates, {
+        **shortlist_meta,
+        "strategy": f"{runtime.label}_related_ayah_token_qgram",
+        "reason": "support_strong_matches_after_unique_exact_ayah",
+    }
+
+
 def _candidate_is_exact_match(
     query: str,
     candidate: dict | None,
@@ -609,6 +638,8 @@ def _evaluate_runtime(
 
     long_query = _is_long_query(matching_query)
     giant_query = _is_giant_query(matching_query)
+    ayah_related_candidates: list[dict] | None = None
+    ayah_related_meta: dict | None = None
 
     stage_start_ms = _now_ms()
     exact_ayah_row, exact_ayah_meta = _resolve_exact_ayah_row(matching_query, runtime)
@@ -732,6 +763,15 @@ def _evaluate_runtime(
         likely_surahs = _likely_surahs_from_ayah_candidates(ayah_candidates, limit=3) if long_query else []
 
         if exact_ayah_candidate_hit:
+            if exact_ayah_row is not None:
+                stage_start_ms = _now_ms()
+                ayah_related_candidates, ayah_related_meta = _build_related_ayah_candidates_for_strong_matches(
+                    runtime,
+                    query=matching_query,
+                    long_query=long_query,
+                    base_limit=LONG_QUERY_AYAH_SHORTLIST_LIMIT if long_query else 250,
+                )
+                stage_timings["ayah_related_shortlist_ms"] = _elapsed_ms(stage_start_ms)
             passage_shortlist_rows = []
             passage_shortlist_meta = {
                 "strategy": f"{runtime.label}_skipped_after_exact_ayah",
@@ -739,6 +779,8 @@ def _evaluate_runtime(
                 "reason": "skip_passage_after_exact_ayah",
                 "source": "exact_ayah_map" if exact_ayah_row is not None else "ayah_scoring",
             }
+            if ayah_related_meta:
+                passage_shortlist_meta["related_ayah_strategy"] = ayah_related_meta.get("strategy")
             passage_candidates = []
             dynamic_passage_meta = {
                 "engine": "skipped_after_exact_ayah",
@@ -746,6 +788,8 @@ def _evaluate_runtime(
                 "reason": "skip_passage_after_exact_ayah",
                 "source": "exact_ayah_map" if exact_ayah_row is not None else "ayah_scoring",
             }
+            if ayah_related_meta:
+                dynamic_passage_meta["related_ayah_strategy"] = ayah_related_meta.get("strategy")
         else:
             passage_limit = LONG_QUERY_PASSAGE_SHORTLIST_LIMIT if long_query else 300
             stage_start_ms = _now_ms()
@@ -868,6 +912,7 @@ def _evaluate_runtime(
     fusion_output["query_routing"] = query_routing
     fusion_output["shortlist"] = {
         "ayah": ayah_shortlist_meta,
+        "ayah_related": ayah_related_meta,
         "passage": passage_shortlist_meta,
         "dynamic_passage": dynamic_passage_meta,
         "giant_fastpath": build_long_span_debug_block(giant_fastpath_meta),
@@ -897,6 +942,7 @@ def _evaluate_runtime(
         "fusion_output": fusion_output,
         "public_response": public_response,
         "ayah_candidates": ayah_candidates,
+        "related_ayah_candidates": ayah_related_candidates,
         "passage_candidates": passage_candidates,
         "exact_ayah_meta": exact_ayah_meta,
         "ayah_shortlist_meta": ayah_shortlist_meta,
@@ -1027,6 +1073,7 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
         english_translation_map=ENGLISH_TRANSLATION_MAP,
         matching_corpus=selected_evaluation["runtime"],
         best_match=preferred_result.get("best_match"),
+        related_ayah_candidates=selected_evaluation.get("related_ayah_candidates"),
     )
     stage_start_ms = _now_ms()
     public_response = compact_result_for_api(

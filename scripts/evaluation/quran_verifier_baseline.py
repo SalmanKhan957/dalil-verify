@@ -145,25 +145,25 @@ def classify_query(query: str) -> str:
     return assess_verifier_query(query)["mode"]
 
 
-def classify_query(query: str) -> str:
-    q = query.strip()
-    q_norm = normalize_arabic_light(q)
-    q_tokens = tokenize(q_norm)
+# def classify_query(query: str) -> str:
+#     q = query.strip()
+#     q_norm = normalize_arabic_light(q)
+#     q_tokens = tokenize(q_norm)
 
-    if len(q_norm) < 6:
-        return "cannot_assess"
+#     if len(q_norm) < 6:
+#         return "cannot_assess"
 
-    if len(q_tokens) < 2:
-        return "cannot_assess"
+#     if len(q_tokens) < 2:
+#         return "cannot_assess"
 
-    lowered = q.lower().strip()
-    if "?" in q or lowered.startswith("what ") or lowered.startswith("how "):
-        return "ask_like"
+#     lowered = q.lower().strip()
+#     if "?" in q or lowered.startswith("what ") or lowered.startswith("how "):
+#         return "ask_like"
 
-    if q.startswith("ما ") or q.startswith("ماذا ") or q.startswith("كيف "):
-        return "ask_like"
+#     if q.startswith("ما ") or q.startswith("ماذا ") or q.startswith("كيف "):
+#         return "ask_like"
 
-    return "verify_like"
+#     return "verify_like"
 
 
 
