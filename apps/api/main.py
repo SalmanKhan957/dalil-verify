@@ -43,6 +43,7 @@ from scripts.evaluation.quran_verifier_baseline import (
     compute_best_matches as compute_ayah_matches,
     determine_match_status,
     load_quran_dataset,
+    assess_verifier_query,
 )
 
 QURAN_DATA_PATH = Path("data/processed/quran/quran_arabic_canonical.csv")
@@ -212,6 +213,24 @@ def _sort_candidates(candidates: list[dict], limit: int = 5) -> list[dict]:
     )
     return _dedupe_candidates(ordered, limit=limit)
 
+def _build_non_retrieval_response(
+    query: str,
+    *,
+    preferred_lane: str,
+    boundary_note: str,
+    debug_payload: dict | None = None,
+) -> dict:
+    return {
+        "query": query,
+        "preferred_lane": preferred_lane,
+        "match_status": "Cannot assess",
+        "confidence": "low",
+        "boundary_note": boundary_note,
+        "best_match": None,
+        "also_related": [],
+        "debug": debug_payload,
+    }
+
 
 def _empty_ayah_result(query: str) -> dict:
     return {
@@ -277,6 +296,29 @@ def _query_token_count(query: str) -> int:
 
 def _is_giant_query(query: str) -> bool:
     return _query_token_count(query) >= GIANT_MIN_TOKEN_COUNT
+
+def _has_any_runtime_exact_ayah_signal(query: str) -> bool:
+    """
+    Allow ultra-short canonical ayah input to bypass the Cannot-assess gate
+    if the query has an exact-ayah signal in any active runtime.
+
+    This covers both:
+    - unique exact ayah hits (row is not None)
+    - repeated exact ayah strings like الم where the exact map is ambiguous
+      because the same normalized text exists in multiple ayat
+    """
+    for runtime in [SIMPLE_RUNTIME, UTHMANI_RUNTIME]:
+        if runtime is None:
+            continue
+
+        row, meta = _resolve_exact_ayah_row(query, runtime)
+        if row is not None:
+            return True
+
+        if bool(meta.get("ambiguous")):
+            return True
+
+    return False
 
 
 def _likely_surahs_from_ayah_candidates(candidates: list[dict], limit: int = 3) -> list[int]:
@@ -898,13 +940,46 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
         raise HTTPException(status_code=400, detail="Input text cannot be empty.")
 
     stage_start_ms = _now_ms()
-    query_route = detect_quran_query_route(raw_query)
-    routing_ms = _elapsed_ms(stage_start_ms)
-    stage_start_ms = _now_ms()
     matching_query, preprocessing_meta = sanitize_quran_text_for_matching_with_meta(raw_query)
     preprocessing_ms = _elapsed_ms(stage_start_ms)
     if not matching_query:
         raise HTTPException(status_code=400, detail="Input text cannot be empty after sanitation.")
+
+    stage_start_ms = _now_ms()
+    query_assessment = assess_verifier_query(raw_query)
+    assessment_ms = _elapsed_ms(stage_start_ms)
+
+    if query_assessment.get("mode") != "verify_like":
+        # Important exception:
+        # allow genuine single-word / ultra-short exact ayah hits to proceed.
+        exact_ayah_override = _has_any_runtime_exact_ayah_signal(matching_query)
+
+        if not exact_ayah_override:
+            preferred_lane = "ask_engine" if query_assessment.get("mode") == "ask_like" else "none"
+            public_response = _build_non_retrieval_response(
+                raw_query,
+                preferred_lane=preferred_lane,
+                boundary_note=query_assessment.get("boundary_note") or "Input is not suitable for reliable verification.",
+                debug_payload=(
+                    {
+                        "decision_rule": query_assessment.get("reason"),
+                        "rationale": query_assessment.get("boundary_note"),
+                        "query_preprocessing": preprocessing_meta,
+                        "stage_timings": {
+                            "preprocessing_ms": preprocessing_ms,
+                            "assessment_ms": assessment_ms,
+                            "request_total_ms": _elapsed_ms(request_start_ms),
+                        },
+                    }
+                    if debug
+                    else None
+                ),
+            )
+            return VerifyQuranResponse(**public_response)
+
+    stage_start_ms = _now_ms()
+    query_route = detect_quran_query_route(raw_query)
+    routing_ms = _elapsed_ms(stage_start_ms)
 
     evaluations: list[dict] = []
     fallback_trigger_reason = "single_runtime_only"

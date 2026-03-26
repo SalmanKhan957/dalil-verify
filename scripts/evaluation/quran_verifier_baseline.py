@@ -42,6 +42,108 @@ def load_quran_dataset(csv_path: Path) -> list[dict[str, Any]]:
 
     return rows
 
+GENERIC_SHORT_TOKENS = {
+    "من", "في", "على", "الى", "إلى", "عن", "ما", "ماذا", "كيف", "هل",
+    "قال", "قالوا", "الله", "للَّه", "الناس", "يوم", "رب", "ربك", "ربهم",
+    "هذا", "هذه", "ذلك", "تلك", "كل", "بعض", "ان", "إن", "لا", "لن",
+}
+
+ARABIC_QUESTION_PREFIXES = ("ما ", "ماذا ", "كيف ", "هل ", "أين ", "اين ", "متى ", "لماذا ", "كم ", "من ")
+ENGLISH_QUESTION_PREFIXES = ("what ", "how ", "where ", "when ", "why ", "is this", "does this", "which ")
+META_QUERY_MARKERS = ("هل هذه آية", "هل هذا من القرآن", "اين ورد", "أين ورد", "في القرآن", "في القران")
+
+
+def _is_generic_two_token_input(tokens: list[str]) -> bool:
+    if len(tokens) != 2:
+        return False
+    if tokens[0] == tokens[1]:
+        return True
+    generic_hits = sum(1 for token in tokens if token in GENERIC_SHORT_TOKENS)
+    short_hits = sum(1 for token in tokens if len(token) <= 3)
+    return generic_hits == 2 or (generic_hits >= 1 and short_hits == 2)
+
+
+def _is_short_repeated_phrase(tokens: list[str]) -> bool:
+    return len(tokens) <= 3 and len(set(tokens)) < len(tokens)
+
+
+def _has_low_structural_signal(tokens: list[str]) -> bool:
+    if not tokens:
+        return True
+    tiny_tokens = sum(1 for token in tokens if len(token) <= 1)
+    if tiny_tokens >= max(2, (len(tokens) + 1) // 2):
+        return True
+    if len(tokens) >= 3 and len(set(tokens)) == 1:
+        return True
+    return False
+
+
+def assess_verifier_query(query: str) -> dict[str, Any]:
+    q = (query or "").strip()
+    q_norm = normalize_arabic_light(q)
+    q_tokens = tokenize(q_norm)
+    lowered = q.lower().strip()
+
+    if not q_norm:
+        return {
+            "mode": "cannot_assess",
+            "reason": "empty_after_normalization",
+            "boundary_note": "Input is empty or unsuitable for reliable verification.",
+        }
+
+    if (
+        "?" in q
+        or lowered.startswith(ENGLISH_QUESTION_PREFIXES)
+        # or q.startswith(ARABIC_QUESTION_PREFIXES)
+        or any(marker in q for marker in META_QUERY_MARKERS)
+    ):
+        return {
+            "mode": "ask_like",
+            "reason": "question_or_meta_query",
+            "boundary_note": (
+                "This looks like a question or meta-query rather than source-verification input. "
+                "Route this to the ask engine, not the verifier."
+            ),
+        }
+
+    if len(q_norm) < 6 or len(q_tokens) < 2:
+        return {
+            "mode": "cannot_assess",
+            "reason": "too_short",
+            "boundary_note": "Input is too short, too generic, or too vague for reliable verification.",
+        }
+
+    if _is_generic_two_token_input(q_tokens):
+        return {
+            "mode": "cannot_assess",
+            "reason": "generic_two_token_input",
+            "boundary_note": "Input is too short or too generic to verify reliably against the Quran corpus.",
+        }
+
+    if _is_short_repeated_phrase(q_tokens):
+        return {
+            "mode": "cannot_assess",
+            "reason": "short_repeated_phrase",
+            "boundary_note": "Input is a very short repeated phrase and is too ambiguous for reliable verification.",
+        }
+
+    if _has_low_structural_signal(q_tokens):
+        return {
+            "mode": "cannot_assess",
+            "reason": "low_structural_signal",
+            "boundary_note": "Input appears too noisy or structurally weak for reliable Quran verification.",
+        }
+
+    return {
+        "mode": "verify_like",
+        "reason": "sufficient_signal",
+        "boundary_note": "",
+    }
+
+
+def classify_query(query: str) -> str:
+    return assess_verifier_query(query)["mode"]
+
 
 def classify_query(query: str) -> str:
     q = query.strip()
@@ -111,19 +213,27 @@ def is_exact_excerpt_match(query: str, best_candidate: dict[str, Any], *, min_qu
         return False
     return True
 
+def is_full_exact_match(best_candidate: dict[str, Any] | None) -> bool:
+    if not best_candidate:
+        return False
+    return (
+        best_candidate.get("exact_display") == 100.0
+        or best_candidate.get("exact_normalized_light") == 100.0
+    )
+
 
 def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
-    query_norm = normalize_arabic_light(query)
-    query_tokens = tokenize(query_norm)
+    # Important exception:
+    # A full exact ayah hit should still count as exact even if the query is only one token.
+    if is_full_exact_match(best_candidate):
+        return "Exact match found"
 
-    if len(query_norm) < 6 or len(query_tokens) < 2:
+    assessment = assess_verifier_query(query)
+    if assessment["mode"] != "verify_like":
         return "Cannot assess"
 
-    if (
-        best_candidate["exact_display"] == 100.0
-        or best_candidate["exact_normalized_light"] == 100.0
-    ):
-        return "Exact match found"
+    query_norm = normalize_arabic_light(query)
+    query_tokens = tokenize(query_norm)
 
     if (
         best_candidate["exact_normalized_aggressive"] == 100.0
@@ -172,18 +282,24 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
 
 
 def build_result(query: str, candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    mode = classify_query(query)
+    assessment = assess_verifier_query(query)
+    mode = assessment["mode"]
 
+    # Important exception:
+    # If the best candidate is a full exact ayah, allow it even for otherwise unassessable short input.
     if mode == "cannot_assess":
-        return {
-            "query": query,
-            "mode": "verifier",
-            "match_status": "Cannot assess",
-            "confidence": "low",
-            "boundary_note": "Input is too short, too generic, or too vague for reliable verification.",
-            "best_match": None,
-            "alternatives": [],
-        }
+        if candidates and is_full_exact_match(candidates[0]):
+            mode = "verify_like"
+        else:
+            return {
+                "query": query,
+                "mode": "verifier",
+                "match_status": "Cannot assess",
+                "confidence": "low",
+                "boundary_note": assessment["boundary_note"],
+                "best_match": None,
+                "alternatives": [],
+            }
 
     if mode == "ask_like":
         return {
@@ -191,10 +307,7 @@ def build_result(query: str, candidates: list[dict[str, Any]]) -> dict[str, Any]
             "mode": "ask_engine",
             "match_status": "Cannot assess",
             "confidence": "low",
-            "boundary_note": (
-                "This looks like a question rather than a source-verification input. "
-                "Route this to the ask engine, not the verifier."
-            ),
+            "boundary_note": assessment["boundary_note"],
             "best_match": None,
             "alternatives": [],
         }
