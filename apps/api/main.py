@@ -9,6 +9,7 @@ from scripts.common.quran_citation_units import get_result_canonical_unit_type
 from scripts.common.quran_match_collections import (
     build_exact_groups,
     build_lane_match_collections,
+    build_passage_rows_by_window_size,
     build_unique_exact_map,
 )
 from fastapi import FastAPI, HTTPException, Request
@@ -75,6 +76,7 @@ class CorpusRuntime:
     exact_aggressive_map: dict[str, dict | None]
     passage_exact_light_groups: dict[str, list[dict]]
     passage_exact_aggressive_groups: dict[str, list[dict]]
+    passage_rows_by_window_size: dict[int, list[dict]]
 
 
 SIMPLE_RUNTIME: CorpusRuntime | None = None
@@ -137,6 +139,7 @@ def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required:
         exact_aggressive_map=build_unique_exact_map(exact_aggressive_groups),
         passage_exact_light_groups=passage_exact_light_groups,
         passage_exact_aggressive_groups=passage_exact_aggressive_groups,
+        passage_rows_by_window_size=build_passage_rows_by_window_size(passage_rows),
     )
 
 
@@ -476,6 +479,7 @@ def compact_result_for_api(
     stage_timings: dict | None = None,
     exact_matches: list[dict[str, Any]] | None = None,
     strong_matches: list[dict[str, Any]] | None = None,
+    collection_debug: dict[str, Any] | None = None,
 ) -> dict:
     preferred_lane = fusion_output.get("preferred_lane", "none")
     preferred_result = fusion_output.get("preferred_result") or {}
@@ -560,6 +564,7 @@ def compact_result_for_api(
             "selected_runtime": selected_runtime,
             "runtime_evaluations": runtime_evaluations or [],
             "stage_timings": stage_timings or {},
+            "collection_debug": collection_debug or {},
         }
 
     return response
@@ -1064,7 +1069,8 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
     selected_evaluation, evaluations = _choose_runtime_evaluation(query_route, evaluations)
     fusion_output = selected_evaluation["fusion_output"]
     preferred_result = fusion_output.get("preferred_result") or {}
-    exact_matches, strong_matches = build_lane_match_collections(
+    collection_start_ms = _now_ms()
+    exact_matches, strong_matches, collection_debug = build_lane_match_collections(
         matching_query,
         preferred_lane=fusion_output.get("preferred_lane", "none"),
         runtime=selected_evaluation["runtime_obj"],
@@ -1074,7 +1080,9 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
         matching_corpus=selected_evaluation["runtime"],
         best_match=preferred_result.get("best_match"),
         related_ayah_candidates=selected_evaluation.get("related_ayah_candidates"),
+        return_debug_meta=True,
     )
+    collection_ms = _elapsed_ms(collection_start_ms)
     stage_start_ms = _now_ms()
     public_response = compact_result_for_api(
         fusion_output,
@@ -1097,10 +1105,16 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
         stage_timings={
             "routing_ms": routing_ms,
             "preprocessing_ms": preprocessing_ms,
+            "match_collection_ms": collection_ms,
+            **{
+                f"match_collection_{key}": value
+                for key, value in ((collection_debug or {}).get("stage_timings") or {}).items()
+            },
             "request_total_ms": _elapsed_ms(request_start_ms),
         },
         exact_matches=exact_matches,
         strong_matches=strong_matches,
+        collection_debug=collection_debug,
     )
 
     request_id = str(uuid4())
