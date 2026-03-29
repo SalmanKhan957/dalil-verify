@@ -253,7 +253,7 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
             best_candidate["contains_query_in_text_light"] == 100.0
             or best_candidate["contains_query_in_text_aggressive"] == 100.0
         )
-        and best_candidate["token_coverage"] >= 80.0
+        and best_candidate["token_coverage"] >= 60.0
         and len(query_tokens) >= 3
     ):
         return "Close / partial match found"
@@ -263,7 +263,7 @@ def determine_match_status(query: str, best_candidate: dict[str, Any]) -> str:
             best_candidate["token_set_score"],
             best_candidate["aggressive_token_set_score"],
         ) >= 95.0
-        and best_candidate["token_coverage"] >= 80.0
+        and best_candidate["token_coverage"] >= 70.0
         and len(query_tokens) >= 4
     ):
         return "Close / partial match found"

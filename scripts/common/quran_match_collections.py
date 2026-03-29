@@ -24,8 +24,8 @@ CROSS_LANE_AYAH_BACKFILL_SCORE_MIN = 15.0
 CROSS_LANE_AYAH_BACKFILL_COVERAGE_MIN = 50.0
 PARALLEL_PASSAGE_FROM_BEST_SCORE_MIN = 19.0
 PARALLEL_PASSAGE_FROM_BEST_COVERAGE_MIN = 40.0
-PARALLEL_PASSAGE_QUERY_RELAXED_COVERAGE_MIN = 65.0
-PARALLEL_PASSAGE_QUERY_RELAXED_MAX_MISSING_QUERY_TOKENS = 3
+PARALLEL_PASSAGE_QUERY_RELAXED_COVERAGE_MIN = 50.0
+PARALLEL_PASSAGE_QUERY_RELAXED_MAX_MISSING_QUERY_TOKENS = 4
 PARALLEL_PASSAGE_QUERY_RELAXED_MIN_QUERY_TOKENS = 6
 
 
@@ -514,6 +514,140 @@ def collect_exact_passage_matches(
 
 
 
+
+
+def _should_skip_parallel_projection_scan(
+    query: str,
+    best_match: dict[str, Any] | None,
+) -> bool:
+    if not best_match:
+        return True
+    query_tokens = tokenize(normalize_arabic_light(query))
+    best_match_tokens = tokenize(best_match.get("text_normalized_light") or "")
+    best_length_ratio = ((best_match.get("scoring_breakdown") or {}).get("length_ratio") or 1.0)
+    return (
+        len(query_tokens) >= 20
+        or len(best_match_tokens) >= 25
+        or float(best_length_ratio) <= 0.35
+    )
+
+
+def collect_parallel_passage_from_index(
+    *,
+    query: str,
+    runtime: Any,
+    best_match: dict[str, Any] | None,
+    english_translation_map: dict[tuple[int, int], dict] | None,
+    matching_corpus: str,
+    exclude_citations: set[str],
+    limit: int = 3,
+    anchor_items: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    if not best_match:
+        return items
+    if best_match.get("source_type") != "quran_passage":
+        return items
+    # Close/partial winners may not carry retrieval_engine on the final best_match
+    # object even though passage analytics classify them as static_window. For the
+    # indexed neighbor path, source_type + canonical_source_id + window_size are
+    # sufficient; do not block on retrieval_engine here.
+
+    best_surah_no = best_match.get("surah_no")
+    best_window_size = best_match.get("window_size")
+    best_canonical_source_id = str(best_match.get("canonical_source_id") or "")
+    if best_surah_no is None or best_window_size is None or not best_canonical_source_id:
+        return items
+
+    neighbor_lookup = getattr(runtime, "passage_neighbor_lookup", {}) or {}
+    row_lookup = getattr(runtime, "passage_row_lookup", {}) or {}
+    neighbor_candidates = list(neighbor_lookup.get((int(best_window_size), best_canonical_source_id), []))
+    if not neighbor_candidates:
+        return items
+
+    seen = set(exclude_citations)
+    anchor_spans: list[tuple[int, int, int]] = []
+    for item in anchor_items or []:
+        span = _passage_span_tuple(item)
+        if span is not None:
+            anchor_spans.append(span)
+    accepted_spans: list[tuple[int, int, int]] = []
+
+    query_light = normalize_arabic_light(query)
+    query_aggressive = normalize_arabic_aggressive(query)
+    query_light_tokens = tokenize(query_light)
+    query_aggressive_tokens = tokenize(query_aggressive)
+
+    for neighbor in neighbor_candidates:
+        canonical_source_id = str(neighbor.get("canonical_source_id") or "")
+        if not canonical_source_id:
+            continue
+        row = row_lookup.get(canonical_source_id)
+        if not row:
+            continue
+
+        citation_key = str(
+            row.get("canonical_source_id")
+            or row.get("citation_string")
+            or row.get("source_id")
+            or ""
+        )
+        if not citation_key or citation_key in seen:
+            continue
+
+        row_surah_no = row.get("surah_no")
+        if row_surah_no is None or int(row_surah_no) == int(best_surah_no):
+            continue
+
+        row_window_size = row.get("window_size")
+        if row_window_size is None:
+            start_ayah = row.get("start_ayah")
+            end_ayah = row.get("end_ayah")
+            if start_ayah is None or end_ayah is None:
+                continue
+            row_window_size = int(end_ayah) - int(start_ayah) + 1
+        if int(row_window_size) != int(best_window_size):
+            continue
+
+        synthetic_candidate = compute_candidate_score(
+            query_light,
+            query_light_tokens,
+            row,
+            query,
+            aggressive_query=query_aggressive,
+            aggressive_query_tokens=query_aggressive_tokens,
+        )
+        if not _candidate_is_relaxed_parallel_from_query(query, synthetic_candidate):
+            continue
+
+        formatted = _format_passage_candidate(
+            synthetic_candidate,
+            english_translation_map=english_translation_map,
+            matching_corpus=matching_corpus,
+        )
+        if formatted.get("canonical_unit_type") not in {"static_window", "contiguous_span"}:
+            continue
+
+        candidate_span = _candidate_passage_span_tuple(synthetic_candidate)
+        if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
+            continue
+        if _should_suppress_passage_overlap(candidate_span, anchor_spans):
+            continue
+        if _should_suppress_passage_wrapper(candidate_span, accepted_spans):
+            continue
+        if _should_suppress_passage_overlap(candidate_span, accepted_spans):
+            continue
+
+        formatted["match_kind"] = "parallel_passage_from_index"
+        items.append(formatted)
+        seen.add(citation_key)
+        if candidate_span is not None:
+            accepted_spans.append(candidate_span)
+        if len(items) >= limit:
+            break
+
+    return items
+
 def _candidate_is_strong(query: str, candidate: dict[str, Any]) -> bool:
     status = determine_match_status(query, candidate)
     if status not in {"Exact match found", "Close / partial match found"}:
@@ -926,7 +1060,8 @@ def collect_parallel_passage_from_best_match(
         return items
     if best_match.get("source_type") != "quran_passage":
         return items
-    if best_match.get("retrieval_engine") != "static_exact_window":
+    best_match_engine = str(best_match.get("retrieval_engine") or "")
+    if best_match_engine and best_match_engine not in {"static_exact_window", "static_window"}:
         return items
 
     best_text = best_match.get("text_display") or ""
@@ -1173,54 +1308,55 @@ def build_lane_match_collections(
 
         collection_debug["stage_timings"]["strong_matches_ms"] = round((time.perf_counter() - stage_start) * 1000.0, 3)
 
-        # Projection-only supplement for exact static passage cases that ended up
-        # with no usable strong passage matches after wrapper suppression.
-        # Compare other canonical passage windows against the best_match full text.
-        # Hard-gate this for long exact winners, because it is extremely expensive
-        # and usually returns no value for long passages.
-        query_tokens = tokenize(normalize_arabic_light(query))
-        best_match_tokens = tokenize(best_match.get("text_normalized_light") or "")
-        best_length_ratio = (
-            (best_match.get("scoring_breakdown") or {}).get("length_ratio") or 1.0
-        )
-
-        skip_parallel_projection = (
-            len(query_tokens) >= 25
-            # or len(best_match_tokens) >= 25
-            # or best_length_ratio <= 0.35
-        )
-        collection_debug["counts"]["parallel_passage_from_best_match_skipped"] = int(skip_parallel_projection)
-        collection_debug["parallel_passage_skip_reason"] = {
-            "query_token_count": len(query_tokens),
-            "best_match_token_count": len(best_match_tokens),
-            "best_length_ratio": round(best_length_ratio, 4),
-        }
+        # Projection-only supplement for passage cases that ended up with no usable
+        # strong passage matches after wrapper suppression.
+        # Prefer precomputed indexed neighbors when available; only fall back to
+        # the expensive best-match scan for short winners.
         if (
-            not skip_parallel_projection
-            and not strong_matches
+            not strong_matches
             and best_match
-            and best_match.get("retrieval_engine") == "static_exact_window"
+            and best_match.get("source_type") == "quran_passage"
         ):
             parallel_exclude = set(exclude_citations)
             parallel_anchor_items = list(anchor_items)
 
-            stage_start = time.perf_counter()
-            parallel_matches = collect_parallel_passage_from_best_match(
-                query=query,
-                runtime=runtime,
-                best_match=best_match,
-                english_translation_map=english_translation_map,
-                matching_corpus=matching_corpus,
-                exclude_citations=parallel_exclude,
-                limit=3,
-                anchor_items=parallel_anchor_items,
-            )
+            if getattr(runtime, "passage_neighbor_lookup", None):
+                stage_start = time.perf_counter()
+                parallel_matches = collect_parallel_passage_from_index(
+                    query=query,
+                    runtime=runtime,
+                    best_match=best_match,
+                    english_translation_map=english_translation_map,
+                    matching_corpus=matching_corpus,
+                    exclude_citations=parallel_exclude,
+                    limit=3,
+                    anchor_items=parallel_anchor_items,
+                )
+                collection_debug["stage_timings"]["parallel_passage_from_index_ms"] = round(
+                    (time.perf_counter() - stage_start) * 1000.0, 3
+                )
+                collection_debug["counts"]["parallel_passage_from_index"] = len(parallel_matches)
+                strong_matches.extend(parallel_matches)
+            elif not _should_skip_parallel_projection_scan(query, best_match):
+                stage_start = time.perf_counter()
+                parallel_matches = collect_parallel_passage_from_best_match(
+                    query=query,
+                    runtime=runtime,
+                    best_match=best_match,
+                    english_translation_map=english_translation_map,
+                    matching_corpus=matching_corpus,
+                    exclude_citations=parallel_exclude,
+                    limit=3,
+                    anchor_items=parallel_anchor_items,
+                )
 
-            collection_debug["stage_timings"]["parallel_passage_from_best_match_ms"] = round(
-                (time.perf_counter() - stage_start) * 1000.0, 3
-            )
-            collection_debug["counts"]["parallel_passage_from_best_match"] = len(parallel_matches)
-            strong_matches.extend(parallel_matches)
+                collection_debug["stage_timings"]["parallel_passage_from_best_match_ms"] = round(
+                    (time.perf_counter() - stage_start) * 1000.0, 3
+                )
+                collection_debug["counts"]["parallel_passage_from_best_match"] = len(parallel_matches)
+                strong_matches.extend(parallel_matches)
+            else:
+                collection_debug["counts"]["parallel_passage_from_best_match_skipped"] = 1
 
         # Cross-lane fallback:
         # if passage strong matches are empty, backfill from ayah candidates,

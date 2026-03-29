@@ -12,6 +12,10 @@ from scripts.common.quran_match_collections import (
     build_passage_rows_by_window_size,
     build_unique_exact_map,
 )
+from scripts.common.quran_passage_neighbors import (
+    build_passage_row_lookup,
+    load_passage_neighbor_lookup,
+)
 from fastapi import FastAPI, HTTPException, Request
 from typing import Any
 
@@ -58,6 +62,7 @@ QURAN_PASSAGE_DATA_PATH = Path("data/processed/quran_passages/quran_passage_wind
 QURAN_UTHMANI_DATA_PATH = Path("data/processed/quran_uthmani/quran_arabic_uthmani_canonical.csv")
 QURAN_UTHMANI_PASSAGE_DATA_PATH = Path("data/processed/quran_uthmani_passages/quran_uthmani_passage_windows_v1.csv")
 QURAN_EN_TRANSLATION_PATH = Path("data/processed/quran_translations/quran_en_single_translation.csv")
+QURAN_PASSAGE_NEIGHBOR_INDEX_PATH = Path("data/processed/quran_passage_neighbors/passage_neighbors_v1.jsonl")
 
 
 @dataclass
@@ -77,21 +82,37 @@ class CorpusRuntime:
     passage_exact_light_groups: dict[str, list[dict]]
     passage_exact_aggressive_groups: dict[str, list[dict]]
     passage_rows_by_window_size: dict[int, list[dict]]
+    passage_row_lookup: dict[str, dict]
+    passage_neighbor_lookup: dict[tuple[int, str], list[dict]]
 
 
 SIMPLE_RUNTIME: CorpusRuntime | None = None
 UTHMANI_RUNTIME: CorpusRuntime | None = None
 ENGLISH_TRANSLATION_MAP: dict[tuple[int, int], dict] = {}
 ENGLISH_TRANSLATION_INFO: dict = {"loaded": False, "row_count": 0, "path": str(QURAN_EN_TRANSLATION_PATH)}
+PASSAGE_NEIGHBOR_LOOKUP: dict[str, dict[tuple[int, str], list[dict]]] = {"simple": {}, "uthmani": {}}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global SIMPLE_RUNTIME, UTHMANI_RUNTIME
-    global ENGLISH_TRANSLATION_MAP, ENGLISH_TRANSLATION_INFO
+    global ENGLISH_TRANSLATION_MAP, ENGLISH_TRANSLATION_INFO, PASSAGE_NEIGHBOR_LOOKUP
 
-    SIMPLE_RUNTIME = _load_runtime("simple", QURAN_DATA_PATH, QURAN_PASSAGE_DATA_PATH, required=True)
-    UTHMANI_RUNTIME = _load_runtime("uthmani", QURAN_UTHMANI_DATA_PATH, QURAN_UTHMANI_PASSAGE_DATA_PATH, required=False)
+    PASSAGE_NEIGHBOR_LOOKUP = load_passage_neighbor_lookup(QURAN_PASSAGE_NEIGHBOR_INDEX_PATH)
+    SIMPLE_RUNTIME = _load_runtime(
+        "simple",
+        QURAN_DATA_PATH,
+        QURAN_PASSAGE_DATA_PATH,
+        required=True,
+        passage_neighbor_lookup=PASSAGE_NEIGHBOR_LOOKUP.get("simple", {}),
+    )
+    UTHMANI_RUNTIME = _load_runtime(
+        "uthmani",
+        QURAN_UTHMANI_DATA_PATH,
+        QURAN_UTHMANI_PASSAGE_DATA_PATH,
+        required=False,
+        passage_neighbor_lookup=PASSAGE_NEIGHBOR_LOOKUP.get("uthmani", {}),
+    )
     ENGLISH_TRANSLATION_MAP, ENGLISH_TRANSLATION_INFO = load_english_translation_map(QURAN_EN_TRANSLATION_PATH)
     yield
 
@@ -108,7 +129,14 @@ app = FastAPI(
 
 
 
-def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required: bool) -> CorpusRuntime | None:
+def _load_runtime(
+    label: str,
+    quran_path: Path,
+    passage_path: Path,
+    *,
+    required: bool,
+    passage_neighbor_lookup: dict[tuple[int, str], list[dict]] | None = None,
+) -> CorpusRuntime | None:
     if not quran_path.exists() or not passage_path.exists():
         if required:
             missing = quran_path if not quran_path.exists() else passage_path
@@ -140,6 +168,8 @@ def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required:
         passage_exact_light_groups=passage_exact_light_groups,
         passage_exact_aggressive_groups=passage_exact_aggressive_groups,
         passage_rows_by_window_size=build_passage_rows_by_window_size(passage_rows),
+        passage_row_lookup=build_passage_row_lookup(passage_rows),
+        passage_neighbor_lookup=passage_neighbor_lookup or {},
     )
 
 

@@ -6,7 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 from scripts.common.quran_citation_units import get_result_canonical_unit_type
+from scripts.common.quran_match_collections import (
+    build_exact_groups,
+    build_lane_match_collections,
+    build_passage_rows_by_window_size,
+    build_unique_exact_map,
+)
 from fastapi import FastAPI, HTTPException, Request
+from typing import Any
 
 from apps.api.logging_utils import append_jsonl_log
 from apps.api.schemas import VerifyQuranRequest, VerifyQuranResponse
@@ -63,14 +70,13 @@ class CorpusRuntime:
     ayah_shortlist_index: QuranShortlistIndex | None
     passage_shortlist_index: QuranShortlistIndex | None
     surah_span_index: QuranSurahSpanIndex | None
-
     exact_light_groups: dict[str, list[dict]]
     exact_aggressive_groups: dict[str, list[dict]]
     exact_light_map: dict[str, dict | None]
     exact_aggressive_map: dict[str, dict | None]
-
     passage_exact_light_groups: dict[str, list[dict]]
     passage_exact_aggressive_groups: dict[str, list[dict]]
+    passage_rows_by_window_size: dict[int, list[dict]]
 
 
 SIMPLE_RUNTIME: CorpusRuntime | None = None
@@ -101,18 +107,6 @@ app = FastAPI(
 )
 
 
-def _build_unique_exact_map(rows: list[dict], field: str) -> dict[str, dict | None]:
-    exact_map: dict[str, dict | None] = {}
-    for row in rows:
-        key = (row.get(field) or "").strip()
-        if not key:
-            continue
-        if key in exact_map:
-            exact_map[key] = None
-        else:
-            exact_map[key] = row
-    return exact_map
-
 
 def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required: bool) -> CorpusRuntime | None:
     if not quran_path.exists() or not passage_path.exists():
@@ -126,6 +120,10 @@ def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required:
 
     rows = load_quran_dataset(quran_path)
     passage_rows = load_quran_passage_dataset(passage_path)
+    exact_light_groups = build_exact_groups(rows, "text_normalized_light")
+    exact_aggressive_groups = build_exact_groups(rows, "text_normalized_aggressive")
+    passage_exact_light_groups = build_exact_groups(passage_rows, "text_normalized_light")
+    passage_exact_aggressive_groups = build_exact_groups(passage_rows, "text_normalized_aggressive")
     return CorpusRuntime(
         label=label,
         quran_path=quran_path,
@@ -135,8 +133,13 @@ def _load_runtime(label: str, quran_path: Path, passage_path: Path, *, required:
         ayah_shortlist_index=QuranShortlistIndex(rows),
         passage_shortlist_index=QuranShortlistIndex(passage_rows),
         surah_span_index=QuranSurahSpanIndex(rows),
-        exact_light_map=_build_unique_exact_map(rows, "text_normalized_light"),
-        exact_aggressive_map=_build_unique_exact_map(rows, "text_normalized_aggressive"),
+        exact_light_groups=exact_light_groups,
+        exact_aggressive_groups=exact_aggressive_groups,
+        exact_light_map=build_unique_exact_map(exact_light_groups),
+        exact_aggressive_map=build_unique_exact_map(exact_aggressive_groups),
+        passage_exact_light_groups=passage_exact_light_groups,
+        passage_exact_aggressive_groups=passage_exact_aggressive_groups,
+        passage_rows_by_window_size=build_passage_rows_by_window_size(passage_rows),
     )
 
 
@@ -233,6 +236,8 @@ def _build_non_retrieval_response(
         "confidence": "low",
         "boundary_note": boundary_note,
         "best_match": None,
+        "exact_matches": [],
+        "strong_matches": [],
         "also_related": [],
         "debug": debug_payload,
     }
@@ -358,6 +363,34 @@ def _strong_passage_win(public_response: dict) -> bool:
     )
 
 
+
+def _build_related_ayah_candidates_for_strong_matches(
+    runtime: CorpusRuntime,
+    *,
+    query: str,
+    long_query: bool,
+    base_limit: int,
+) -> tuple[list[dict], dict]:
+    if runtime.ayah_shortlist_index is None:
+        return [], {"strategy": "unavailable", "candidate_count": 0, "reason": "ayah_shortlist_index_missing"}
+
+    shortlist_rows, shortlist_meta = runtime.ayah_shortlist_index.shortlist_rows(
+        query,
+        limit=base_limit,
+        allow_exact_shortcircuit=False,
+    )
+    candidates = compute_ayah_matches(
+        query,
+        shortlist_rows,
+        top_k=LONG_QUERY_AYAH_TOP_K if long_query else 5,
+    )
+    return candidates, {
+        **shortlist_meta,
+        "strategy": f"{runtime.label}_related_ayah_token_qgram",
+        "reason": "support_strong_matches_after_unique_exact_ayah",
+    }
+
+
 def _candidate_is_exact_match(
     query: str,
     candidate: dict | None,
@@ -444,6 +477,9 @@ def compact_result_for_api(
     selected_runtime: str | None = None,
     runtime_evaluations: list[dict] | None = None,
     stage_timings: dict | None = None,
+    exact_matches: list[dict[str, Any]] | None = None,
+    strong_matches: list[dict[str, Any]] | None = None,
+    collection_debug: dict[str, Any] | None = None,
 ) -> dict:
     preferred_lane = fusion_output.get("preferred_lane", "none")
     preferred_result = fusion_output.get("preferred_result") or {}
@@ -465,6 +501,8 @@ def compact_result_for_api(
             "Based only on the current indexed Quran sources.",
         ),
         "best_match": preferred_best,
+        "exact_matches": [dict(item) for item in (exact_matches or [])],
+        "strong_matches": [dict(item) for item in (strong_matches or [])],
         "also_related": [],
         "debug": None,
     }
@@ -472,6 +510,10 @@ def compact_result_for_api(
     seen_citations = set()
     if preferred_best and preferred_best.get("citation"):
         seen_citations.add(preferred_best["citation"])
+    for item in response["exact_matches"] + response["strong_matches"]:
+        citation = item.get("citation")
+        if citation:
+            seen_citations.add(citation)
 
     if secondary_best:
         secondary_best = attach_english_translation(secondary_best, english_translation_map or {})
@@ -522,6 +564,7 @@ def compact_result_for_api(
             "selected_runtime": selected_runtime,
             "runtime_evaluations": runtime_evaluations or [],
             "stage_timings": stage_timings or {},
+            "collection_debug": collection_debug or {},
         }
 
     return response
@@ -600,6 +643,8 @@ def _evaluate_runtime(
 
     long_query = _is_long_query(matching_query)
     giant_query = _is_giant_query(matching_query)
+    ayah_related_candidates: list[dict] | None = None
+    ayah_related_meta: dict | None = None
 
     stage_start_ms = _now_ms()
     exact_ayah_row, exact_ayah_meta = _resolve_exact_ayah_row(matching_query, runtime)
@@ -723,6 +768,15 @@ def _evaluate_runtime(
         likely_surahs = _likely_surahs_from_ayah_candidates(ayah_candidates, limit=3) if long_query else []
 
         if exact_ayah_candidate_hit:
+            if exact_ayah_row is not None:
+                stage_start_ms = _now_ms()
+                ayah_related_candidates, ayah_related_meta = _build_related_ayah_candidates_for_strong_matches(
+                    runtime,
+                    query=matching_query,
+                    long_query=long_query,
+                    base_limit=LONG_QUERY_AYAH_SHORTLIST_LIMIT if long_query else 250,
+                )
+                stage_timings["ayah_related_shortlist_ms"] = _elapsed_ms(stage_start_ms)
             passage_shortlist_rows = []
             passage_shortlist_meta = {
                 "strategy": f"{runtime.label}_skipped_after_exact_ayah",
@@ -730,6 +784,8 @@ def _evaluate_runtime(
                 "reason": "skip_passage_after_exact_ayah",
                 "source": "exact_ayah_map" if exact_ayah_row is not None else "ayah_scoring",
             }
+            if ayah_related_meta:
+                passage_shortlist_meta["related_ayah_strategy"] = ayah_related_meta.get("strategy")
             passage_candidates = []
             dynamic_passage_meta = {
                 "engine": "skipped_after_exact_ayah",
@@ -737,6 +793,8 @@ def _evaluate_runtime(
                 "reason": "skip_passage_after_exact_ayah",
                 "source": "exact_ayah_map" if exact_ayah_row is not None else "ayah_scoring",
             }
+            if ayah_related_meta:
+                dynamic_passage_meta["related_ayah_strategy"] = ayah_related_meta.get("strategy")
         else:
             passage_limit = LONG_QUERY_PASSAGE_SHORTLIST_LIMIT if long_query else 300
             stage_start_ms = _now_ms()
@@ -859,6 +917,7 @@ def _evaluate_runtime(
     fusion_output["query_routing"] = query_routing
     fusion_output["shortlist"] = {
         "ayah": ayah_shortlist_meta,
+        "ayah_related": ayah_related_meta,
         "passage": passage_shortlist_meta,
         "dynamic_passage": dynamic_passage_meta,
         "giant_fastpath": build_long_span_debug_block(giant_fastpath_meta),
@@ -884,8 +943,12 @@ def _evaluate_runtime(
 
     return {
         "runtime": runtime.label,
+        "runtime_obj": runtime,
         "fusion_output": fusion_output,
         "public_response": public_response,
+        "ayah_candidates": ayah_candidates,
+        "related_ayah_candidates": ayah_related_candidates,
+        "passage_candidates": passage_candidates,
         "exact_ayah_meta": exact_ayah_meta,
         "ayah_shortlist_meta": ayah_shortlist_meta,
         "passage_shortlist_meta": passage_shortlist_meta,
@@ -1005,6 +1068,21 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
 
     selected_evaluation, evaluations = _choose_runtime_evaluation(query_route, evaluations)
     fusion_output = selected_evaluation["fusion_output"]
+    preferred_result = fusion_output.get("preferred_result") or {}
+    collection_start_ms = _now_ms()
+    exact_matches, strong_matches, collection_debug = build_lane_match_collections(
+        matching_query,
+        preferred_lane=fusion_output.get("preferred_lane", "none"),
+        runtime=selected_evaluation["runtime_obj"],
+        ayah_candidates=selected_evaluation.get("ayah_candidates") or [],
+        passage_candidates=selected_evaluation.get("passage_candidates") or [],
+        english_translation_map=ENGLISH_TRANSLATION_MAP,
+        matching_corpus=selected_evaluation["runtime"],
+        best_match=preferred_result.get("best_match"),
+        related_ayah_candidates=selected_evaluation.get("related_ayah_candidates"),
+        return_debug_meta=True,
+    )
+    collection_ms = _elapsed_ms(collection_start_ms)
     stage_start_ms = _now_ms()
     public_response = compact_result_for_api(
         fusion_output,
@@ -1027,8 +1105,16 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
         stage_timings={
             "routing_ms": routing_ms,
             "preprocessing_ms": preprocessing_ms,
+            "match_collection_ms": collection_ms,
+            **{
+                f"match_collection_{key}": value
+                for key, value in ((collection_debug or {}).get("stage_timings") or {}).items()
+            },
             "request_total_ms": _elapsed_ms(request_start_ms),
         },
+        exact_matches=exact_matches,
+        strong_matches=strong_matches,
+        collection_debug=collection_debug,
     )
 
     request_id = str(uuid4())
