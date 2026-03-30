@@ -24,8 +24,8 @@ CROSS_LANE_AYAH_BACKFILL_SCORE_MIN = 15.0
 CROSS_LANE_AYAH_BACKFILL_COVERAGE_MIN = 50.0
 PARALLEL_PASSAGE_FROM_BEST_SCORE_MIN = 19.0
 PARALLEL_PASSAGE_FROM_BEST_COVERAGE_MIN = 40.0
-PARALLEL_PASSAGE_QUERY_RELAXED_COVERAGE_MIN = 65.0
-PARALLEL_PASSAGE_QUERY_RELAXED_MAX_MISSING_QUERY_TOKENS = 3
+PARALLEL_PASSAGE_QUERY_RELAXED_COVERAGE_MIN = 50.0
+PARALLEL_PASSAGE_QUERY_RELAXED_MAX_MISSING_QUERY_TOKENS = 4
 PARALLEL_PASSAGE_QUERY_RELAXED_MIN_QUERY_TOKENS = 6
 
 
@@ -548,8 +548,10 @@ def collect_parallel_passage_from_index(
         return items
     if best_match.get("source_type") != "quran_passage":
         return items
-    if best_match.get("retrieval_engine") not in {"static_exact_window", "static_window"}:
-        return items
+    # Close/partial winners may not carry retrieval_engine on the final best_match
+    # object even though passage analytics classify them as static_window. For the
+    # indexed neighbor path, source_type + canonical_source_id + window_size are
+    # sufficient; do not block on retrieval_engine here.
 
     best_surah_no = best_match.get("surah_no")
     best_window_size = best_match.get("window_size")
@@ -1058,7 +1060,8 @@ def collect_parallel_passage_from_best_match(
         return items
     if best_match.get("source_type") != "quran_passage":
         return items
-    if best_match.get("retrieval_engine") != "static_exact_window":
+    best_match_engine = str(best_match.get("retrieval_engine") or "")
+    if best_match_engine and best_match_engine not in {"static_exact_window", "static_window"}:
         return items
 
     best_text = best_match.get("text_display") or ""
@@ -1305,14 +1308,14 @@ def build_lane_match_collections(
 
         collection_debug["stage_timings"]["strong_matches_ms"] = round((time.perf_counter() - stage_start) * 1000.0, 3)
 
-        # Projection-only supplement for exact static passage cases that ended up
-        # with no usable strong passage matches after wrapper suppression.
+        # Projection-only supplement for passage cases that ended up with no usable
+        # strong passage matches after wrapper suppression.
         # Prefer precomputed indexed neighbors when available; only fall back to
-        # the expensive best-match scan for short exact winners.
+        # the expensive best-match scan for short winners.
         if (
             not strong_matches
             and best_match
-            and best_match.get("retrieval_engine") in {"static_exact_window", "static_window"}
+            and best_match.get("source_type") == "quran_passage"
         ):
             parallel_exclude = set(exclude_citations)
             parallel_anchor_items = list(anchor_items)

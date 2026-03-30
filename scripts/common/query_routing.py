@@ -12,7 +12,6 @@ SMALL_HIGH_SIGNS_RE = re.compile(r"[ٰٕٖٜٟٔٗ٘ٙٚٛٝٞۖۗۘۙۚۛۜ]")
 
 ROUTE_UTHMANI_FIRST = "UTHMANI_FIRST"
 ROUTE_SIMPLE_FIRST = "SIMPLE_FIRST"
-ROUTE_AMBIGUOUS_BOTH = "AMBIGUOUS_BOTH"
 
 
 def detect_quran_query_route(raw_query: str) -> dict[str, Any]:
@@ -63,13 +62,11 @@ def detect_quran_query_route(raw_query: str) -> dict[str, Any]:
 
     total_score = strong_score + weak_score
 
-    # Professional routing rule:
-    # - only genuine Uthmani markers (wasla / annotation signs) should force UTHMANI_FIRST
-    # - ornaments, digits, waqf glyphs, and tashkeel-like high signs alone should not drag simple text into ambiguous routing
+    # Binary routing only:
+    # - genuine Uthmani markers force UTHMANI_FIRST
+    # - everything else stays SIMPLE_FIRST
     if wasla_alif_count > 0 or annotation_count >= 2:
         route = ROUTE_UTHMANI_FIRST
-    elif strong_score >= 3:
-        route = ROUTE_AMBIGUOUS_BOTH
     else:
         route = ROUTE_SIMPLE_FIRST
 

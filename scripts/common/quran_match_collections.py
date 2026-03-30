@@ -225,6 +225,32 @@ def _should_suppress_passage_wrapper(
     return False
 
 
+def _collect_anchor_spans(items: list[dict[str, Any]] | None) -> list[tuple[int, int, int]]:
+    spans: list[tuple[int, int, int]] = []
+    for item in items or []:
+        span = _passage_span_tuple(item)
+        if span is not None:
+            spans.append(span)
+    return spans
+
+
+def _passage_candidate_survives_suppression(
+    candidate_span: tuple[int, int, int] | None,
+    *,
+    anchor_spans: list[tuple[int, int, int]],
+    accepted_spans: list[tuple[int, int, int]],
+) -> bool:
+    if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
+        return False
+    if _should_suppress_passage_overlap(candidate_span, anchor_spans):
+        return False
+    if _should_suppress_passage_wrapper(candidate_span, accepted_spans):
+        return False
+    if _should_suppress_passage_overlap(candidate_span, accepted_spans):
+        return False
+    return True
+
+
 
 def _dedupe_by_citation(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[str] = set()
@@ -390,12 +416,29 @@ def _format_ayah_candidate(
         "text_display": row.get("text_display"),
         "score": float(candidate.get("score") or 0.0),
         "token_coverage": float(candidate.get("token_coverage") or 0.0),
-        "match_status": determine_match_status(candidate.get("original_query") or "", candidate) if candidate.get("original_query") else None,
         "matching_corpus": matching_corpus,
         "canonical_unit_type": "single_ayah",
         "canonical_unit_rank": get_canonical_unit_rank("single_ayah"),
     }
     return _attach_translation(item, english_translation_map)
+
+
+
+def _format_ayah_candidate_with_kind(
+    candidate: dict[str, Any],
+    *,
+    english_translation_map: dict[tuple[int, int], dict] | None,
+    matching_corpus: str,
+    match_kind: str,
+) -> dict[str, Any]:
+    return _with_match_kind(
+        _format_ayah_candidate(
+            candidate,
+            english_translation_map=english_translation_map,
+            matching_corpus=matching_corpus,
+        ),
+        match_kind,
+    )
 
 
 
@@ -566,11 +609,7 @@ def collect_parallel_passage_from_index(
         return items
 
     seen = set(exclude_citations)
-    anchor_spans: list[tuple[int, int, int]] = []
-    for item in anchor_items or []:
-        span = _passage_span_tuple(item)
-        if span is not None:
-            anchor_spans.append(span)
+    anchor_spans = _collect_anchor_spans(anchor_items)
     accepted_spans: list[tuple[int, int, int]] = []
 
     query_light = normalize_arabic_light(query)
@@ -629,13 +668,11 @@ def collect_parallel_passage_from_index(
             continue
 
         candidate_span = _candidate_passage_span_tuple(synthetic_candidate)
-        if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
-            continue
-        if _should_suppress_passage_overlap(candidate_span, anchor_spans):
-            continue
-        if _should_suppress_passage_wrapper(candidate_span, accepted_spans):
-            continue
-        if _should_suppress_passage_overlap(candidate_span, accepted_spans):
+        if not _passage_candidate_survives_suppression(
+            candidate_span,
+            anchor_spans=anchor_spans,
+            accepted_spans=accepted_spans,
+        ):
             continue
 
         formatted["match_kind"] = "parallel_passage_from_index"
@@ -780,26 +817,12 @@ def collect_strong_ayah_matches(
         if not _candidate_is_strong(query, candidate):
             continue
 
-        row = candidate.get("row") or {}
-        formatted = {
-            "source_type": row.get("source_type"),
-            "source_id": row.get("source_id"),
-            "citation": row.get("citation_string"),
-            "canonical_source_id": row.get("canonical_source_id"),
-            "surah_no": int(row.get("surah_no")),
-            "ayah_no": int(row.get("ayah_no")),
-            "surah_name_ar": row.get("surah_name_ar"),
-            "text_display": row.get("text_display"),
-            "score": float(candidate.get("score") or 0.0),
-            "token_coverage": float(candidate.get("token_coverage") or 0.0),
-            "matching_corpus": matching_corpus,
-            "canonical_unit_type": "single_ayah",
-            "canonical_unit_rank": get_canonical_unit_rank("single_ayah"),
-        }
         items.append(
-            _with_match_kind(
-                _attach_translation(formatted, english_translation_map),
-                "strong",
+            _format_ayah_candidate_with_kind(
+                candidate,
+                english_translation_map=english_translation_map,
+                matching_corpus=matching_corpus,
+                match_kind="strong",
             )
         )
         seen.add(citation_key)
@@ -810,8 +833,6 @@ def collect_strong_ayah_matches(
         return items
 
     # Pass 2: conservative fallback for near-identical sibling ayahs.
-    # This does not weaken retrieval/scoring/status logic; it only fills leftover
-    # strong-match slots when best_match is already an exact ayah.
     for candidate in candidates:
         citation_key = _candidate_row_citation_key(candidate)
         if not citation_key or citation_key in seen:
@@ -823,26 +844,12 @@ def collect_strong_ayah_matches(
         ):
             continue
 
-        row = candidate.get("row") or {}
-        formatted = {
-            "source_type": row.get("source_type"),
-            "source_id": row.get("source_id"),
-            "citation": row.get("citation_string"),
-            "canonical_source_id": row.get("canonical_source_id"),
-            "surah_no": int(row.get("surah_no")),
-            "ayah_no": int(row.get("ayah_no")),
-            "surah_name_ar": row.get("surah_name_ar"),
-            "text_display": row.get("text_display"),
-            "score": float(candidate.get("score") or 0.0),
-            "token_coverage": float(candidate.get("token_coverage") or 0.0),
-            "matching_corpus": matching_corpus,
-            "canonical_unit_type": "single_ayah",
-            "canonical_unit_rank": get_canonical_unit_rank("single_ayah"),
-        }
         items.append(
-            _with_match_kind(
-                _attach_translation(formatted, english_translation_map),
-                "near_identical_sibling_ayah",
+            _format_ayah_candidate_with_kind(
+                candidate,
+                english_translation_map=english_translation_map,
+                matching_corpus=matching_corpus,
+                match_kind="near_identical_sibling_ayah",
             )
         )
         seen.add(citation_key)
@@ -850,8 +857,6 @@ def collect_strong_ayah_matches(
             break
 
     # Pass 3: optional backfill from ayah alternatives / related candidates.
-    # This does NOT change strong-match semantics globally.
-    # It only fills leftover slots when strict strong matches are absent.
     for candidate in candidates:
         citation_key = _candidate_row_citation_key(candidate)
         if not citation_key or citation_key in seen:
@@ -859,24 +864,14 @@ def collect_strong_ayah_matches(
         if not _candidate_is_alternative_backfill(candidate):
             continue
 
-        row = candidate.get("row") or {}
-        formatted = {
-            "source_type": row.get("source_type"),
-            "source_id": row.get("source_id"),
-            "citation": row.get("citation_string"),
-            "canonical_source_id": row.get("canonical_source_id"),
-            "surah_no": int(row.get("surah_no")),
-            "ayah_no": int(row.get("ayah_no")),
-            "surah_name_ar": row.get("surah_name_ar"),
-            "text_display": row.get("text_display"),
-            "score": float(candidate.get("score") or 0.0),
-            "token_coverage": float(candidate.get("token_coverage") or 0.0),
-            "matching_corpus": matching_corpus,
-            "canonical_unit_type": "single_ayah",
-            "canonical_unit_rank": get_canonical_unit_rank("single_ayah"),
-            "match_kind": "alternative_backfill",
-        }
-        items.append(_attach_translation(formatted, english_translation_map))
+        items.append(
+            _format_ayah_candidate_with_kind(
+                candidate,
+                english_translation_map=english_translation_map,
+                matching_corpus=matching_corpus,
+                match_kind="alternative_backfill",
+            )
+        )
         seen.add(citation_key)
         if len(items) >= limit:
             break
@@ -934,22 +929,11 @@ def collect_strong_passage_matches(
     exclude_citations: set[str],
     limit: int = 3,
     anchor_items: list[dict[str, Any]] | None = None,
-    exact_anchor_items: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen = set(exclude_citations)
 
-    anchor_spans: list[tuple[int, int, int]] = []
-    for item in anchor_items or []:
-        span = _passage_span_tuple(item)
-        if span is not None:
-            anchor_spans.append(span)
-
-    exact_anchor_spans: list[tuple[int, int, int]] = []
-    for item in exact_anchor_items or []:
-        span = _passage_span_tuple(item)
-        if span is not None:
-            exact_anchor_spans.append(span)
+    anchor_spans = _collect_anchor_spans(anchor_items)
 
     accepted_strong_spans: list[tuple[int, int, int]] = []
 
@@ -973,18 +957,11 @@ def collect_strong_passage_matches(
 
         candidate_span = _candidate_passage_span_tuple(candidate)
 
-        # Suppress wrappers around winning passage / exact anchors.
-        if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
-            continue
-
-        # Suppress any same-surah overlap with winning passage / exact anchors.
-        if _should_suppress_passage_overlap(candidate_span, anchor_spans):
-            continue
-
-        # Suppress wrappers or overlaps against already accepted strong matches.
-        if _should_suppress_passage_wrapper(candidate_span, accepted_strong_spans):
-            continue
-        if _should_suppress_passage_overlap(candidate_span, accepted_strong_spans):
+        if not _passage_candidate_survives_suppression(
+            candidate_span,
+            anchor_spans=anchor_spans,
+            accepted_spans=accepted_strong_spans,
+        ):
             continue
 
         items.append(_with_match_kind(formatted, "strong"))
@@ -1017,19 +994,11 @@ def collect_strong_passage_matches(
 
         candidate_span = _candidate_passage_span_tuple(candidate)
 
-        # Still suppress wrappers around winning passage / exact anchors.
-        # Still suppress wrappers around winning passage / exact anchors.
-        if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
-            continue
-
-        # Still suppress any same-surah overlap with winning passage / exact anchors.
-        if _should_suppress_passage_overlap(candidate_span, anchor_spans):
-            continue
-
-        # Still suppress wrappers or overlaps against already accepted strong matches.
-        if _should_suppress_passage_wrapper(candidate_span, accepted_strong_spans):
-            continue
-        if _should_suppress_passage_overlap(candidate_span, accepted_strong_spans):
+        if not _passage_candidate_survives_suppression(
+            candidate_span,
+            anchor_spans=anchor_spans,
+            accepted_spans=accepted_strong_spans,
+        ):
             continue
 
         formatted["match_kind"] = "alternative_backfill_passage"
@@ -1083,11 +1052,7 @@ def collect_parallel_passage_from_best_match(
 
     seen = set(exclude_citations)
 
-    anchor_spans: list[tuple[int, int, int]] = []
-    for item in anchor_items or []:
-        span = _passage_span_tuple(item)
-        if span is not None:
-            anchor_spans.append(span)
+    anchor_spans = _collect_anchor_spans(anchor_items)
 
     accepted_spans: list[tuple[int, int, int]] = []
 
@@ -1157,16 +1122,11 @@ def collect_parallel_passage_from_best_match(
 
         candidate_span = _candidate_passage_span_tuple(synthetic_candidate)
 
-        # Suppress wrappers around winning passage / exact anchors.
-        if _should_suppress_passage_wrapper(candidate_span, anchor_spans):
-            continue
-
-        # Suppress any same-surah overlap with winning passage / exact anchors.
-        if _should_suppress_passage_overlap(candidate_span, anchor_spans):
-            continue
-
-        # Suppress wrappers around already accepted rescue passages.
-        if _should_suppress_passage_wrapper(candidate_span, accepted_spans):
+        if not _passage_candidate_survives_suppression(
+            candidate_span,
+            anchor_spans=anchor_spans,
+            accepted_spans=accepted_spans,
+        ):
             continue
 
         formatted["match_kind"] = match_kind
@@ -1303,7 +1263,6 @@ def build_lane_match_collections(
             exclude_citations=exclude_citations,
             limit=3,
             anchor_items=anchor_items,
-            exact_anchor_items=exact_matches,
         )
 
         collection_debug["stage_timings"]["strong_matches_ms"] = round((time.perf_counter() - stage_start) * 1000.0, 3)

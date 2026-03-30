@@ -31,7 +31,6 @@ from apps.api.quran_long_span_fastpath import (
 )
 from scripts.common.quran_status import get_status_rank
 from scripts.common.query_routing import (
-    ROUTE_AMBIGUOUS_BOTH,
     ROUTE_SIMPLE_FIRST,
     ROUTE_UTHMANI_FIRST,
     detect_quran_query_route,
@@ -638,14 +637,12 @@ def _should_stop_after_runtime(route_meta: dict, evaluation: dict) -> bool:
     return False
 
 
-def _fallback_trigger_reason(route_meta: dict, evaluation: dict) -> str:
+def _fallback_trigger_reason(evaluation: dict) -> str:
     response = evaluation["public_response"]
     if _is_strong_response(response):
         return "strong_exact_stop"
     if _strong_passage_win(response):
         return "strong_passage_stop"
-    if route_meta.get("route") == ROUTE_AMBIGUOUS_BOTH:
-        return "ambiguous_dual_runtime"
     return "weak_primary_result"
 
 
@@ -990,21 +987,18 @@ def _evaluate_runtime(
 def _runtime_order(route_meta: dict) -> list[CorpusRuntime]:
     runtimes: list[CorpusRuntime] = []
     route = route_meta.get("route")
+
     if route == ROUTE_UTHMANI_FIRST:
         if UTHMANI_RUNTIME:
             runtimes.append(UTHMANI_RUNTIME)
         if SIMPLE_RUNTIME:
             runtimes.append(SIMPLE_RUNTIME)
-    elif route == ROUTE_AMBIGUOUS_BOTH:
-        if SIMPLE_RUNTIME:
-            runtimes.append(SIMPLE_RUNTIME)
-        if UTHMANI_RUNTIME:
-            runtimes.append(UTHMANI_RUNTIME)
     else:
         if SIMPLE_RUNTIME:
             runtimes.append(SIMPLE_RUNTIME)
         if UTHMANI_RUNTIME:
             runtimes.append(UTHMANI_RUNTIME)
+
     return runtimes
 
 
@@ -1092,7 +1086,7 @@ def verify_quran(request: Request, payload: VerifyQuranRequest, debug: bool = Fa
             query_routing=query_route,
         )
         evaluations.append(evaluation)
-        fallback_trigger_reason = _fallback_trigger_reason(query_route, evaluation)
+        fallback_trigger_reason = _fallback_trigger_reason(evaluation)
         if _should_stop_after_runtime(query_route, evaluation):
             break
 
