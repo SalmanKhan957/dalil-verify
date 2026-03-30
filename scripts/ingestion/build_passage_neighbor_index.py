@@ -154,7 +154,7 @@ def main() -> None:
     parser.add_argument("--uthmani-path", type=Path, default=QURAN_UTHMANI_PASSAGE_DATA_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--top-k", type=int, default=12)
-    parser.add_argument("--max-window-size", type=int, default=3)
+    parser.add_argument("--max-window-size", type=int, default=4)
     parser.add_argument("--min-shared-tokens", type=int, default=4)
     args = parser.parse_args()
 

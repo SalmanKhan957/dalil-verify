@@ -321,7 +321,7 @@ def _safe_build_passage_result(query: str, candidates: list[dict]) -> dict:
         return _empty_passage_result(query)
 
 
-LONG_QUERY_TOKEN_THRESHOLD = 12
+LONG_QUERY_TOKEN_THRESHOLD = 15
 LONG_QUERY_AYAH_SHORTLIST_LIMIT = 180
 LONG_QUERY_PASSAGE_SHORTLIST_LIMIT = 120
 LONG_QUERY_AYAH_TOP_K = 8
