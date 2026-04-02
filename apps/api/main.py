@@ -55,6 +55,7 @@ from scripts.evaluation.quran_verifier_baseline import (
     load_quran_dataset,
     assess_verifier_query,
 )
+from apps.ask_api.routes.explain import router as ask_explain_router
 
 QURAN_DATA_PATH = Path("data/processed/quran/quran_arabic_canonical.csv")
 QURAN_PASSAGE_DATA_PATH = Path("data/processed/quran_passages/quran_passage_windows_v1.csv")
@@ -125,6 +126,8 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
+
+app.include_router(ask_explain_router)
 
 
 
