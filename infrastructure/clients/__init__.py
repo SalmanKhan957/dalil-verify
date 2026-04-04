@@ -1,0 +1,1 @@
+"""Future-state package scaffold."""

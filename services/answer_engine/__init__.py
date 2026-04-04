@@ -1,3 +1,3 @@
-from __future__ import annotations
+from services.answer_engine.composer import compose_explain_answer
 
-__all__ = []
+__all__ = ['compose_explain_answer']

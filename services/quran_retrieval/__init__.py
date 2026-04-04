@@ -1,1 +1,3 @@
-"""Deterministic Quran retrieval services for explicit reference workflows."""
+from services.quran_retrieval.fetcher import fetch_quran_span
+
+__all__ = ['fetch_quran_span']

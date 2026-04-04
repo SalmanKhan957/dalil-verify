@@ -1,0 +1,1 @@
+"""Retrieval error types placeholder."""
