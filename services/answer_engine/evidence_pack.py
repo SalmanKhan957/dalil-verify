@@ -36,8 +36,11 @@ class EvidencePack:
     resolution: dict[str, Any] | None = None
     verifier_result: dict[str, Any] | None = None
     quote_payload: str | None = None
+    selected_domains: list[str] = field(default_factory=list)
+    response_mode: str | None = None
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
 
 
 def build_quran_evidence(quran_span: dict[str, Any] | None) -> QuranEvidence | None:
@@ -58,6 +61,7 @@ def build_quran_evidence(quran_span: dict[str, Any] | None) -> QuranEvidence | N
         translation_source_id=translation.get("source_id"),
         raw=quran_span,
     )
+
 
 
 def build_tafsir_evidence(hits: list[TafsirOverlapHit] | None) -> list[TafsirEvidence]:

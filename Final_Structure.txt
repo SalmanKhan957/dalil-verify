@@ -1,0 +1,342 @@
+dalil/
+  apps/
+    public_api/
+      __init__.py
+      main.py
+      dependencies.py
+      routes/
+        health.py
+        ask.py
+        explain.py
+        verify_quran.py
+      middleware/
+      schemas/
+
+    ask_api/
+      __init__.py
+      main.py
+      routes/
+        health.py
+        ask.py
+        explain.py
+
+    verifier_api/
+      __init__.py
+      main.py
+      routes/
+        health.py
+        verify_quran.py
+
+    admin_api/                       # later; do not build fully yet
+      __init__.py
+      main.py
+      routes/
+        source_works.py
+        ingestion_runs.py
+        governance.py
+
+  domains/
+    ask/
+      __init__.py
+      contracts.py
+      route_types.py
+      classifier.py
+      planner.py
+      planner_types.py
+      dispatcher.py
+      abstention.py
+      conversation_context.py        # later, initially thin
+      workflows/
+        explain_quran_reference.py
+        explain_quran_with_tafsir.py
+        verify_then_explain_quran.py
+        unsupported.py
+
+    answer_engine/
+      __init__.py
+      contracts.py
+      evidence_pack.py
+      composer.py
+      excerpting.py
+      citation_renderer.py
+      response_builder.py
+
+    policies/
+      __init__.py
+      source_eligibility.py
+      answer_modes.py
+      source_mixing.py
+      abstention_policy.py
+      governance_checks.py
+
+    source_registry/
+      __init__.py
+      registry.py
+      invariants.py
+      selectors.py
+
+    quran/
+      __init__.py
+      contracts.py
+      types.py
+
+      repositories/
+        __init__.py
+        metadata_repository.py
+        text_repository.py
+        translation_repository.py
+        runtime_assets_repository.py
+
+      retrieval/
+        __init__.py
+        span_lookup.py
+        fetcher.py
+        translation_fetcher.py
+
+      citations/
+        __init__.py
+        surah_aliases.py
+        reference_parser.py
+        resolver.py
+        normalizer.py
+
+      verifier/
+        __init__.py
+        service.py
+        matching.py
+        ranking.py
+        bootstrap.py
+        loaders.py
+        confidence_policy.py
+        long_span_fastpath.py
+
+      models/
+        __init__.py
+        verse_key.py
+        quran_span.py
+        translation_work.py
+
+    tafsir/
+      __init__.py
+      contracts.py
+      types.py
+      service.py
+      formatter.py
+      overlap.py
+      normalizer.py
+      html_utils.py
+
+      repositories/
+        __init__.py
+        tafsir_repository.py
+        source_work_repository.py
+
+      ingestion/
+        __init__.py
+        ingest_resource.py
+        qf_normalizer.py
+
+      citations/
+        __init__.py
+        renderer.py
+
+    hadith/
+      __init__.py
+      contracts.py
+      types.py
+      service.py
+
+      repositories/
+        __init__.py
+        collection_repository.py
+        citation_repository.py
+        grading_repository.py
+
+      citations/
+        __init__.py
+        parser.py
+        aliases.py
+        renderer.py
+
+      ingestion/
+        __init__.py
+        normalizer.py
+        ingest_collection.py
+
+      retrieval/
+        __init__.py
+        citation_lookup.py
+        lexical_search.py
+
+      models/
+        __init__.py
+        collection.py
+        book.py
+        chapter.py
+        entry.py
+        grading.py
+
+  infrastructure/
+    config/
+      __init__.py
+      settings.py
+
+    db/
+      __init__.py
+      base.py
+      session.py
+      models/
+        __init__.py
+        source_work.py
+        tafsir_section.py
+        tafsir_ingestion_run.py
+        quran_surah.py              # later
+        quran_translation_work.py   # earlier than full Quran migration
+        quran_translation_ayah.py   # optional early
+        hadith_collection.py
+        hadith_book.py
+        hadith_chapter.py
+        hadith_entry.py
+        hadith_grading.py
+
+    cache/
+      __init__.py
+      redis_client.py
+      keys.py
+
+    search/
+      __init__.py
+      opensearch_client.py
+      index_names.py
+      tafsir_index.py
+      hadith_index.py
+
+    queue/
+      __init__.py
+      celery_app.py
+      tasks/
+
+    telemetry/
+      __init__.py
+      logging.py
+      tracing.py
+      metrics.py
+
+    clients/
+      __init__.py
+      quran_foundation/
+        __init__.py
+        auth.py
+        client.py
+        resources_api.py
+        tafsir_api.py
+        models.py
+
+  pipelines/
+    ingestion/
+      quran_foundation/
+        download_tafsir_resource.py
+        ingest_tafsir_resource.py
+      hadith/
+        ingest_collection.py
+
+    indexing/
+      build_tafsir_search_index.py
+      build_hadith_search_index.py
+
+    evaluation/
+      run_quran_tafsir_acceptance.py
+      suites/
+        quran_tafsir_acceptance.py
+        routing_eval.py
+        abstention_eval.py
+        citation_eval.py
+
+    maintenance/
+      backfill_source_works.py
+      rebuild_runtime_assets.py
+
+  shared/
+    schemas/
+      quran_reference.py
+      source_record.py
+      source_citation.py
+      api_responses.py
+
+    errors/
+      __init__.py
+      domain_errors.py
+      policy_errors.py
+      retrieval_errors.py
+
+    utils/
+      text.py
+      html.py
+      ids.py
+      time.py
+
+  data/
+    raw/
+      quran_foundation/
+        tafsir/
+      hadith/                       # later
+    processed/
+      quran/
+      runtime_assets/
+      search_docs/
+
+  docs/
+    architecture/
+      repo_structure.md
+      dependency_rules.md
+      source_domains.md
+      planner_design.md
+      governance_model.md
+
+    runbooks/
+      local_dev.md
+      ingestion.md
+      acceptance.md
+      production_checks.md
+
+  alembic/
+    env.py
+    versions/
+
+  tests/
+    unit/
+      domains/
+        ask/
+        answer_engine/
+        policies/
+        source_registry/
+        quran/
+        tafsir/
+        hadith/
+      infrastructure/
+        db/
+        search/
+      shared/
+
+    integration/
+      apps/
+        public_api/
+        ask_api/
+        verifier_api/
+      workflows/
+      governance/
+      ingestion/
+
+    acceptance/
+      quran_tafsir/
+      planner/
+      hadith/                       # later
+
+  scripts/                         # keep only dev convenience wrappers
+    dev/
+      run_public_api.py
+      run_acceptance.py
+      run_ingestion.py
+
+  pyproject.toml
+  README.md

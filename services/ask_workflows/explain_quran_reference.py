@@ -12,6 +12,7 @@ from services.quran_retrieval.translation_fetcher import DEFAULT_QURAN_TRANSLATI
 def explain_quran_reference(
     query: str,
     *,
+    resolution: dict[str, Any] | None = None,
     quran_metadata: dict[int, dict[str, Any]] | None = None,
     quran_csv_path: str | Path = DEFAULT_QURAN_ARABIC_PATH,
     translation_csv_path: str | Path = DEFAULT_QURAN_TRANSLATION_PATH,
@@ -22,7 +23,7 @@ def explain_quran_reference(
     in, structured Quran span out.
     """
     metadata = quran_metadata or load_quran_metadata(quran_csv_path)
-    resolution = resolve_quran_reference(query, quran_metadata=metadata)
+    resolution = resolution or resolve_quran_reference(query, quran_metadata=metadata)
 
     if not resolution.get("resolved"):
         return {

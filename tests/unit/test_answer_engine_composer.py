@@ -1,6 +1,6 @@
 from services.answer_engine.composer import compose_explain_answer
 from services.answer_engine.evidence_pack import EvidencePack, QuranEvidence, TafsirEvidence
-from services.answer_engine.plan_types import AnswerMode, AnswerPlan, EvidenceDomain, SourceInvocationPlan
+from services.answer_engine.plan_types import EvidenceDomain, ResponseMode, AnswerPlan, SourceInvocationPlan
 from services.tafsir.types import TafsirOverlapHit
 
 
@@ -34,13 +34,16 @@ def _tafsir_hit() -> TafsirOverlapHit:
 
 def test_compose_explain_answer_with_quran_and_tafsir() -> None:
     plan = AnswerPlan(
-        mode=AnswerMode.EXPLAIN,
         query="Tafsir of Surah Ikhlas",
         route_type="explicit_quran_reference",
         action_type="explain",
+        response_mode=ResponseMode.QURAN_WITH_TAFSIR,
         quran_plan=SourceInvocationPlan(domain=EvidenceDomain.QURAN),
         tafsir_plan=SourceInvocationPlan(domain=EvidenceDomain.TAFSIR),
-        allow_composition=True,
+        eligible_domains=[EvidenceDomain.QURAN, EvidenceDomain.TAFSIR],
+        selected_domains=[EvidenceDomain.QURAN, EvidenceDomain.TAFSIR],
+        use_tafsir=True,
+        tafsir_requested=True,
     )
     evidence = EvidencePack(
         query="Tafsir of Surah Ikhlas",

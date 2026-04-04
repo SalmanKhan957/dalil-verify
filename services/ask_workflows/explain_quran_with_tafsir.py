@@ -14,6 +14,7 @@ from services.tafsir.service import TafsirService
 def explain_quran_with_tafsir(
     *,
     query: str,
+    resolution: dict[str, Any] | None = None,
     include_tafsir: bool = False,
     tafsir_source_id: str = "tafsir:ibn-kathir-en",
     tafsir_limit: int = 3,
@@ -23,6 +24,7 @@ def explain_quran_with_tafsir(
 ) -> dict[str, Any]:
     base_result = explain_quran_reference(
         query,
+        resolution=resolution,
         quran_csv_path=quran_csv_path,
         translation_csv_path=translation_csv_path,
     )
