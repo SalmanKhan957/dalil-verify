@@ -9,18 +9,15 @@ from services.citation_resolver.surah_aliases import resolve_surah_name
 
 SURAH_AYAH_RANGE_RE = re.compile(r"^(?P<surah>\d{1,3}):(?P<start>\d{1,3})(?:-(?P<end>\d{1,3}))?$")
 SURAH_NAME_WITH_OPTIONAL_AYAH_RE = re.compile(
-    r"^surah\s+(?P<name>[a-z0-9\-\s]+?)(?:\s+(?P<start>\d{1,3})(?:-(?P<end>\d{1,3}))?)?$"
+    r"^surah\s+(?P<name>[a-z0-9\-\s]+?)(?:\s+(?:(?:ayah|ayahs|verse|verses)\s*)?(?P<start>\d{1,3})(?:-(?P<end>\d{1,3}))?)?$"
+)
+AYAH_OF_SURAH_RE = re.compile(
+    r"^(?:ayah|ayahs|verse|verses)\s+(?P<start>\d{1,3})(?:-(?P<end>\d{1,3}))?\s+of\s+surah\s+(?P<name>[a-z0-9\-\s]+)$"
 )
 BARE_SURAH_NAME_RE = re.compile(r"^(?P<name>[a-z0-9\-\s]+)$")
 
 
 def parse_surah_ayah_range(text: str) -> dict[str, Any] | None:
-    """
-    Handles:
-    - 94:5
-    - 94:5-6
-    - 2:255
-    """
     match = SURAH_AYAH_RANGE_RE.match(text.strip())
     if not match:
         return None
@@ -38,14 +35,6 @@ def parse_surah_ayah_range(text: str) -> dict[str, Any] | None:
 
 
 def parse_surah_name_with_optional_ayah(text: str) -> dict[str, Any] | None:
-    """
-    Handles:
-    - surah ikhlas
-    - surah ikhlas 1
-    - surah ikhlas 1-4
-    - surah ash-sharh 5
-    - surah inshirah 5-6
-    """
     match = SURAH_NAME_WITH_OPTIONAL_AYAH_RE.match(text.strip())
     if not match:
         return None
@@ -57,7 +46,6 @@ def parse_surah_name_with_optional_ayah(text: str) -> dict[str, Any] | None:
 
     start_raw = match.group("start")
     end_raw = match.group("end")
-
     if start_raw:
         ayah_start = int(start_raw)
         ayah_end = int(end_raw) if end_raw else ayah_start
@@ -73,15 +61,28 @@ def parse_surah_name_with_optional_ayah(text: str) -> dict[str, Any] | None:
     }
 
 
-def parse_bare_surah_name(text: str) -> dict[str, Any] | None:
-    """
-    Handles:
-    - ikhlas
-    - ash-sharh
-    - inshirah
+def parse_ayah_of_surah(text: str) -> dict[str, Any] | None:
+    match = AYAH_OF_SURAH_RE.match(text.strip())
+    if not match:
+        return None
 
-    Returns whole-surah intent; resolver will later fill ayah range using metadata.
-    """
+    name = (match.group("name") or "").strip()
+    surah_no = resolve_surah_name(name)
+    if surah_no is None:
+        return None
+
+    ayah_start = int(match.group("start"))
+    ayah_end = int(match.group("end")) if match.group("end") else ayah_start
+
+    return {
+        "surah_no": surah_no,
+        "ayah_start": ayah_start,
+        "ayah_end": ayah_end,
+        "parse_type": "ayah_of_surah_reference",
+    }
+
+
+def parse_bare_surah_name(text: str) -> dict[str, Any] | None:
     match = BARE_SURAH_NAME_RE.match(text.strip())
     if not match:
         return None
@@ -100,12 +101,6 @@ def parse_bare_surah_name(text: str) -> dict[str, Any] | None:
 
 
 def parse_quran_reference(text: str) -> dict[str, Any] | None:
-    """
-    Parsing priority:
-    1. Numeric explicit references
-    2. 'surah <name> [ayah/range]'
-    3. bare surah names
-    """
     value = (text or "").strip()
     if not value:
         return None
@@ -113,6 +108,7 @@ def parse_quran_reference(text: str) -> dict[str, Any] | None:
     for parser in (
         parse_surah_ayah_range,
         parse_surah_name_with_optional_ayah,
+        parse_ayah_of_surah,
         parse_bare_surah_name,
     ):
         parsed = parser(value)

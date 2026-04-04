@@ -1,11 +1,14 @@
-# services/citation_resolver/surah_aliases.py
-
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 MULTISPACE_RE = re.compile(r"\s+")
-NON_ALNUM_HYPHEN_SPACE_RE = re.compile(r"[^a-z0-9\-\s]")
+NON_ALNUM_HYPHEN_SPACE_RE = re.compile(r"[^a-z0-9\-\s']")
+SURAH_PREFIX_RE = re.compile(r"^(?:surah|surat|sura|soorah|sorah|chapter)\s+", re.IGNORECASE)
+ARTICLE_PREFIX_RE = re.compile(r"^(?:al|an|ar|as|ash|at|ad|az)\s+")
+VOWEL_RUN_RE = re.compile(r"(aa|ee|ii|oo|uu)")
+DOUBLE_LETTER_RE = re.compile(r"(.)\1+")
 
 
 SURAH_CANONICAL_NAMES: dict[int, str] = {
@@ -157,20 +160,137 @@ SURAH_ALIASES: dict[str, int] = {
     "an-nas": 114,
 }
 
-# Add canonical names too
 for surah_no, canonical_name in SURAH_CANONICAL_NAMES.items():
     SURAH_ALIASES.setdefault(canonical_name, surah_no)
 
 
+@dataclass(frozen=True)
+class SurahAliasEntry:
+    surah_no: int
+    alias: str
+    normalized: str
+    compact: str
+    skeleton: str
+
+
 def _normalize_surah_key(name: str) -> str:
     value = (name or "").strip().lower()
-    value = NON_ALNUM_HYPHEN_SPACE_RE.sub("", value)
     value = value.replace("_", " ")
-    value = MULTISPACE_RE.sub(" ", value).strip()
-
-    # Keep both spaced and hyphenated variants comparable
+    value = NON_ALNUM_HYPHEN_SPACE_RE.sub("", value)
     value = value.replace(" - ", "-").replace("- ", "-").replace(" -", "-")
+    value = value.replace("-", " ")
+    value = MULTISPACE_RE.sub(" ", value).strip()
+    value = SURAH_PREFIX_RE.sub("", value).strip()
     return value
+
+
+def _drop_leading_article(value: str) -> str:
+    return ARTICLE_PREFIX_RE.sub("", value).strip()
+
+
+def _compact(value: str) -> str:
+    return value.replace(" ", "").replace("-", "")
+
+
+def _build_skeleton(value: str) -> str:
+    skeleton = _normalize_surah_key(value)
+    skeleton = _drop_leading_article(skeleton)
+    skeleton = _compact(skeleton)
+    skeleton = VOWEL_RUN_RE.sub(lambda m: m.group(0)[0], skeleton)
+    skeleton = (
+        skeleton.replace("aa", "a")
+        .replace("ee", "i")
+        .replace("ii", "i")
+        .replace("oo", "u")
+        .replace("uu", "u")
+        .replace("ou", "u")
+        .replace("ow", "u")
+        .replace("ph", "f")
+        .replace("q", "k")
+        .replace("dh", "d")
+        .replace("th", "t")
+        .replace("tz", "z")
+    )
+    skeleton = DOUBLE_LETTER_RE.sub(r"\1", skeleton)
+    return skeleton
+
+
+def _edit_distance(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        curr = [i]
+        for j, cb in enumerate(b, start=1):
+            cost = 0 if ca == cb else 1
+            curr.append(min(
+                prev[j] + 1,
+                curr[j - 1] + 1,
+                prev[j - 1] + cost,
+            ))
+        prev = curr
+    return prev[-1]
+
+
+def _allowed_distance(length: int) -> int:
+    if length <= 4:
+        return 0
+    if length <= 7:
+        return 1
+    if length <= 11:
+        return 2
+    return 3
+
+
+def _iter_alias_variants(alias: str) -> set[str]:
+    normalized = _normalize_surah_key(alias)
+    variants = {normalized}
+    if normalized:
+        variants.add(normalized.replace(" ", "-"))
+        variants.add(normalized.replace("-", " "))
+        variants.add(_drop_leading_article(normalized))
+    return {v for v in variants if v}
+
+
+def _build_alias_entries() -> list[SurahAliasEntry]:
+    entries: list[SurahAliasEntry] = []
+    seen: set[tuple[int, str]] = set()
+    for alias, surah_no in SURAH_ALIASES.items():
+        for variant in _iter_alias_variants(alias):
+            compact = _compact(variant)
+            entry = SurahAliasEntry(
+                surah_no=surah_no,
+                alias=variant,
+                normalized=variant,
+                compact=compact,
+                skeleton=_build_skeleton(variant),
+            )
+            key = (entry.surah_no, entry.normalized)
+            if key not in seen:
+                entries.append(entry)
+                seen.add(key)
+    return entries
+
+
+_ALIAS_ENTRIES = _build_alias_entries()
+_NORMALIZED_EXACT_MAP: dict[str, int] = {}
+_COMPACT_EXACT_MAP: dict[str, int] = {}
+_SKELETON_EXACT_MAP: dict[str, int] = {}
+
+for entry in _ALIAS_ENTRIES:
+    _NORMALIZED_EXACT_MAP.setdefault(entry.normalized, entry.surah_no)
+    _COMPACT_EXACT_MAP.setdefault(entry.compact, entry.surah_no)
+    # only keep skeleton exacts that are unambiguous
+    existing = _SKELETON_EXACT_MAP.get(entry.skeleton)
+    if existing is None:
+        _SKELETON_EXACT_MAP[entry.skeleton] = entry.surah_no
+    elif existing != entry.surah_no:
+        _SKELETON_EXACT_MAP[entry.skeleton] = -1
 
 
 def resolve_surah_name(name: str) -> int | None:
@@ -178,18 +298,49 @@ def resolve_surah_name(name: str) -> int | None:
     if not key:
         return None
 
-    direct = SURAH_ALIASES.get(key)
+    direct = _NORMALIZED_EXACT_MAP.get(key)
     if direct is not None:
         return direct
 
     hyphenated = key.replace(" ", "-")
-    direct = SURAH_ALIASES.get(hyphenated)
+    direct = _NORMALIZED_EXACT_MAP.get(hyphenated)
     if direct is not None:
         return direct
 
-    spaced = key.replace("-", " ")
-    direct = SURAH_ALIASES.get(spaced)
+    compact = _compact(key)
+    direct = _COMPACT_EXACT_MAP.get(compact)
     if direct is not None:
         return direct
 
-    return None
+    skeleton = _build_skeleton(key)
+    skeleton_match = _SKELETON_EXACT_MAP.get(skeleton)
+    if skeleton_match is not None and skeleton_match > 0:
+        return skeleton_match
+
+    # Bounded fuzzy match: only over surah aliases, only when the input looks like a surah name.
+    token_count = len(key.split())
+    if token_count > 4 or len(compact) < 5:
+        return None
+
+    best_entry: SurahAliasEntry | None = None
+    best_distance: int | None = None
+    second_best_distance: int | None = None
+
+    for entry in _ALIAS_ENTRIES:
+        distance = _edit_distance(skeleton, entry.skeleton)
+        if distance > _allowed_distance(max(len(skeleton), len(entry.skeleton))):
+            continue
+        if best_distance is None or distance < best_distance:
+            second_best_distance = best_distance
+            best_distance = distance
+            best_entry = entry
+        elif second_best_distance is None or distance < second_best_distance:
+            second_best_distance = distance
+
+    if best_entry is None or best_distance is None:
+        return None
+
+    if second_best_distance is not None and second_best_distance == best_distance:
+        return None
+
+    return best_entry.surah_no

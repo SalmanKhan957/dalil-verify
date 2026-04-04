@@ -1,0 +1,539 @@
+{
+  "suite_id": "quran-tafsir-explain-v1",
+  "description": "Acceptance suite for the bounded Quran + Tafsir explain lane.",
+  "endpoint": {
+    "method": "POST",
+    "path": "/ask/explain"
+  },
+  "thresholds": {
+    "quran_resolution_rate_min": 1.0,
+    "tafsir_inclusion_rate_min": 0.95,
+    "citation_presence_rate_min": 1.0,
+    "abstention_rate_min": 1.0,
+    "unexpected_error_rate_max": 0.0,
+    "overall_pass_rate_min": 0.95
+  },
+  "cases": [
+    {
+      "case_id": "surah_fatiha_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Fatiha",
+      "request": {
+        "query": "Explain Surah Al-Fatiha",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:1:1-7",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_ikhlas_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Ikhlas",
+      "request": {
+        "query": "Explain Surah Al-Ikhlas",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:112:1-4",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_asr_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Asr",
+      "request": {
+        "query": "Explain Surah Al-Asr",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:103:1-3",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_kawthar_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Kawthar",
+      "request": {
+        "query": "Explain Surah Al-Kawthar",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:108:1-3",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_nas_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah An-Nas",
+      "request": {
+        "query": "Explain Surah An-Nas",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:114:1-6",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_falaq_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Falaq",
+      "request": {
+        "query": "Explain Surah Al-Falaq",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:113:1-5",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_masad_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Masad",
+      "request": {
+        "query": "Explain Surah Al-Masad",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:111:1-5",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_fil_explain",
+      "category": "surah_explain",
+      "query": "Explain Surah Al-Fil",
+      "request": {
+        "query": "Explain Surah Al-Fil",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:105:1-5",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_fatiha_tafsir",
+      "category": "tafsir_explicit",
+      "query": "Tafsir of Surah Al-Fatiha",
+      "request": {
+        "query": "Tafsir of Surah Al-Fatiha",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:1:1-7",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_ikhlas_tafsir",
+      "category": "tafsir_explicit",
+      "query": "Tafsir of Surah Ikhlas",
+      "request": {
+        "query": "Tafsir of Surah Ikhlas",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:112:1-4",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_255_tafsir",
+      "category": "tafsir_explicit",
+      "query": "Explain 2:255 with tafsir",
+      "request": {
+        "query": "Explain 2:255 with tafsir",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:2:255",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ibn_kathir_ikhlas",
+      "category": "tafsir_explicit",
+      "query": "Ibn Kathir on Surah Al-Ikhlas",
+      "request": {
+        "query": "Ibn Kathir on Surah Al-Ikhlas",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:112:1-4",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_255_explain",
+      "category": "ayah_explain",
+      "query": "Explain 2:255",
+      "request": {
+        "query": "Explain 2:255",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:2:255",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_94_5_6_explain",
+      "category": "ayah_explain",
+      "query": "Meaning of 94:5-6",
+      "request": {
+        "query": "Meaning of 94:5-6",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:94:5-6",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_112_1_4_explain",
+      "category": "ayah_explain",
+      "query": "Explain 112:1-4",
+      "request": {
+        "query": "Explain 112:1-4",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:112:1-4",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_103_1_3_explain",
+      "category": "ayah_explain",
+      "query": "Explain 103:1-3",
+      "request": {
+        "query": "Explain 103:1-3",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:103:1-3",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_108_1_3_explain",
+      "category": "ayah_explain",
+      "query": "Explain 108:1-3",
+      "request": {
+        "query": "Explain 108:1-3",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:108:1-3",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_111_1_5_explain",
+      "category": "ayah_explain",
+      "query": "Explain 111:1-5",
+      "request": {
+        "query": "Explain 111:1-5",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:111:1-5",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_114_1_6_explain",
+      "category": "ayah_explain",
+      "query": "Explain 114:1-6",
+      "request": {
+        "query": "Explain 114:1-6",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:114:1-6",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ayah_113_1_5_explain",
+      "category": "ayah_explain",
+      "query": "Explain 113:1-5",
+      "request": {
+        "query": "Explain 113:1-5",
+        "include_tafsir": true,
+        "tafsir_source_id": "tafsir:ibn-kathir-en",
+        "tafsir_limit": 3
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:113:1-5",
+        "should_include_tafsir": true,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "surah_fatiha_quran_only",
+      "category": "control",
+      "query": "Explain Surah Al-Fatiha",
+      "request": {
+        "query": "Explain Surah Al-Fatiha",
+        "include_tafsir": false
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:1:1-7",
+        "should_include_tafsir": false,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "ikhlas_quran_only",
+      "category": "control",
+      "query": "Explain Surah Al-Ikhlas",
+      "request": {
+        "query": "Explain Surah Al-Ikhlas",
+        "include_tafsir": false
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_source_id": "quran:112:1-4",
+        "should_include_tafsir": false,
+        "should_have_citations": true,
+        "should_abstain": false,
+        "answer_quality": "explanatory"
+      }
+    },
+    {
+      "case_id": "abstain_anxiety",
+      "category": "abstain",
+      "query": "What does Islam say about anxiety?",
+      "request": {
+        "query": "What does Islam say about anxiety?"
+      },
+      "expected": {
+        "route_type": "unsupported_for_now",
+        "action_type": "unknown",
+        "canonical_source_id": null,
+        "should_include_tafsir": false,
+        "should_have_citations": false,
+        "should_abstain": true,
+        "answer_quality": null
+      }
+    },
+    {
+      "case_id": "abstain_hadith_patience",
+      "category": "abstain",
+      "query": "Give me hadith about patience",
+      "request": {
+        "query": "Give me hadith about patience"
+      },
+      "expected": {
+        "route_type": "unsupported_for_now",
+        "action_type": "unknown",
+        "canonical_source_id": null,
+        "should_include_tafsir": false,
+        "should_have_citations": false,
+        "should_abstain": true,
+        "answer_quality": null
+      }
+    },
+    {
+      "case_id": "abstain_riba",
+      "category": "abstain",
+      "query": "Explain riba in detail",
+      "request": {
+        "query": "Explain riba in detail"
+      },
+      "expected": {
+        "route_type": "unsupported_for_now",
+        "action_type": "unknown",
+        "canonical_source_id": null,
+        "should_include_tafsir": false,
+        "should_have_citations": false,
+        "should_abstain": true,
+        "answer_quality": null
+      }
+    },
+    {
+      "case_id": "abstain_music",
+      "category": "abstain",
+      "query": "Is music haram?",
+      "request": {
+        "query": "Is music haram?"
+      },
+      "expected": {
+        "route_type": "unsupported_for_now",
+        "action_type": "unknown",
+        "canonical_source_id": null,
+        "should_include_tafsir": false,
+        "should_have_citations": false,
+        "should_abstain": true,
+        "answer_quality": null
+      }
+    },
+    {
+      "case_id": "abstain_marriage",
+      "category": "abstain",
+      "query": "What does Islam say about marriage rights?",
+      "request": {
+        "query": "What does Islam say about marriage rights?"
+      },
+      "expected": {
+        "route_type": "unsupported_for_now",
+        "action_type": "unknown",
+        "canonical_source_id": null,
+        "should_include_tafsir": false,
+        "should_have_citations": false,
+        "should_abstain": true,
+        "answer_quality": null
+      }
+    }
+  ]
+}

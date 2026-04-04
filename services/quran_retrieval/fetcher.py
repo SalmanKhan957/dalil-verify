@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from services.citation_resolver.resolver import build_canonical_source_id
-from services.quran_retrieval.metadata_loader import DEFAULT_QURAN_ARABIC_PATH, load_quran_metadata
-from services.quran_retrieval.span_lookup import lookup_quran_span
-from services.quran_retrieval.translation_fetcher import (
+from services.quran_domain.metadata_repository import DEFAULT_QURAN_ARABIC_PATH, load_quran_metadata
+from services.quran_domain.text_repository import lookup_quran_span
+from services.quran_domain.translation_repository import (
     DEFAULT_QURAN_TRANSLATION_PATH,
     fetch_translation_span,
 )

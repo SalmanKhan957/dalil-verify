@@ -1,0 +1,1743 @@
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/alembic/env.py dalil_mod_clean/alembic/env.py
+--- dalil_orig_clean/alembic/env.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/alembic/env.py	2026-04-03 19:55:07.762494990 +0000
+@@ -0,0 +1,56 @@
++from __future__ import annotations
++
++from logging.config import fileConfig
++import os
++
++from alembic import context
++from sqlalchemy import engine_from_config, pool
++
++from infrastructure.db.base import Base
++from infrastructure.db.models import source_work, tafsir_ingestion_run, tafsir_section  # noqa: F401
++
++config = context.config
++
++if config.config_file_name is not None:
++    fileConfig(config.config_file_name)
++
++database_url = os.getenv("DALIL_DATABASE_URL") or os.getenv("DATABASE_URL")
++if database_url:
++    config.set_main_option("sqlalchemy.url", database_url)
++
++target_metadata = Base.metadata
++
++
++def run_migrations_offline() -> None:
++    url = config.get_main_option("sqlalchemy.url")
++    if not url:
++        raise RuntimeError("Set DALIL_DATABASE_URL or DATABASE_URL before running Alembic migrations.")
++    context.configure(
++        url=url,
++        target_metadata=target_metadata,
++        literal_binds=True,
++        dialect_opts={"paramstyle": "named"},
++    )
++
++    with context.begin_transaction():
++        context.run_migrations()
++
++
++def run_migrations_online() -> None:
++    connectable = engine_from_config(
++        config.get_section(config.config_ini_section, {}),
++        prefix="sqlalchemy.",
++        poolclass=pool.NullPool,
++    )
++
++    with connectable.connect() as connection:
++        context.configure(connection=connection, target_metadata=target_metadata)
++
++        with context.begin_transaction():
++            context.run_migrations()
++
++
++if context.is_offline_mode():
++    run_migrations_offline()
++else:
++    run_migrations_online()
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/alembic/versions/20260404_01_create_source_works_and_tafsir_tables.py dalil_mod_clean/alembic/versions/20260404_01_create_source_works_and_tafsir_tables.py
+--- dalil_orig_clean/alembic/versions/20260404_01_create_source_works_and_tafsir_tables.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/alembic/versions/20260404_01_create_source_works_and_tafsir_tables.py	2026-04-03 19:55:07.762218701 +0000
+@@ -0,0 +1,131 @@
++from __future__ import annotations
++
++from alembic import op
++import sqlalchemy as sa
++from sqlalchemy.dialects import postgresql
++
++# revision identifiers, used by Alembic.
++revision = "20260404_01"
++down_revision = None
++branch_labels = None
++depends_on = None
++
++
++def _json_type() -> sa.types.TypeEngine:
++    return postgresql.JSONB(astext_type=sa.Text())
++
++
++def upgrade() -> None:
++    op.create_table(
++        "source_works",
++        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
++        sa.Column("source_domain", sa.Text(), nullable=False),
++        sa.Column("work_slug", sa.Text(), nullable=False),
++        sa.Column("source_id", sa.Text(), nullable=False),
++        sa.Column("display_name", sa.Text(), nullable=False),
++        sa.Column("citation_label", sa.Text(), nullable=False),
++        sa.Column("author_name", sa.Text(), nullable=True),
++        sa.Column("language_code", sa.Text(), nullable=False),
++        sa.Column("source_kind", sa.Text(), nullable=False),
++        sa.Column("upstream_provider", sa.Text(), nullable=False),
++        sa.Column("upstream_resource_id", sa.Integer(), nullable=True),
++        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("false")),
++        sa.Column("approved_for_answering", sa.Boolean(), nullable=False, server_default=sa.text("false")),
++        sa.Column("version_label", sa.Text(), nullable=True),
++        sa.Column("metadata_json", _json_type(), nullable=False, server_default=sa.text("'{}'::jsonb")),
++        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.CheckConstraint("source_domain IN ('quran', 'tafsir', 'hadith')", name="source_works_domain_check"),
++        sa.CheckConstraint(
++            "source_kind IN ('canonical_text', 'translation', 'commentary', 'hadith_collection')",
++            name="source_works_kind_check",
++        ),
++        sa.UniqueConstraint("source_id", name="source_works_source_id_key"),
++        sa.UniqueConstraint("upstream_provider", "upstream_resource_id", name="source_works_provider_resource_unique"),
++    )
++    op.create_index("idx_source_works_domain", "source_works", ["source_domain"])
++    op.create_index("idx_source_works_enabled", "source_works", ["enabled", "approved_for_answering"])
++
++    op.create_table(
++        "tafsir_sections",
++        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
++        sa.Column("work_id", sa.Integer(), sa.ForeignKey("source_works.id", ondelete="RESTRICT"), nullable=False),
++        sa.Column("canonical_section_id", sa.Text(), nullable=False),
++        sa.Column("source_id", sa.Text(), nullable=False),
++        sa.Column("upstream_provider", sa.Text(), nullable=False),
++        sa.Column("upstream_resource_id", sa.Integer(), nullable=False),
++        sa.Column("upstream_entry_id", sa.BigInteger(), nullable=False),
++        sa.Column("language_code", sa.Text(), nullable=False),
++        sa.Column("slug", sa.Text(), nullable=True),
++        sa.Column("language_id", sa.Integer(), nullable=True),
++        sa.Column("surah_no", sa.Integer(), nullable=False),
++        sa.Column("ayah_start", sa.Integer(), nullable=False),
++        sa.Column("ayah_end", sa.Integer(), nullable=False),
++        sa.Column("anchor_verse_key", sa.Text(), nullable=False),
++        sa.Column("quran_span_ref", sa.Text(), nullable=False),
++        sa.Column("coverage_mode", sa.Text(), nullable=False),
++        sa.Column("coverage_confidence", sa.Numeric(4, 3), nullable=False),
++        sa.Column("text_html", sa.Text(), nullable=False),
++        sa.Column("text_plain", sa.Text(), nullable=False),
++        sa.Column("text_plain_normalized", sa.Text(), nullable=False),
++        sa.Column("text_hash", sa.Text(), nullable=False),
++        sa.Column("source_file_path", sa.Text(), nullable=True),
++        sa.Column("source_manifest_path", sa.Text(), nullable=True),
++        sa.Column("raw_json", _json_type(), nullable=False),
++        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.CheckConstraint("ayah_start >= 1 AND ayah_end >= ayah_start", name="tafsir_sections_ayah_bounds_check"),
++        sa.CheckConstraint(
++            "coverage_mode IN ('explicit_range', 'inferred_from_empty_followers', 'anchor_only')",
++            name="tafsir_sections_coverage_mode_check",
++        ),
++        sa.UniqueConstraint("canonical_section_id", name="tafsir_sections_canonical_section_id_key"),
++        sa.UniqueConstraint("work_id", "upstream_entry_id", name="tafsir_sections_work_upstream_entry_unique"),
++    )
++    op.create_index("idx_tafsir_sections_work_surah", "tafsir_sections", ["work_id", "surah_no"])
++    op.create_index(
++        "idx_tafsir_sections_work_surah_start_end",
++        "tafsir_sections",
++        ["work_id", "surah_no", "ayah_start", "ayah_end"],
++    )
++    op.create_index("idx_tafsir_sections_anchor", "tafsir_sections", ["work_id", "anchor_verse_key"])
++    op.create_index("idx_tafsir_sections_span_ref", "tafsir_sections", ["work_id", "quran_span_ref"])
++    op.execute(
++        "CREATE INDEX idx_tafsir_sections_plain_search ON tafsir_sections USING GIN (to_tsvector('simple', text_plain_normalized))"
++    )
++
++    op.create_table(
++        "tafsir_ingestion_runs",
++        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
++        sa.Column("work_id", sa.Integer(), sa.ForeignKey("source_works.id", ondelete="RESTRICT"), nullable=False),
++        sa.Column("resource_id", sa.Integer(), nullable=False),
++        sa.Column("source_root", sa.Text(), nullable=False),
++        sa.Column("status", sa.Text(), nullable=False),
++        sa.Column("chapters_seen", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("raw_rows_seen", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("sections_built", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("inserted_count", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("updated_count", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("skipped_count", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("failed_count", sa.Integer(), nullable=False, server_default="0"),
++        sa.Column("notes_json", _json_type(), nullable=False, server_default=sa.text("'{}'::jsonb")),
++        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.CheckConstraint(
++            "status IN ('running', 'completed', 'completed_with_warnings', 'failed')",
++            name="tafsir_ingestion_runs_status_check",
++        ),
++    )
++
++
++def downgrade() -> None:
++    op.drop_table("tafsir_ingestion_runs")
++    op.execute("DROP INDEX IF EXISTS idx_tafsir_sections_plain_search")
++    op.drop_index("idx_tafsir_sections_span_ref", table_name="tafsir_sections")
++    op.drop_index("idx_tafsir_sections_anchor", table_name="tafsir_sections")
++    op.drop_index("idx_tafsir_sections_work_surah_start_end", table_name="tafsir_sections")
++    op.drop_index("idx_tafsir_sections_work_surah", table_name="tafsir_sections")
++    op.drop_table("tafsir_sections")
++    op.drop_index("idx_source_works_enabled", table_name="source_works")
++    op.drop_index("idx_source_works_domain", table_name="source_works")
++    op.drop_table("source_works")
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/alembic.ini dalil_mod_clean/alembic.ini
+--- dalil_orig_clean/alembic.ini	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/alembic.ini	2026-04-03 19:55:07.762794270 +0000
+@@ -0,0 +1,35 @@
++[alembic]
++script_location = alembic
++sqlalchemy.url =
++
++[loggers]
++keys = root,sqlalchemy,alembic
++
++[handlers]
++keys = console
++
++[formatters]
++keys = generic
++
++[logger_root]
++level = WARN
++handlers = console
++
++[logger_sqlalchemy]
++level = WARN
++handlers =
++qualname = sqlalchemy.engine
++
++[logger_alembic]
++level = INFO
++handlers =
++qualname = alembic
++
++[handler_console]
++class = StreamHandler
++args = (sys.stderr,)
++level = NOTSET
++formatter = generic
++
++[formatter_generic]
++format = %(levelname)-5.5s [%(name)s] %(message)s
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/__init__.py dalil_mod_clean/infrastructure/__init__.py
+--- dalil_orig_clean/infrastructure/__init__.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/__init__.py	2026-04-03 19:55:07.761698053 +0000
+@@ -0,0 +1 @@
++from __future__ import annotations
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/__init__.py dalil_mod_clean/infrastructure/db/__init__.py
+--- dalil_orig_clean/infrastructure/db/__init__.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/__init__.py	2026-04-03 19:55:07.760717337 +0000
+@@ -0,0 +1,11 @@
++from __future__ import annotations
++
++from infrastructure.db.base import Base
++from infrastructure.db.session import get_session, make_engine, make_session_factory
++
++__all__ = [
++    "Base",
++    "get_session",
++    "make_engine",
++    "make_session_factory",
++]
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/base.py dalil_mod_clean/infrastructure/db/base.py
+--- dalil_orig_clean/infrastructure/db/base.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/base.py	2026-04-03 19:55:07.760977473 +0000
+@@ -0,0 +1,24 @@
++from __future__ import annotations
++
++from datetime import datetime
++
++from sqlalchemy import DateTime, func
++from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
++
++
++class Base(DeclarativeBase):
++    """Shared SQLAlchemy declarative base for DALIL infrastructure models."""
++
++
++class TimestampMixin:
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    updated_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++        onupdate=func.now(),
++    )
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/models/__init__.py dalil_mod_clean/infrastructure/db/models/__init__.py
+--- dalil_orig_clean/infrastructure/db/models/__init__.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/models/__init__.py	2026-04-03 19:55:07.759334843 +0000
+@@ -0,0 +1,11 @@
++from __future__ import annotations
++
++from infrastructure.db.models.source_work import SourceWorkORM
++from infrastructure.db.models.tafsir_ingestion_run import TafsirIngestionRunORM
++from infrastructure.db.models.tafsir_section import TafsirSectionORM
++
++__all__ = [
++    "SourceWorkORM",
++    "TafsirSectionORM",
++    "TafsirIngestionRunORM",
++]
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/models/source_work.py dalil_mod_clean/infrastructure/db/models/source_work.py
+--- dalil_orig_clean/infrastructure/db/models/source_work.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/models/source_work.py	2026-04-03 19:55:07.759617414 +0000
+@@ -0,0 +1,40 @@
++from __future__ import annotations
++
++from typing import Any
++
++from sqlalchemy import Boolean, CheckConstraint, Integer, String, Text, UniqueConstraint
++from sqlalchemy.dialects.postgresql import JSONB
++from sqlalchemy.orm import Mapped, mapped_column
++from sqlalchemy.types import JSON
++
++from infrastructure.db.base import Base, TimestampMixin
++
++json_type = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
++
++
++class SourceWorkORM(TimestampMixin, Base):
++    __tablename__ = "source_works"
++    __table_args__ = (
++        CheckConstraint("source_domain IN ('quran', 'tafsir', 'hadith')", name="source_works_domain_check"),
++        CheckConstraint(
++            "source_kind IN ('canonical_text', 'translation', 'commentary', 'hadith_collection')",
++            name="source_works_kind_check",
++        ),
++        UniqueConstraint("upstream_provider", "upstream_resource_id", name="source_works_provider_resource_unique"),
++    )
++
++    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
++    source_domain: Mapped[str] = mapped_column(String(32), nullable=False)
++    work_slug: Mapped[str] = mapped_column(String(255), nullable=False)
++    source_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
++    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
++    citation_label: Mapped[str] = mapped_column(String(255), nullable=False)
++    author_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
++    language_code: Mapped[str] = mapped_column(String(16), nullable=False)
++    source_kind: Mapped[str] = mapped_column(String(64), nullable=False)
++    upstream_provider: Mapped[str] = mapped_column(String(64), nullable=False)
++    upstream_resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
++    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
++    approved_for_answering: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
++    version_label: Mapped[str | None] = mapped_column(String(64), nullable=True)
++    metadata_json: Mapped[dict[str, Any]] = mapped_column(json_type, nullable=False, default=dict, server_default="{}")
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/models/tafsir_ingestion_run.py dalil_mod_clean/infrastructure/db/models/tafsir_ingestion_run.py
+--- dalil_orig_clean/infrastructure/db/models/tafsir_ingestion_run.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/models/tafsir_ingestion_run.py	2026-04-03 19:55:07.760439847 +0000
+@@ -0,0 +1,36 @@
++from __future__ import annotations
++
++from typing import Any
++
++from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text
++from sqlalchemy.dialects.postgresql import JSONB
++from sqlalchemy.orm import Mapped, mapped_column
++from sqlalchemy.types import JSON
++
++from infrastructure.db.base import Base, TimestampMixin
++
++json_type = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
++
++
++class TafsirIngestionRunORM(TimestampMixin, Base):
++    __tablename__ = "tafsir_ingestion_runs"
++    __table_args__ = (
++        CheckConstraint(
++            "status IN ('running', 'completed', 'completed_with_warnings', 'failed')",
++            name="tafsir_ingestion_runs_status_check",
++        ),
++    )
++
++    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
++    work_id: Mapped[int] = mapped_column(ForeignKey("source_works.id", ondelete="RESTRICT"), nullable=False)
++    resource_id: Mapped[int] = mapped_column(Integer, nullable=False)
++    source_root: Mapped[str] = mapped_column(Text, nullable=False)
++    status: Mapped[str] = mapped_column(Text, nullable=False)
++    chapters_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    raw_rows_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    sections_built: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    inserted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    updated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
++    notes_json: Mapped[dict[str, Any]] = mapped_column(json_type, nullable=False, default=dict, server_default="{}")
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/models/tafsir_section.py dalil_mod_clean/infrastructure/db/models/tafsir_section.py
+--- dalil_orig_clean/infrastructure/db/models/tafsir_section.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/models/tafsir_section.py	2026-04-03 19:55:07.759946888 +0000
+@@ -0,0 +1,59 @@
++from __future__ import annotations
++
++from typing import Any
++
++from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
++from sqlalchemy.dialects.postgresql import JSONB
++from sqlalchemy.orm import Mapped, mapped_column
++from sqlalchemy.types import JSON
++
++from infrastructure.db.base import Base, TimestampMixin
++
++json_type = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
++
++
++class TafsirSectionORM(TimestampMixin, Base):
++    __tablename__ = "tafsir_sections"
++    __table_args__ = (
++        CheckConstraint("ayah_start >= 1 AND ayah_end >= ayah_start", name="tafsir_sections_ayah_bounds_check"),
++        CheckConstraint(
++            "coverage_mode IN ('explicit_range', 'inferred_from_empty_followers', 'anchor_only')",
++            name="tafsir_sections_coverage_mode_check",
++        ),
++        UniqueConstraint("work_id", "upstream_entry_id", name="tafsir_sections_work_upstream_entry_unique"),
++        Index("idx_tafsir_sections_work_surah", "work_id", "surah_no"),
++        Index("idx_tafsir_sections_work_surah_start_end", "work_id", "surah_no", "ayah_start", "ayah_end"),
++        Index("idx_tafsir_sections_anchor", "work_id", "anchor_verse_key"),
++        Index("idx_tafsir_sections_span_ref", "work_id", "quran_span_ref"),
++    )
++
++    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
++    work_id: Mapped[int] = mapped_column(ForeignKey("source_works.id", ondelete="RESTRICT"), nullable=False)
++
++    canonical_section_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
++    source_id: Mapped[str] = mapped_column(String(255), nullable=False)
++    upstream_provider: Mapped[str] = mapped_column(String(64), nullable=False)
++    upstream_resource_id: Mapped[int] = mapped_column(Integer, nullable=False)
++    upstream_entry_id: Mapped[int] = mapped_column(nullable=False)
++
++    language_code: Mapped[str] = mapped_column(String(16), nullable=False)
++    slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
++    language_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
++
++    surah_no: Mapped[int] = mapped_column(Integer, nullable=False)
++    ayah_start: Mapped[int] = mapped_column(Integer, nullable=False)
++    ayah_end: Mapped[int] = mapped_column(Integer, nullable=False)
++    anchor_verse_key: Mapped[str] = mapped_column(String(32), nullable=False)
++    quran_span_ref: Mapped[str] = mapped_column(String(32), nullable=False)
++
++    coverage_mode: Mapped[str] = mapped_column(String(64), nullable=False)
++    coverage_confidence: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
++
++    text_html: Mapped[str] = mapped_column(Text, nullable=False)
++    text_plain: Mapped[str] = mapped_column(Text, nullable=False)
++    text_plain_normalized: Mapped[str] = mapped_column(Text, nullable=False)
++    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
++
++    source_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
++    source_manifest_path: Mapped[str | None] = mapped_column(Text, nullable=True)
++    raw_json: Mapped[dict[str, Any]] = mapped_column(json_type, nullable=False)
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/infrastructure/db/session.py dalil_mod_clean/infrastructure/db/session.py
+--- dalil_orig_clean/infrastructure/db/session.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/infrastructure/db/session.py	2026-04-03 19:55:07.761335839 +0000
+@@ -0,0 +1,45 @@
++from __future__ import annotations
++
++import os
++from contextlib import contextmanager
++from typing import Iterator
++
++from sqlalchemy import create_engine
++from sqlalchemy.engine import Engine
++from sqlalchemy.orm import Session, sessionmaker
++
++DEFAULT_DB_ENV_VARS: tuple[str, ...] = ("DALIL_DATABASE_URL", "DATABASE_URL")
++
++
++def get_database_url() -> str:
++    for env_var in DEFAULT_DB_ENV_VARS:
++        value = os.getenv(env_var)
++        if value:
++            return value
++    raise RuntimeError(
++        "No database URL configured. Set DALIL_DATABASE_URL or DATABASE_URL before running tafsir ingestion."
++    )
++
++
++def make_engine(database_url: str | None = None, *, echo: bool = False) -> Engine:
++    resolved = database_url or get_database_url()
++    return create_engine(resolved, echo=echo, future=True)
++
++
++def make_session_factory(engine: Engine) -> sessionmaker[Session]:
++    return sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
++
++
++@contextmanager
++def get_session(database_url: str | None = None, *, echo: bool = False) -> Iterator[Session]:
++    engine = make_engine(database_url=database_url, echo=echo)
++    session_factory = make_session_factory(engine)
++    session = session_factory()
++    try:
++        yield session
++        session.commit()
++    except Exception:
++        session.rollback()
++        raise
++    finally:
++        session.close()
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/logs/verify_quran.jsonl dalil_mod_clean/logs/verify_quran.jsonl
+--- dalil_orig_clean/logs/verify_quran.jsonl	2026-04-03 19:55:07.123146971 +0000
++++ dalil_mod_clean/logs/verify_quran.jsonl	2026-04-03 19:55:07.725026639 +0000
+@@ -896,3 +896,7 @@
+ {"timestamp_utc": "2026-04-03T12:45:03.196078+00:00", "request_id": "5e404be7-1102-41b4-9253-73508feb6827", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "query_char_count": 38, "query_sanitized_for_matching": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ", "query_was_sanitized": true, "query_token_count": 4, "query_route": "SIMPLE_FIRST", "query_route_score": 0, "query_route_indicators": [], "query_route_strong_score": 0, "query_route_weak_score": 0, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.02, "preprocessing_ms": 0.06, "request_total_ms": 75.21, "preferred_lane": "ayah", "decision_rule": "status_rank_ayah", "rationale": "Ayah lane produced a stronger match classification than the passage lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 1:1", "preferred_canonical_source_id": "quran:1:1:ar", "preferred_has_english_translation": true, "related_citations": [], "ayah_status": "Exact match found", "ayah_confidence": "high", "ayah_citation": "Quran 1:1", "ayah_score": 92.0, "ayah_status_rank": 3, "passage_status": "No reliable match found in current corpus", "passage_confidence": "low", "passage_citation": null, "passage_score": 0.0, "passage_status_rank": 1, "passage_window_size": null, "passage_spans_multiple": false, "score_delta_passage_minus_ayah": -92.0, "passage_retrieval_engine": "skipped_after_exact_ayah", "runtime_stage_timings": {"exact_ayah_lookup_ms": 0.12, "ayah_shortlist_ms": 0.0, "ayah_scoring_ms": 0.38, "ayah_related_shortlist_ms": 72.08, "fusion_ms": 0.23, "response_build_ms": 0.04, "runtime_total_ms": 73.23}, "debug_enabled": false}
+ {"timestamp_utc": "2026-04-03T13:19:02.586725+00:00", "request_id": "3e9d66c0-4ac5-4094-bd0d-d5a9c181558d", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "إِنَّ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا وَرَضُوا بِالْحَيَاةِ الدُّنْيَا وَاطْمَأَنُّوا بِهَا وَالَّذِينَ هُمْ عَنْ آيَاتِنَا غَافِلُونَ أُولَٰئِكَ مَأْوَاهُمُ النَّارُ بِمَا كَانُوا يَكْسِبُونَ إِنَّ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ", "query_char_count": 244, "query_sanitized_for_matching": "إِنَّ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا وَرَضُوا بِالْحَيَاةِ الدُّنْيَا وَاطْمَأَنُّوا بِهَا وَالَّذِينَ هُمْ عَنْ آيَاتِنَا غَافِلُونَ أُولَئِكَ مَأْوَاهُمُ النَّارُ بِمَا كَانُوا يَكْسِبُونَ إِنَّ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ", "query_was_sanitized": true, "query_token_count": 26, "query_route": "SIMPLE_FIRST", "query_route_score": 0, "query_route_indicators": [], "query_route_strong_score": 0, "query_route_weak_score": 0, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.03, "preprocessing_ms": 0.12, "request_total_ms": 705.93, "preferred_lane": "passage", "decision_rule": "status_rank_passage", "rationale": "Passage lane produced a stronger match classification than the ayah lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 10:7-9", "preferred_canonical_source_id": "quran_passage:10:7-9:ar", "preferred_has_english_translation": true, "related_citations": ["Quran 10:6-9", "Quran 10:7-10"], "ayah_status": "No reliable match found in current corpus", "ayah_confidence": "low", "ayah_citation": "Quran 10:7", "ayah_score": 20.92, "ayah_status_rank": 1, "passage_status": "Exact match found", "passage_confidence": "high", "passage_citation": "Quran 10:7-9", "passage_score": 54.08, "passage_status_rank": 3, "passage_window_size": 3, "passage_spans_multiple": true, "score_delta_passage_minus_ayah": 33.16, "passage_retrieval_engine": "static_exact_window", "runtime_stage_timings": {"exact_ayah_lookup_ms": 0.37, "ayah_shortlist_ms": 53.55, "ayah_scoring_ms": 156.56, "passage_shortlist_ms": 256.5, "passage_scoring_ms": 198.11, "fusion_ms": 0.38, "response_build_ms": 0.09, "runtime_total_ms": 671.34}, "debug_enabled": false}
+ {"timestamp_utc": "2026-04-03T13:19:21.445663+00:00", "request_id": "c24d0516-da85-4683-b49c-10914296db55", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "إِنَّ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا وَرَضُوا بِالْحَيَاةِ الدُّنْيَا وَاطْمَأَنُّوا بِهَا وَالَّذِينَ هُمْ عَنْ آيَاتِنَا غَافِلُونَ أُولَٰئِكَ مَأْوَاهُمُ النَّارُ بِمَا كَانُوا يَكْسِبُونَ إِنَّ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ يَهْدِيهِمْ رَبُّهُمْ بِإِيمَانِهِمْ ۖ تَجْرِي مِنْ تَحْتِهِمُ الْأَنْهَارُ فِي جَنَّاتِ النَّعِيمِ دَعْوَاهُمْ فِيهَا سُبْحَانَكَ اللَّهُمَّ وَتَحِيَّتُهُمْ فِيهَا سَلَامٌ ۚ وَآخِرُ دَعْوَاهُمْ أَنِ الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ ۞ وَلَوْ يُعَجِّلُ اللَّهُ لِلنَّاسِ الشَّرَّ اسْتِعْجَالَهُمْ بِالْخَيْرِ لَقُضِيَ إِلَيْهِمْ أَجَلُهُمْ ۖ فَنَذَرُ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا فِي طُغْيَانِهِمْ يَعْمَهُونَ وَإِذَا مَسَّ الْإِنْسَانَ الضُّرُّ دَعَانَا لِجَنْبِهِ أَوْ قَاعِدًا أَوْ قَائِمًا فَلَمَّا كَشَفْنَا عَنْهُ ضُرَّهُ مَرَّ كَأَنْ لَمْ يَدْعُنَا إِلَىٰ ضُرٍّ مَسَّهُ ۚ كَذَٰلِكَ زُيِّنَ لِلْمُسْرِفِينَ مَا كَانُوا يَعْمَلُونَ وَلَقَدْ أَهْلَكْنَا الْقُرُونَ مِنْ قَبْلِكُمْ لَمَّا ظَلَمُوا ۙ وَجَاءَتْهُمْ رُسُلُهُمْ بِالْبَيِّنَاتِ وَمَا كَانُوا لِيُؤْمِنُوا ۚ كَذَٰلِكَ نَجْزِي الْقَوْمَ الْمُجْرِمِينَ ثُمَّ جَعَلْنَاكُمْ خَلَائِفَ فِي الْأَرْضِ مِنْ بَعْدِهِمْ", "query_char_count": 1130, "query_sanitized_for_matching": "إِنَّ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا وَرَضُوا بِالْحَيَاةِ الدُّنْيَا وَاطْمَأَنُّوا بِهَا وَالَّذِينَ هُمْ عَنْ آيَاتِنَا غَافِلُونَ أُولَئِكَ مَأْوَاهُمُ النَّارُ بِمَا كَانُوا يَكْسِبُونَ إِنَّ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ يَهْدِيهِمْ رَبُّهُمْ بِإِيمَانِهِمْ تَجْرِي مِنْ تَحْتِهِمُ الْأَنْهَارُ فِي جَنَّاتِ النَّعِيمِ دَعْوَاهُمْ فِيهَا سُبْحَانَكَ اللَّهُمَّ وَتَحِيَّتُهُمْ فِيهَا سَلَامٌ وَآخِرُ دَعْوَاهُمْ أَنِ الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ وَلَوْ يُعَجِّلُ اللَّهُ لِلنَّاسِ الشَّرَّ اسْتِعْجَالَهُمْ بِالْخَيْرِ لَقُضِيَ إِلَيْهِمْ أَجَلُهُمْ فَنَذَرُ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا فِي طُغْيَانِهِمْ يَعْمَهُونَ وَإِذَا مَسَّ الْإِنْسَانَ الضُّرُّ دَعَانَا لِجَنْبِهِ أَوْ قَاعِدًا أَوْ قَائِمًا فَلَمَّا كَشَفْنَا عَنْهُ ضُرَّهُ مَرَّ كَأَنْ لَمْ يَدْعُنَا إِلَى ضُرٍّ مَسَّهُ كَذَلِكَ زُيِّنَ لِلْمُسْرِفِينَ مَا كَانُوا يَعْمَلُونَ وَلَقَدْ أَهْلَكْنَا الْقُرُونَ مِنْ قَبْلِكُمْ لَمَّا ظَلَمُوا وَجَاءَتْهُمْ رُسُلُهُمْ بِالْبَيِّنَاتِ وَمَا كَانُوا لِيُؤْمِنُوا كَذَلِكَ نَجْزِي الْقَوْمَ الْمُجْرِمِينَ ثُمَّ جَعَلْنَاكُمْ خَلَائِفَ فِي الْأَرْضِ مِنْ بَعْدِهِمْ", "query_was_sanitized": true, "query_token_count": 119, "query_route": "SIMPLE_FIRST", "query_route_score": 2, "query_route_indicators": ["special_marks", "small_high_signs"], "query_route_strong_score": 0, "query_route_weak_score": 2, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.07, "preprocessing_ms": 0.35, "request_total_ms": 17.15, "preferred_lane": "passage", "decision_rule": "status_rank_passage", "rationale": "Passage lane produced a stronger match classification than the ayah lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 10:7-14", "preferred_canonical_source_id": "quran_passage:10:7-14:ar", "preferred_has_english_translation": true, "related_citations": [], "ayah_status": "No reliable match found in current corpus", "ayah_confidence": "low", "ayah_citation": null, "ayah_score": 0.0, "ayah_status_rank": 1, "passage_status": "Exact match found", "passage_confidence": "high", "passage_citation": "Quran 10:7-14", "passage_score": 100.0, "passage_status_rank": 3, "passage_window_size": 8, "passage_spans_multiple": true, "score_delta_passage_minus_ayah": 100.0, "passage_retrieval_engine": "giant_exact_anchor", "runtime_stage_timings": {"exact_ayah_lookup_ms": 1.8, "giant_fastpath_ms": 3.24, "ayah_shortlist_ms": 0.0, "ayah_scoring_ms": 0.0, "fusion_ms": 1.69, "response_build_ms": 0.05, "runtime_total_ms": 12.65}, "debug_enabled": false}
++{"timestamp_utc": "2026-04-03T19:54:40.596300+00:00", "request_id": "e0ecd67a-33db-4736-8c60-49119239fa9c", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "query_char_count": 38, "query_sanitized_for_matching": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ", "query_was_sanitized": true, "query_token_count": 4, "query_route": "SIMPLE_FIRST", "query_route_score": 0, "query_route_indicators": [], "query_route_strong_score": 0, "query_route_weak_score": 0, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.01, "preprocessing_ms": 0.02, "request_total_ms": 22.97, "preferred_lane": "ayah", "decision_rule": "status_rank_ayah", "rationale": "Ayah lane produced a stronger match classification than the passage lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 1:1", "preferred_canonical_source_id": "quran:1:1:ar", "preferred_has_english_translation": true, "related_citations": [], "ayah_status": "Exact match found", "ayah_confidence": "high", "ayah_citation": "Quran 1:1", "ayah_score": 92.0, "ayah_status_rank": 3, "passage_status": "No reliable match found in current corpus", "passage_confidence": "low", "passage_citation": null, "passage_score": 0.0, "passage_status_rank": 1, "passage_window_size": null, "passage_spans_multiple": false, "score_delta_passage_minus_ayah": -92.0, "passage_retrieval_engine": "skipped_after_exact_ayah", "runtime_stage_timings": {"exact_ayah_lookup_ms": 0.06, "ayah_shortlist_ms": 0.0, "ayah_scoring_ms": 0.2, "ayah_related_shortlist_ms": 21.71, "fusion_ms": 0.07, "response_build_ms": 0.02, "runtime_total_ms": 22.2}, "debug_enabled": false}
++{"timestamp_utc": "2026-04-03T19:54:40.624737+00:00", "request_id": "6266e5ab-7fe4-401d-b78e-2ee9aa2c8fb5", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "query_char_count": 38, "query_sanitized_for_matching": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ", "query_was_sanitized": true, "query_token_count": 4, "query_route": "SIMPLE_FIRST", "query_route_score": 0, "query_route_indicators": [], "query_route_strong_score": 0, "query_route_weak_score": 0, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.01, "preprocessing_ms": 0.02, "request_total_ms": 19.05, "preferred_lane": "ayah", "decision_rule": "status_rank_ayah", "rationale": "Ayah lane produced a stronger match classification than the passage lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 1:1", "preferred_canonical_source_id": "quran:1:1:ar", "preferred_has_english_translation": true, "related_citations": [], "ayah_status": "Exact match found", "ayah_confidence": "high", "ayah_citation": "Quran 1:1", "ayah_score": 92.0, "ayah_status_rank": 3, "passage_status": "No reliable match found in current corpus", "passage_confidence": "low", "passage_citation": null, "passage_score": 0.0, "passage_status_rank": 1, "passage_window_size": null, "passage_spans_multiple": false, "score_delta_passage_minus_ayah": -92.0, "passage_retrieval_engine": "skipped_after_exact_ayah", "runtime_stage_timings": {"exact_ayah_lookup_ms": 0.04, "ayah_shortlist_ms": 0.0, "ayah_scoring_ms": 0.09, "ayah_related_shortlist_ms": 17.94, "fusion_ms": 0.06, "response_build_ms": 0.01, "runtime_total_ms": 18.28}, "debug_enabled": false}
++{"timestamp_utc": "2026-04-03T19:54:40.652904+00:00", "request_id": "ae775452-89d0-4ac4-9014-fd447adc704e", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "query_char_count": 38, "query_sanitized_for_matching": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ", "query_was_sanitized": true, "query_token_count": 4, "query_route": "SIMPLE_FIRST", "query_route_score": 0, "query_route_indicators": [], "query_route_strong_score": 0, "query_route_weak_score": 0, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.01, "preprocessing_ms": 0.03, "request_total_ms": 19.61, "preferred_lane": "ayah", "decision_rule": "status_rank_ayah", "rationale": "Ayah lane produced a stronger match classification than the passage lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 1:1", "preferred_canonical_source_id": "quran:1:1:ar", "preferred_has_english_translation": true, "related_citations": [], "ayah_status": "Exact match found", "ayah_confidence": "high", "ayah_citation": "Quran 1:1", "ayah_score": 92.0, "ayah_status_rank": 3, "passage_status": "No reliable match found in current corpus", "passage_confidence": "low", "passage_citation": null, "passage_score": 0.0, "passage_status_rank": 1, "passage_window_size": null, "passage_spans_multiple": false, "score_delta_passage_minus_ayah": -92.0, "passage_retrieval_engine": "skipped_after_exact_ayah", "runtime_stage_timings": {"exact_ayah_lookup_ms": 0.04, "ayah_shortlist_ms": 0.0, "ayah_scoring_ms": 0.09, "ayah_related_shortlist_ms": 18.57, "fusion_ms": 0.08, "response_build_ms": 0.02, "runtime_total_ms": 18.92}, "debug_enabled": false}
++{"timestamp_utc": "2026-04-03T19:54:40.680917+00:00", "request_id": "2136e305-9fcc-459d-aef0-50ba16292223", "service": "verify_quran", "client_ip": "127.0.0.1", "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "query_char_count": 38, "query_sanitized_for_matching": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ", "query_was_sanitized": true, "query_token_count": 4, "query_route": "SIMPLE_FIRST", "query_route_score": 0, "query_route_indicators": [], "query_route_strong_score": 0, "query_route_weak_score": 0, "selected_runtime": "simple", "fallback_trigger_reason": "strong_exact_stop", "routing_ms": 0.01, "preprocessing_ms": 0.03, "request_total_ms": 20.15, "preferred_lane": "ayah", "decision_rule": "status_rank_ayah", "rationale": "Ayah lane produced a stronger match classification than the passage lane.", "match_status": "Exact match found", "confidence": "high", "preferred_citation": "Quran 1:1", "preferred_canonical_source_id": "quran:1:1:ar", "preferred_has_english_translation": true, "related_citations": [], "ayah_status": "Exact match found", "ayah_confidence": "high", "ayah_citation": "Quran 1:1", "ayah_score": 92.0, "ayah_status_rank": 3, "passage_status": "No reliable match found in current corpus", "passage_confidence": "low", "passage_citation": null, "passage_score": 0.0, "passage_status_rank": 1, "passage_window_size": null, "passage_spans_multiple": false, "score_delta_passage_minus_ayah": -92.0, "passage_retrieval_engine": "skipped_after_exact_ayah", "runtime_stage_timings": {"exact_ayah_lookup_ms": 0.04, "ayah_shortlist_ms": 0.0, "ayah_scoring_ms": 0.09, "ayah_related_shortlist_ms": 19.07, "fusion_ms": 0.06, "response_build_ms": 0.01, "runtime_total_ms": 19.42}, "debug_enabled": false}
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/requirements.txt dalil_mod_clean/requirements.txt
+--- dalil_orig_clean/requirements.txt	2026-04-03 19:55:07.123812103 +0000
++++ dalil_mod_clean/requirements.txt	2026-04-03 19:55:07.725533331 +0000
+@@ -26,3 +26,7 @@
+ tzdata==2025.3
+ uvicorn==0.42.0
+ httpx==0.28.1
++
++SQLAlchemy>=2.0,<2.1
++alembic>=1.14,<2.0
++psycopg[binary]>=3.2,<3.3
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/scripts/ingestion/ingest_tafsir_resource.py dalil_mod_clean/scripts/ingestion/ingest_tafsir_resource.py
+--- dalil_orig_clean/scripts/ingestion/ingest_tafsir_resource.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/scripts/ingestion/ingest_tafsir_resource.py	2026-04-03 19:55:07.734859596 +0000
+@@ -0,0 +1,92 @@
++from __future__ import annotations
++
++import argparse
++import json
++from pathlib import Path
++
++from infrastructure.db.session import get_session
++from services.tafsir.normalizer import normalize_resource_directory
++from services.tafsir.repository import SqlAlchemyTafsirRepository
++from services.tafsir.types import SourceWorkSeed, TafsirIngestionChapterResult, TafsirIngestionRunSummary
++
++
++def parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser(description="Normalize and ingest a raw Quran Foundation tafsir snapshot into PostgreSQL.")
++    parser.add_argument("--resource-id", type=int, required=True, help="Quran Foundation resource id.")
++    parser.add_argument("--source-dir", type=Path, required=True, help="Directory containing chapter_*.json files.")
++    parser.add_argument("--work-slug", type=str, required=True, help="Stable DALIL work slug, for example ibn-kathir-en.")
++    parser.add_argument("--display-name", type=str, required=True, help="Human-readable source work display name.")
++    parser.add_argument("--citation-label", type=str, default="Tafsir Ibn Kathir", help="Citation label used in answer rendering.")
++    parser.add_argument("--author-name", type=str, default="Ibn Kathir", help="Author name for source metadata.")
++    parser.add_argument("--language-code", type=str, default="en", help="DALIL language code for the tafsir work.")
++    parser.add_argument("--upstream-provider", type=str, default="quran_foundation", help="Upstream provider slug.")
++    parser.add_argument("--enable-source", action="store_true", help="Enable this source work for answering after ingestion.")
++    return parser.parse_args()
++
++
++def ingest_resource(
++    *,
++    source_dir: Path,
++    resource_id: int,
++    work_seed: SourceWorkSeed,
++) -> TafsirIngestionRunSummary:
++    normalized_sections = normalize_resource_directory(
++        source_dir=source_dir,
++        expected_resource_id=resource_id,
++        source_id=work_seed.source_id,
++        upstream_provider=work_seed.upstream_provider,
++        language_code=work_seed.language_code,
++    )
++
++    with get_session() as session:
++        repository = SqlAlchemyTafsirRepository(session)
++        work = repository.upsert_source_work(work_seed)
++        run = repository.open_ingestion_run(work_id=work.id, resource_id=resource_id, source_root=source_dir)
++
++        notes: dict[str, object] = {"work_slug": work.work_slug, "source_dir": str(source_dir.as_posix())}
++        status = "completed"
++        for chapter_number, sections in normalized_sections.items():
++            warnings: list[str] = []
++            counts = repository.bulk_upsert_tafsir_sections(work_id=work.id, sections=sections)
++            result = TafsirIngestionChapterResult(
++                chapter_number=chapter_number,
++                raw_rows_seen=len({section.anchor_verse_key for section in sections}) + sum(
++                    max(0, section.ayah_end - section.ayah_start) for section in sections
++                ),
++                sections_built=len(sections),
++                inserted_count=counts["inserted"],
++                updated_count=counts["updated"],
++                skipped_count=counts["skipped"],
++                failed_count=0,
++                warnings=warnings,
++            )
++            repository.record_chapter_result(run_id=run.run_id, result=result)
++
++        return repository.finalize_ingestion_run(run_id=run.run_id, status=status, notes_json=notes)
++
++
++def main() -> None:
++    args = parse_args()
++    source_id = f"tafsir:{args.work_slug}"
++    seed = SourceWorkSeed(
++        source_domain="tafsir",
++        work_slug=args.work_slug,
++        source_id=source_id,
++        display_name=args.display_name,
++        citation_label=args.citation_label,
++        author_name=args.author_name,
++        language_code=args.language_code,
++        source_kind="commentary",
++        upstream_provider=args.upstream_provider,
++        upstream_resource_id=args.resource_id,
++        enabled=args.enable_source,
++        approved_for_answering=args.enable_source,
++        version_label=None,
++        metadata_json={"ingested_from": "raw_quran_foundation_snapshot"},
++    )
++    summary = ingest_resource(source_dir=args.source_dir, resource_id=args.resource_id, work_seed=seed)
++    print(json.dumps(summary.__dict__, ensure_ascii=False, indent=2))
++
++
++if __name__ == "__main__":
++    main()
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/__init__.py dalil_mod_clean/services/tafsir/__init__.py
+--- dalil_orig_clean/services/tafsir/__init__.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/__init__.py	2026-04-03 19:55:07.749631094 +0000
+@@ -0,0 +1,3 @@
++from __future__ import annotations
++
++__all__: list[str] = []
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/formatter.py dalil_mod_clean/services/tafsir/formatter.py
+--- dalil_orig_clean/services/tafsir/formatter.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/formatter.py	2026-04-03 19:55:07.750621081 +0000
+@@ -0,0 +1,17 @@
++from __future__ import annotations
++
++from services.tafsir.types import TafsirCitationBlock, TafsirOverlapHit
++
++
++def render_tafsir_label(hit: TafsirOverlapHit) -> str:
++    return f"{hit.citation_label} on Quran {hit.quran_span_ref}"
++
++
++def build_tafsir_citation(hit: TafsirOverlapHit) -> TafsirCitationBlock:
++    return TafsirCitationBlock(
++        source_id=hit.source_id,
++        canonical_section_id=hit.canonical_section_id,
++        citation_label=hit.citation_label,
++        quran_span_ref=hit.quran_span_ref,
++        display_text=render_tafsir_label(hit),
++    )
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/html_utils.py dalil_mod_clean/services/tafsir/html_utils.py
+--- dalil_orig_clean/services/tafsir/html_utils.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/html_utils.py	2026-04-03 19:55:07.750325878 +0000
+@@ -0,0 +1,51 @@
++from __future__ import annotations
++
++import hashlib
++import re
++import unicodedata
++from typing import Any
++
++from lxml import html
++
++_TAG_BREAK_RE = re.compile(r"<(?:/p|/div|/h[1-6]|br\s*/?)>", re.IGNORECASE)
++
++
++def strip_html_to_text(value: str) -> str:
++    raw = value or ""
++    if not raw.strip():
++        return ""
++
++    try:
++        fragments = html.fragments_fromstring(raw)
++    except (html.ParserError, ValueError):
++        softened = _TAG_BREAK_RE.sub("\n", raw)
++        softened = re.sub(r"<[^>]+>", " ", softened)
++        return _normalize_preserving_paragraphs(softened)
++
++    parts: list[str] = []
++    for fragment in fragments:
++        if isinstance(fragment, str):
++            text = fragment
++        else:
++            text = fragment.text_content()
++        cleaned = _normalize_preserving_paragraphs(text)
++        if cleaned:
++            parts.append(cleaned)
++    return "\n\n".join(parts).strip()
++
++
++def normalize_search_text(value: str) -> str:
++    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value or "")).strip()
++
++
++def compute_text_hash(value: str) -> str:
++    return hashlib.sha256(value.encode("utf-8")).hexdigest()
++
++
++def _normalize_preserving_paragraphs(value: Any) -> str:
++    text = unicodedata.normalize("NFKC", str(value or ""))
++    text = text.replace("\xa0", " ")
++    text = re.sub(r"\r\n?", "\n", text)
++    text = re.sub(r"[ \t\f\v]+", " ", text)
++    text = re.sub(r"\n{3,}", "\n\n", text)
++    return text.strip()
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/normalizer.py dalil_mod_clean/services/tafsir/normalizer.py
+--- dalil_orig_clean/services/tafsir/normalizer.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/normalizer.py	2026-04-03 19:55:07.750918980 +0000
+@@ -0,0 +1,191 @@
++from __future__ import annotations
++
++import json
++import re
++from pathlib import Path
++
++from services.tafsir.html_utils import compute_text_hash, normalize_search_text, strip_html_to_text
++from services.tafsir.types import NormalizedTafsirSection, RawTafsirRow
++
++_CHAPTER_FILE_RE = re.compile(r"chapter_(\d+)\.json$")
++
++
++def load_and_validate_chapter_file(path: Path, expected_resource_id: int) -> list[RawTafsirRow]:
++    payload = json.loads(path.read_text(encoding="utf-8"))
++    file_chapter_number = _chapter_number_from_filename(path)
++    chapter_number = int(payload.get("chapter_number"))
++    if file_chapter_number != chapter_number:
++        raise ValueError(f"File {path} declares chapter {chapter_number}, expected {file_chapter_number} from filename.")
++
++    tafsirs = payload.get("tafsirs")
++    if not isinstance(tafsirs, list):
++        raise ValueError(f"File {path} must contain a tafsirs list.")
++    if int(payload.get("count", -1)) != len(tafsirs):
++        raise ValueError(f"File {path} has count mismatch: payload count {payload.get('count')} vs {len(tafsirs)} rows.")
++
++    rows: list[RawTafsirRow] = []
++    seen_verse_keys: set[str] = set()
++    for raw in tafsirs:
++        for field in ("id", "resource_id", "verse_key", "language_id", "slug", "text"):
++            if field not in raw:
++                raise ValueError(f"Missing required field {field!r} in {path}.")
++
++        resource_id = int(raw["resource_id"])
++        if resource_id != expected_resource_id:
++            raise ValueError(f"Resource mismatch in {path}: got {resource_id}, expected {expected_resource_id}.")
++
++        surah_no, ayah_no = _parse_verse_key(str(raw["verse_key"]))
++        if surah_no != chapter_number:
++            raise ValueError(f"Verse key {raw['verse_key']} does not belong to chapter {chapter_number} in {path}.")
++        if raw["verse_key"] in seen_verse_keys:
++            raise ValueError(f"Duplicate verse key {raw['verse_key']} in {path}.")
++        seen_verse_keys.add(str(raw["verse_key"]))
++
++        text_html = str(raw.get("text") or "")
++        text_plain = strip_html_to_text(text_html)
++        rows.append(
++            RawTafsirRow(
++                entry_id=int(raw["id"]),
++                resource_id=resource_id,
++                surah_no=surah_no,
++                ayah_no=ayah_no,
++                verse_key=str(raw["verse_key"]),
++                language_id=(int(raw["language_id"]) if raw.get("language_id") is not None else None),
++                slug=(str(raw["slug"]) if raw.get("slug") is not None else None),
++                text_html=text_html,
++                text_plain=text_plain,
++                text_plain_normalized=normalize_search_text(text_plain),
++                raw_json=raw,
++            )
++        )
++
++    rows.sort(key=lambda row: row.ayah_no)
++    _assert_contiguous_ayah_order(rows=rows, chapter_number=chapter_number, path=path)
++    return rows
++
++
++def build_sections_from_rows(
++    *,
++    rows: list[RawTafsirRow],
++    source_id: str,
++    upstream_provider: str,
++    language_code: str,
++    source_file_path: str | None,
++    source_manifest_path: str | None,
++) -> list[NormalizedTafsirSection]:
++    if not rows:
++        return []
++
++    sections: list[NormalizedTafsirSection] = []
++    idx = 0
++    while idx < len(rows):
++        row = rows[idx]
++        if not row.text_plain_normalized:
++            raise ValueError(
++                f"Encountered leading or orphan empty tafsir row at {row.verse_key}; refusing to infer a section without an anchor."
++            )
++
++        ayah_start = row.ayah_no
++        ayah_end = row.ayah_no
++        next_idx = idx + 1
++        while next_idx < len(rows) and not rows[next_idx].text_plain_normalized:
++            ayah_end = rows[next_idx].ayah_no
++            next_idx += 1
++
++        if ayah_end > ayah_start:
++            coverage_mode = "inferred_from_empty_followers"
++            coverage_confidence = 0.950
++        else:
++            coverage_mode = "anchor_only"
++            coverage_confidence = 0.850
++
++        quran_span_ref = _render_quran_span_ref(row.surah_no, ayah_start, ayah_end)
++        canonical_section_id = f"{source_id}:{row.entry_id}"
++
++        sections.append(
++            NormalizedTafsirSection(
++                canonical_section_id=canonical_section_id,
++                source_id=source_id,
++                upstream_provider=upstream_provider,
++                upstream_resource_id=row.resource_id,
++                upstream_entry_id=row.entry_id,
++                language_code=language_code,
++                slug=row.slug,
++                language_id=row.language_id,
++                surah_no=row.surah_no,
++                ayah_start=ayah_start,
++                ayah_end=ayah_end,
++                anchor_verse_key=row.verse_key,
++                quran_span_ref=quran_span_ref,
++                coverage_mode=coverage_mode,
++                coverage_confidence=coverage_confidence,
++                text_html=row.text_html,
++                text_plain=row.text_plain,
++                text_plain_normalized=row.text_plain_normalized,
++                text_hash=compute_text_hash(row.text_plain_normalized),
++                source_file_path=source_file_path,
++                source_manifest_path=source_manifest_path,
++                raw_json=row.raw_json,
++            )
++        )
++        idx = next_idx
++
++    return sections
++
++
++def normalize_resource_directory(
++    *,
++    source_dir: Path,
++    expected_resource_id: int,
++    source_id: str,
++    upstream_provider: str,
++    language_code: str,
++) -> dict[int, list[NormalizedTafsirSection]]:
++    manifest_path = source_dir / "manifest.json"
++    section_map: dict[int, list[NormalizedTafsirSection]] = {}
++
++    chapter_files = sorted(source_dir.glob("chapter_*.json"), key=lambda item: _chapter_number_from_filename(item))
++    for chapter_file in chapter_files:
++        rows = load_and_validate_chapter_file(chapter_file, expected_resource_id=expected_resource_id)
++        section_map[_chapter_number_from_filename(chapter_file)] = build_sections_from_rows(
++            rows=rows,
++            source_id=source_id,
++            upstream_provider=upstream_provider,
++            language_code=language_code,
++            source_file_path=str(chapter_file.as_posix()),
++            source_manifest_path=(str(manifest_path.as_posix()) if manifest_path.exists() else None),
++        )
++    return section_map
++
++
++def _parse_verse_key(verse_key: str) -> tuple[int, int]:
++    try:
++        surah_str, ayah_str = verse_key.split(":", maxsplit=1)
++        return int(surah_str), int(ayah_str)
++    except ValueError as exc:  # pragma: no cover - defensive path
++        raise ValueError(f"Invalid verse key: {verse_key!r}") from exc
++
++
++def _chapter_number_from_filename(path: Path) -> int:
++    match = _CHAPTER_FILE_RE.search(path.name)
++    if not match:
++        raise ValueError(f"Could not infer chapter number from filename: {path}")
++    return int(match.group(1))
++
++
++def _assert_contiguous_ayah_order(*, rows: list[RawTafsirRow], chapter_number: int, path: Path) -> None:
++    expected = 1
++    for row in rows:
++        if row.surah_no != chapter_number:
++            raise ValueError(f"Row {row.verse_key} in {path} does not belong to chapter {chapter_number}.")
++        if row.ayah_no != expected:
++            raise ValueError(
++                f"Chapter {chapter_number} in {path} is not contiguous: expected ayah {expected}, got {row.ayah_no}."
++            )
++        expected += 1
++
++
++def _render_quran_span_ref(surah_no: int, ayah_start: int, ayah_end: int) -> str:
++    if ayah_start == ayah_end:
++        return f"{surah_no}:{ayah_start}"
++    return f"{surah_no}:{ayah_start}-{ayah_end}"
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/overlap.py dalil_mod_clean/services/tafsir/overlap.py
+--- dalil_orig_clean/services/tafsir/overlap.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/overlap.py	2026-04-03 19:55:07.751717088 +0000
+@@ -0,0 +1,43 @@
++from __future__ import annotations
++
++from typing import Protocol
++
++from services.tafsir.types import TafsirOverlapHit, TafsirOverlapQuery
++
++
++class OverlapHitRepository(Protocol):
++    def fetch_overlap_hits(self, query: TafsirOverlapQuery) -> list[TafsirOverlapHit]: ...
++
++
++def validate_overlap_query(query: TafsirOverlapQuery) -> None:
++    if query.ayah_start < 1:
++        raise ValueError("ayah_start must be >= 1")
++    if query.ayah_end < query.ayah_start:
++        raise ValueError("ayah_end must be >= ayah_start")
++    if query.limit < 1:
++        raise ValueError("limit must be >= 1")
++    if query.limit > 20:
++        raise ValueError("limit must be <= 20 for Tafsir v1")
++
++
++def sort_overlap_hits(hits: list[TafsirOverlapHit]) -> list[TafsirOverlapHit]:
++    return sorted(
++        hits,
++        key=lambda hit: (
++            not hit.exact_span_match,
++            not hit.contains_query_span,
++            -hit.overlap_ayah_count,
++            hit.span_width,
++            hit.anchor_distance,
++            hit.section_id,
++        ),
++    )
++
++
++class TafsirOverlapService:
++    def __init__(self, repository: OverlapHitRepository) -> None:
++        self.repository = repository
++
++    def fetch(self, query: TafsirOverlapQuery) -> list[TafsirOverlapHit]:
++        validate_overlap_query(query)
++        return sort_overlap_hits(self.repository.fetch_overlap_hits(query))
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/repository.py dalil_mod_clean/services/tafsir/repository.py
+--- dalil_orig_clean/services/tafsir/repository.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/repository.py	2026-04-03 19:55:07.751279977 +0000
+@@ -0,0 +1,360 @@
++from __future__ import annotations
++
++from decimal import Decimal
++from pathlib import Path
++from typing import Protocol, Sequence
++
++from sqlalchemy import and_, case, cast, func, Integer, select
++from sqlalchemy.orm import Session
++
++from infrastructure.db.models.source_work import SourceWorkORM
++from infrastructure.db.models.tafsir_ingestion_run import TafsirIngestionRunORM
++from infrastructure.db.models.tafsir_section import TafsirSectionORM
++from services.tafsir.types import (
++    NormalizedTafsirSection,
++    SourceWorkSeed,
++    TafsirIngestionChapterResult,
++    TafsirIngestionRunOpened,
++    TafsirIngestionRunSummary,
++    TafsirOverlapHit,
++    TafsirOverlapQuery,
++    TafsirSourceWork,
++)
++
++
++class TafsirRepository(Protocol):
++    def upsert_source_work(self, seed: SourceWorkSeed) -> TafsirSourceWork: ...
++
++    def get_source_work_by_source_id(self, source_id: str) -> TafsirSourceWork | None: ...
++
++    def get_source_work_by_work_slug(self, work_slug: str) -> TafsirSourceWork | None: ...
++
++    def open_ingestion_run(self, *, work_id: int, resource_id: int, source_root: Path) -> TafsirIngestionRunOpened: ...
++
++    def record_chapter_result(self, *, run_id: int, result: TafsirIngestionChapterResult) -> None: ...
++
++    def finalize_ingestion_run(self, *, run_id: int, status: str, notes_json: dict) -> TafsirIngestionRunSummary: ...
++
++    def upsert_tafsir_section(self, *, work_id: int, section: NormalizedTafsirSection) -> str: ...
++
++    def bulk_upsert_tafsir_sections(
++        self, *, work_id: int, sections: Sequence[NormalizedTafsirSection]
++    ) -> dict[str, int]: ...
++
++    def fetch_overlap_hits(self, query: TafsirOverlapQuery) -> list[TafsirOverlapHit]: ...
++
++
++class SqlAlchemyTafsirRepository:
++    def __init__(self, session: Session) -> None:
++        self.session = session
++
++    def upsert_source_work(self, seed: SourceWorkSeed) -> TafsirSourceWork:
++        existing = self.session.execute(
++            select(SourceWorkORM).where(SourceWorkORM.source_id == seed.source_id)
++        ).scalar_one_or_none()
++
++        if existing is None:
++            existing = SourceWorkORM(
++                source_domain=seed.source_domain,
++                work_slug=seed.work_slug,
++                source_id=seed.source_id,
++                display_name=seed.display_name,
++                citation_label=seed.citation_label,
++                author_name=seed.author_name,
++                language_code=seed.language_code,
++                source_kind=seed.source_kind,
++                upstream_provider=seed.upstream_provider,
++                upstream_resource_id=seed.upstream_resource_id,
++                enabled=seed.enabled,
++                approved_for_answering=seed.approved_for_answering,
++                version_label=seed.version_label,
++                metadata_json=seed.metadata_json,
++            )
++            self.session.add(existing)
++            self.session.flush()
++        else:
++            existing.display_name = seed.display_name
++            existing.citation_label = seed.citation_label
++            existing.author_name = seed.author_name
++            existing.enabled = seed.enabled
++            existing.approved_for_answering = seed.approved_for_answering
++            existing.version_label = seed.version_label
++            existing.metadata_json = seed.metadata_json
++            self.session.flush()
++
++        return _to_source_work(existing)
++
++    def get_source_work_by_source_id(self, source_id: str) -> TafsirSourceWork | None:
++        row = self.session.execute(select(SourceWorkORM).where(SourceWorkORM.source_id == source_id)).scalar_one_or_none()
++        return _to_source_work(row) if row else None
++
++    def get_source_work_by_work_slug(self, work_slug: str) -> TafsirSourceWork | None:
++        row = self.session.execute(select(SourceWorkORM).where(SourceWorkORM.work_slug == work_slug)).scalar_one_or_none()
++        return _to_source_work(row) if row else None
++
++    def open_ingestion_run(self, *, work_id: int, resource_id: int, source_root: Path) -> TafsirIngestionRunOpened:
++        run = TafsirIngestionRunORM(
++            work_id=work_id,
++            resource_id=resource_id,
++            source_root=str(source_root.as_posix()),
++            status="running",
++            notes_json={},
++        )
++        self.session.add(run)
++        self.session.flush()
++        return TafsirIngestionRunOpened(run_id=run.id, work_id=work_id, resource_id=resource_id, source_root=run.source_root)
++
++    def record_chapter_result(self, *, run_id: int, result: TafsirIngestionChapterResult) -> None:
++        run = self._get_run(run_id)
++        notes = dict(run.notes_json or {})
++        warnings = notes.setdefault("warnings", {})
++        if result.warnings:
++            warnings[str(result.chapter_number)] = result.warnings
++
++        run.chapters_seen += 1
++        run.raw_rows_seen += result.raw_rows_seen
++        run.sections_built += result.sections_built
++        run.inserted_count += result.inserted_count
++        run.updated_count += result.updated_count
++        run.skipped_count += result.skipped_count
++        run.failed_count += result.failed_count
++        run.notes_json = notes
++        self.session.flush()
++
++    def finalize_ingestion_run(self, *, run_id: int, status: str, notes_json: dict) -> TafsirIngestionRunSummary:
++        run = self._get_run(run_id)
++        run.status = status
++        run.notes_json = dict(notes_json or {})
++        self.session.flush()
++        return _to_ingestion_summary(run)
++
++    def upsert_tafsir_section(self, *, work_id: int, section: NormalizedTafsirSection) -> str:
++        existing = self.session.execute(
++            select(TafsirSectionORM).where(
++                and_(
++                    TafsirSectionORM.work_id == work_id,
++                    TafsirSectionORM.upstream_entry_id == section.upstream_entry_id,
++                )
++            )
++        ).scalar_one_or_none()
++
++        if existing is None:
++            row = TafsirSectionORM(
++                work_id=work_id,
++                canonical_section_id=section.canonical_section_id,
++                source_id=section.source_id,
++                upstream_provider=section.upstream_provider,
++                upstream_resource_id=section.upstream_resource_id,
++                upstream_entry_id=section.upstream_entry_id,
++                language_code=section.language_code,
++                slug=section.slug,
++                language_id=section.language_id,
++                surah_no=section.surah_no,
++                ayah_start=section.ayah_start,
++                ayah_end=section.ayah_end,
++                anchor_verse_key=section.anchor_verse_key,
++                quran_span_ref=section.quran_span_ref,
++                coverage_mode=section.coverage_mode,
++                coverage_confidence=section.coverage_confidence,
++                text_html=section.text_html,
++                text_plain=section.text_plain,
++                text_plain_normalized=section.text_plain_normalized,
++                text_hash=section.text_hash,
++                source_file_path=section.source_file_path,
++                source_manifest_path=section.source_manifest_path,
++                raw_json=section.raw_json,
++            )
++            self.session.add(row)
++            self.session.flush()
++            return "inserted"
++
++        changed = False
++        for field in (
++            "ayah_start",
++            "ayah_end",
++            "anchor_verse_key",
++            "quran_span_ref",
++            "coverage_mode",
++            "coverage_confidence",
++            "text_html",
++            "text_plain",
++            "text_plain_normalized",
++            "text_hash",
++            "slug",
++            "language_id",
++            "source_file_path",
++            "source_manifest_path",
++            "raw_json",
++        ):
++            new_value = getattr(section, field)
++            if getattr(existing, field) != new_value:
++                setattr(existing, field, new_value)
++                changed = True
++
++        if changed:
++            self.session.flush()
++            return "updated"
++        return "skipped"
++
++    def bulk_upsert_tafsir_sections(
++        self, *, work_id: int, sections: Sequence[NormalizedTafsirSection]
++    ) -> dict[str, int]:
++        counts = {"inserted": 0, "updated": 0, "skipped": 0}
++        for section in sections:
++            outcome = self.upsert_tafsir_section(work_id=work_id, section=section)
++            counts[outcome] += 1
++        return counts
++
++    def fetch_overlap_hits(self, query: TafsirOverlapQuery) -> list[TafsirOverlapHit]:
++        query_ayah_start = query.ayah_start
++        query_ayah_end = query.ayah_end
++
++        overlap_expr = (
++            func.least(TafsirSectionORM.ayah_end, query_ayah_end)
++            - func.greatest(TafsirSectionORM.ayah_start, query_ayah_start)
++            + 1
++        )
++        exact_span_match = case(
++            (
++                and_(
++                    TafsirSectionORM.ayah_start == query_ayah_start,
++                    TafsirSectionORM.ayah_end == query_ayah_end,
++                ),
++                True,
++            ),
++            else_=False,
++        )
++        contains_query_span = case(
++            (
++                and_(
++                    TafsirSectionORM.ayah_start <= query_ayah_start,
++                    TafsirSectionORM.ayah_end >= query_ayah_end,
++                ),
++                True,
++            ),
++            else_=False,
++        )
++        query_contains_section = case(
++            (
++                and_(
++                    query_ayah_start <= TafsirSectionORM.ayah_start,
++                    query_ayah_end >= TafsirSectionORM.ayah_end,
++                ),
++                True,
++            ),
++            else_=False,
++        )
++        span_width = TafsirSectionORM.ayah_end - TafsirSectionORM.ayah_start + 1
++        anchor_distance = func.abs(
++            cast(func.split_part(TafsirSectionORM.anchor_verse_key, ":", 2), Integer) - query_ayah_start
++        )
++
++        stmt = (
++            select(
++                TafsirSectionORM.id.label("section_id"),
++                TafsirSectionORM.canonical_section_id,
++                TafsirSectionORM.work_id,
++                SourceWorkORM.source_id,
++                SourceWorkORM.display_name,
++                SourceWorkORM.citation_label,
++                TafsirSectionORM.surah_no,
++                TafsirSectionORM.ayah_start,
++                TafsirSectionORM.ayah_end,
++                TafsirSectionORM.anchor_verse_key,
++                TafsirSectionORM.quran_span_ref,
++                TafsirSectionORM.coverage_mode,
++                TafsirSectionORM.coverage_confidence,
++                TafsirSectionORM.text_plain,
++                TafsirSectionORM.text_html,
++                overlap_expr.label("overlap_ayah_count"),
++                exact_span_match.label("exact_span_match"),
++                contains_query_span.label("contains_query_span"),
++                query_contains_section.label("query_contains_section"),
++                span_width.label("span_width"),
++                anchor_distance.label("anchor_distance"),
++            )
++            .join(SourceWorkORM, SourceWorkORM.id == TafsirSectionORM.work_id)
++            .where(
++                TafsirSectionORM.work_id == query.work_id,
++                TafsirSectionORM.surah_no == query.surah_no,
++                ~((TafsirSectionORM.ayah_end < query_ayah_start) | (TafsirSectionORM.ayah_start > query_ayah_end)),
++            )
++            .order_by(
++                exact_span_match.desc(),
++                contains_query_span.desc(),
++                overlap_expr.desc(),
++                span_width.asc(),
++                anchor_distance.asc(),
++                TafsirSectionORM.id.asc(),
++            )
++            .limit(query.limit)
++        )
++
++        rows = self.session.execute(stmt).all()
++        return [
++            TafsirOverlapHit(
++                section_id=row.section_id,
++                canonical_section_id=row.canonical_section_id,
++                work_id=row.work_id,
++                source_id=row.source_id,
++                display_name=row.display_name,
++                citation_label=row.citation_label,
++                surah_no=row.surah_no,
++                ayah_start=row.ayah_start,
++                ayah_end=row.ayah_end,
++                anchor_verse_key=row.anchor_verse_key,
++                quran_span_ref=row.quran_span_ref,
++                coverage_mode=row.coverage_mode,
++                coverage_confidence=float(row.coverage_confidence),
++                text_plain=row.text_plain,
++                text_html=row.text_html,
++                overlap_ayah_count=int(row.overlap_ayah_count),
++                exact_span_match=bool(row.exact_span_match),
++                contains_query_span=bool(row.contains_query_span),
++                query_contains_section=bool(row.query_contains_section),
++                span_width=int(row.span_width),
++                anchor_distance=int(row.anchor_distance),
++            )
++            for row in rows
++        ]
++
++    def _get_run(self, run_id: int) -> TafsirIngestionRunORM:
++        run = self.session.execute(select(TafsirIngestionRunORM).where(TafsirIngestionRunORM.id == run_id)).scalar_one_or_none()
++        if run is None:  # pragma: no cover - defensive runtime path
++            raise ValueError(f"Ingestion run {run_id} was not found.")
++        return run
++
++
++def _to_source_work(row: SourceWorkORM) -> TafsirSourceWork:
++    return TafsirSourceWork(
++        id=row.id,
++        source_domain=row.source_domain,
++        work_slug=row.work_slug,
++        source_id=row.source_id,
++        display_name=row.display_name,
++        citation_label=row.citation_label,
++        author_name=row.author_name,
++        language_code=row.language_code,
++        source_kind=row.source_kind,
++        upstream_provider=row.upstream_provider,
++        upstream_resource_id=row.upstream_resource_id,
++        enabled=row.enabled,
++        approved_for_answering=row.approved_for_answering,
++        version_label=row.version_label,
++        metadata_json=row.metadata_json or {},
++    )
++
++
++def _to_ingestion_summary(run: TafsirIngestionRunORM) -> TafsirIngestionRunSummary:
++    return TafsirIngestionRunSummary(
++        run_id=run.id,
++        status=run.status,
++        chapters_seen=run.chapters_seen,
++        raw_rows_seen=run.raw_rows_seen,
++        sections_built=run.sections_built,
++        inserted_count=run.inserted_count,
++        updated_count=run.updated_count,
++        skipped_count=run.skipped_count,
++        failed_count=run.failed_count,
++        notes_json=run.notes_json or {},
++    )
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/services/tafsir/types.py dalil_mod_clean/services/tafsir/types.py
+--- dalil_orig_clean/services/tafsir/types.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/services/tafsir/types.py	2026-04-03 19:55:07.749974628 +0000
+@@ -0,0 +1,175 @@
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import Any, Literal
++
++
++CoverageMode = Literal[
++    "explicit_range",
++    "inferred_from_empty_followers",
++    "anchor_only",
++]
++
++
++@dataclass(frozen=True)
++class RawTafsirRow:
++    entry_id: int
++    resource_id: int
++    surah_no: int
++    ayah_no: int
++    verse_key: str
++    language_id: int | None
++    slug: str | None
++    text_html: str
++    text_plain: str
++    text_plain_normalized: str
++    raw_json: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class NormalizedTafsirSection:
++    canonical_section_id: str
++    source_id: str
++    upstream_provider: str
++    upstream_resource_id: int
++    upstream_entry_id: int
++
++    language_code: str
++    slug: str | None
++    language_id: int | None
++
++    surah_no: int
++    ayah_start: int
++    ayah_end: int
++    anchor_verse_key: str
++    quran_span_ref: str
++
++    coverage_mode: CoverageMode
++    coverage_confidence: float
++
++    text_html: str
++    text_plain: str
++    text_plain_normalized: str
++    text_hash: str
++
++    source_file_path: str | None
++    source_manifest_path: str | None
++    raw_json: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class SourceWorkSeed:
++    source_domain: str
++    work_slug: str
++    source_id: str
++    display_name: str
++    citation_label: str
++    author_name: str | None
++    language_code: str
++    source_kind: str
++    upstream_provider: str
++    upstream_resource_id: int | None
++    enabled: bool
++    approved_for_answering: bool
++    version_label: str | None
++    metadata_json: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class TafsirSourceWork:
++    id: int
++    source_domain: str
++    work_slug: str
++    source_id: str
++    display_name: str
++    citation_label: str
++    author_name: str | None
++    language_code: str
++    source_kind: str
++    upstream_provider: str
++    upstream_resource_id: int | None
++    enabled: bool
++    approved_for_answering: bool
++    version_label: str | None
++    metadata_json: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class TafsirIngestionRunOpened:
++    run_id: int
++    work_id: int
++    resource_id: int
++    source_root: str
++
++
++@dataclass(frozen=True)
++class TafsirIngestionChapterResult:
++    chapter_number: int
++    raw_rows_seen: int
++    sections_built: int
++    inserted_count: int
++    updated_count: int
++    skipped_count: int
++    failed_count: int
++    warnings: list[str]
++
++
++@dataclass(frozen=True)
++class TafsirIngestionRunSummary:
++    run_id: int
++    status: Literal["completed", "completed_with_warnings", "failed"]
++    chapters_seen: int
++    raw_rows_seen: int
++    sections_built: int
++    inserted_count: int
++    updated_count: int
++    skipped_count: int
++    failed_count: int
++    notes_json: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class TafsirOverlapQuery:
++    work_id: int
++    surah_no: int
++    ayah_start: int
++    ayah_end: int
++    limit: int = 5
++
++
++@dataclass(frozen=True)
++class TafsirOverlapHit:
++    section_id: int
++    canonical_section_id: str
++    work_id: int
++    source_id: str
++    display_name: str
++    citation_label: str
++
++    surah_no: int
++    ayah_start: int
++    ayah_end: int
++    anchor_verse_key: str
++    quran_span_ref: str
++
++    coverage_mode: CoverageMode
++    coverage_confidence: float
++
++    text_plain: str
++    text_html: str
++
++    overlap_ayah_count: int
++    exact_span_match: bool
++    contains_query_span: bool
++    query_contains_section: bool
++    span_width: int
++    anchor_distance: int
++
++
++@dataclass(frozen=True)
++class TafsirCitationBlock:
++    source_id: str
++    canonical_section_id: str
++    citation_label: str
++    quran_span_ref: str
++    display_text: str
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/tests/integration/test_tafsir_ingestion_flow.py dalil_mod_clean/tests/integration/test_tafsir_ingestion_flow.py
+--- dalil_orig_clean/tests/integration/test_tafsir_ingestion_flow.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/tests/integration/test_tafsir_ingestion_flow.py	2026-04-03 19:55:07.755624146 +0000
+@@ -0,0 +1,61 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++
++import pytest
++
++sqlalchemy = pytest.importorskip("sqlalchemy")
++
++from sqlalchemy import create_engine
++from sqlalchemy.orm import sessionmaker
++
++from infrastructure.db.base import Base
++from services.tafsir.repository import SqlAlchemyTafsirRepository
++from services.tafsir.types import SourceWorkSeed, TafsirIngestionChapterResult
++
++
++def test_repository_upsert_and_ingestion_run_flow() -> None:
++    engine = create_engine("sqlite:///:memory:")
++    Base.metadata.create_all(engine)
++    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
++
++    with SessionLocal() as session:
++        repository = SqlAlchemyTafsirRepository(session)
++        work = repository.upsert_source_work(
++            SourceWorkSeed(
++                source_domain="tafsir",
++                work_slug="ibn-kathir-en",
++                source_id="tafsir:ibn-kathir-en",
++                display_name="Tafsir Ibn Kathir (English)",
++                citation_label="Tafsir Ibn Kathir",
++                author_name="Ibn Kathir",
++                language_code="en",
++                source_kind="commentary",
++                upstream_provider="quran_foundation",
++                upstream_resource_id=169,
++                enabled=False,
++                approved_for_answering=False,
++                version_label=None,
++                metadata_json={},
++            )
++        )
++        run = repository.open_ingestion_run(work_id=work.id, resource_id=169, source_root=Path("/tmp/resource_169"))
++        repository.record_chapter_result(
++            run_id=run.run_id,
++            result=TafsirIngestionChapterResult(
++                chapter_number=112,
++                raw_rows_seen=4,
++                sections_built=1,
++                inserted_count=1,
++                updated_count=0,
++                skipped_count=0,
++                failed_count=0,
++                warnings=[],
++            ),
++        )
++        summary = repository.finalize_ingestion_run(run_id=run.run_id, status="completed", notes_json={"ok": True})
++
++        assert summary.chapters_seen == 1
++        assert summary.inserted_count == 1
++        assert summary.status == "completed"
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/tests/unit/test_tafsir_html_utils.py dalil_mod_clean/tests/unit/test_tafsir_html_utils.py
+--- dalil_orig_clean/tests/unit/test_tafsir_html_utils.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/tests/unit/test_tafsir_html_utils.py	2026-04-03 19:55:07.757902457 +0000
+@@ -0,0 +1,14 @@
++from services.tafsir.html_utils import compute_text_hash, normalize_search_text, strip_html_to_text
++
++
++def test_strip_html_to_text_preserves_readable_breaks() -> None:
++    value = "<h2>Heading</h2><p>First paragraph.</p><p>Second paragraph.</p>"
++    assert strip_html_to_text(value) == "Heading\n\nFirst paragraph.\n\nSecond paragraph."
++
++
++def test_normalize_search_text_collapses_whitespace() -> None:
++    assert normalize_search_text("  a\n\n b   c ") == "a b c"
++
++
++def test_compute_text_hash_is_stable() -> None:
++    assert compute_text_hash("abc") == compute_text_hash("abc")
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/tests/unit/test_tafsir_normalizer.py dalil_mod_clean/tests/unit/test_tafsir_normalizer.py
+--- dalil_orig_clean/tests/unit/test_tafsir_normalizer.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/tests/unit/test_tafsir_normalizer.py	2026-04-03 19:55:07.758193693 +0000
+@@ -0,0 +1,115 @@
++from __future__ import annotations
++
++import json
++
++import pytest
++
++from services.tafsir.normalizer import build_sections_from_rows, load_and_validate_chapter_file
++
++
++def _write_chapter(tmp_path, chapter_number: int, tafsirs: list[dict]) -> str:
++    path = tmp_path / f"chapter_{chapter_number}.json"
++    path.write_text(
++        json.dumps(
++            {
++                "resource_id": 169,
++                "chapter_number": chapter_number,
++                "count": len(tafsirs),
++                "tafsirs": tafsirs,
++            },
++            ensure_ascii=False,
++            indent=2,
++        ),
++        encoding="utf-8",
++    )
++    return str(path)
++
++
++def test_normalizer_builds_multi_ayah_section_from_anchor_plus_empty_followers(tmp_path) -> None:
++    chapter_path = _write_chapter(
++        tmp_path,
++        112,
++        [
++            {"id": 1, "resource_id": 169, "verse_key": "112:1", "language_id": 38, "text": "<p>Main tafsir</p>", "slug": "ibn"},
++            {"id": 2, "resource_id": 169, "verse_key": "112:2", "language_id": 38, "text": "", "slug": "ibn"},
++            {"id": 3, "resource_id": 169, "verse_key": "112:3", "language_id": 38, "text": "", "slug": "ibn"},
++            {"id": 4, "resource_id": 169, "verse_key": "112:4", "language_id": 38, "text": "", "slug": "ibn"},
++        ],
++    )
++
++    rows = load_and_validate_chapter_file(tmp_path / "chapter_112.json", expected_resource_id=169)
++    sections = build_sections_from_rows(
++        rows=rows,
++        source_id="tafsir:ibn-kathir-en",
++        upstream_provider="quran_foundation",
++        language_code="en",
++        source_file_path=chapter_path,
++        source_manifest_path=None,
++    )
++
++    assert len(sections) == 1
++    section = sections[0]
++    assert section.anchor_verse_key == "112:1"
++    assert section.quran_span_ref == "112:1-4"
++    assert section.coverage_mode == "inferred_from_empty_followers"
++
++
++def test_normalizer_builds_anchor_only_section(tmp_path) -> None:
++    _write_chapter(
++        tmp_path,
++        103,
++        [
++            {"id": 1, "resource_id": 169, "verse_key": "103:1", "language_id": 38, "text": "<p>A</p>", "slug": "ibn"},
++            {"id": 2, "resource_id": 169, "verse_key": "103:2", "language_id": 38, "text": "<p>B</p>", "slug": "ibn"},
++            {"id": 3, "resource_id": 169, "verse_key": "103:3", "language_id": 38, "text": "<p>C</p>", "slug": "ibn"},
++        ],
++    )
++
++    rows = load_and_validate_chapter_file(tmp_path / "chapter_103.json", expected_resource_id=169)
++    sections = build_sections_from_rows(
++        rows=rows,
++        source_id="tafsir:ibn-kathir-en",
++        upstream_provider="quran_foundation",
++        language_code="en",
++        source_file_path=None,
++        source_manifest_path=None,
++    )
++
++    assert [section.quran_span_ref for section in sections] == ["103:1", "103:2", "103:3"]
++    assert all(section.coverage_mode == "anchor_only" for section in sections)
++
++
++def test_normalizer_rejects_duplicate_verse_key(tmp_path) -> None:
++    _write_chapter(
++        tmp_path,
++        1,
++        [
++            {"id": 1, "resource_id": 169, "verse_key": "1:1", "language_id": 38, "text": "<p>A</p>", "slug": "ibn"},
++            {"id": 2, "resource_id": 169, "verse_key": "1:1", "language_id": 38, "text": "<p>B</p>", "slug": "ibn"},
++        ],
++    )
++
++    with pytest.raises(ValueError, match="Duplicate verse key"):
++        load_and_validate_chapter_file(tmp_path / "chapter_1.json", expected_resource_id=169)
++
++
++def test_normalizer_rejects_leading_empty_rows(tmp_path) -> None:
++    _write_chapter(
++        tmp_path,
++        10,
++        [
++            {"id": 1, "resource_id": 169, "verse_key": "10:1", "language_id": 38, "text": "", "slug": "ibn"},
++            {"id": 2, "resource_id": 169, "verse_key": "10:2", "language_id": 38, "text": "<p>B</p>", "slug": "ibn"},
++        ],
++    )
++
++    rows = load_and_validate_chapter_file(tmp_path / "chapter_10.json", expected_resource_id=169)
++    with pytest.raises(ValueError, match="leading or orphan empty"):
++        build_sections_from_rows(
++            rows=rows,
++            source_id="tafsir:ibn-kathir-en",
++            upstream_provider="quran_foundation",
++            language_code="en",
++            source_file_path=None,
++            source_manifest_path=None,
++        )
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' dalil_orig_clean/tests/unit/test_tafsir_overlap.py dalil_mod_clean/tests/unit/test_tafsir_overlap.py
+--- dalil_orig_clean/tests/unit/test_tafsir_overlap.py	1970-01-01 00:00:00.000000000 +0000
++++ dalil_mod_clean/tests/unit/test_tafsir_overlap.py	2026-04-03 19:55:07.758483720 +0000
+@@ -0,0 +1,58 @@
++from __future__ import annotations
++
++import pytest
++
++from services.tafsir.overlap import TafsirOverlapService, validate_overlap_query
++from services.tafsir.types import TafsirOverlapHit, TafsirOverlapQuery
++
++
++class _FakeRepository:
++    def __init__(self, hits):
++        self._hits = hits
++
++    def fetch_overlap_hits(self, query: TafsirOverlapQuery):
++        return list(self._hits)
++
++
++def _hit(*, section_id: int, exact: bool, contains: bool, overlap: int, width: int, distance: int) -> TafsirOverlapHit:
++    return TafsirOverlapHit(
++        section_id=section_id,
++        canonical_section_id=f"tafsir:ibn-kathir-en:{section_id}",
++        work_id=1,
++        source_id="tafsir:ibn-kathir-en",
++        display_name="Tafsir Ibn Kathir (English)",
++        citation_label="Tafsir Ibn Kathir",
++        surah_no=112,
++        ayah_start=1,
++        ayah_end=4,
++        anchor_verse_key="112:1",
++        quran_span_ref="112:1-4",
++        coverage_mode="inferred_from_empty_followers",
++        coverage_confidence=0.95,
++        text_plain="text",
++        text_html="<p>text</p>",
++        overlap_ayah_count=overlap,
++        exact_span_match=exact,
++        contains_query_span=contains,
++        query_contains_section=False,
++        span_width=width,
++        anchor_distance=distance,
++    )
++
++
++def test_overlap_service_sorts_hits_by_policy() -> None:
++    hits = [
++        _hit(section_id=3, exact=False, contains=True, overlap=2, width=6, distance=3),
++        _hit(section_id=1, exact=True, contains=True, overlap=4, width=4, distance=0),
++        _hit(section_id=2, exact=False, contains=True, overlap=4, width=8, distance=1),
++    ]
++    service = TafsirOverlapService(_FakeRepository(hits))
++
++    ordered = service.fetch(TafsirOverlapQuery(work_id=1, surah_no=112, ayah_start=1, ayah_end=4, limit=5))
++
++    assert [hit.section_id for hit in ordered] == [1, 2, 3]
++
++
++def test_overlap_query_validation_rejects_invalid_limit() -> None:
++    with pytest.raises(ValueError, match="limit"):
++        validate_overlap_query(TafsirOverlapQuery(work_id=1, surah_no=1, ayah_start=1, ayah_end=1, limit=0))
