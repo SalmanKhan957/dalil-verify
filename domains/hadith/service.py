@@ -6,10 +6,11 @@ from domains.hadith.retrieval.citation_lookup import HadithCitationLookupService
 
 
 class HadithService:
-    """Design-phase façade for the future Hadith domain."""
+    """Façade for deterministic Hadith citation handling over canonical DALIL storage."""
 
-    def __init__(self, *, citation_lookup_service: HadithCitationLookupService | None = None) -> None:
-        self.citation_lookup_service = citation_lookup_service or HadithCitationLookupService()
+    def __init__(self, *, database_url: str | None = None, citation_lookup_service: HadithCitationLookupService | None = None) -> None:
+        self.database_url = database_url
+        self.citation_lookup_service = citation_lookup_service or HadithCitationLookupService(database_url=database_url)
 
     def parse_citation(self, query: str):
         return parse_hadith_citation(query)

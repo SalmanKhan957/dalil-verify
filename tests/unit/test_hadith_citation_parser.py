@@ -5,6 +5,7 @@ from domains.hadith.types import HadithReferenceType
 
 def test_parse_collection_number_citation_for_bukhari() -> None:
     reference = parse_hadith_citation('Sahih Bukhari 52')
+
     assert reference is not None
     assert reference.collection_slug == 'sahih-al-bukhari-en'
     assert reference.collection_source_id == 'hadith:sahih-al-bukhari-en'
@@ -14,8 +15,10 @@ def test_parse_collection_number_citation_for_bukhari() -> None:
     assert render_hadith_citation(reference) == 'Sahih al-Bukhari, Hadith 52'
 
 
+
 def test_parse_book_and_hadith_citation_for_bukhari() -> None:
     reference = parse_hadith_citation('Bukhari book 3 hadith 45')
+
     assert reference is not None
     assert reference.reference_type == HadithReferenceType.BOOK_AND_HADITH
     assert reference.book_number == 3

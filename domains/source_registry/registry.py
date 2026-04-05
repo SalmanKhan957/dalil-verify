@@ -48,23 +48,22 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
         upstream_resource_id=169,
         policy_note="Approved bounded Tafsir source for Quran span explanation and commentary-backed answer composition.",
     ),
-    "hadith:sahih-bukhari-en": SourceRecord(
-        source_id="hadith:sahih-bukhari-en",
+    "hadith:sahih-al-bukhari-en": SourceRecord(
+        source_id="hadith:sahih-al-bukhari-en",
         source_domain="hadith",
         source_kind="hadith_collection",
         display_name="Sahih al-Bukhari (English)",
         citation_label="Sahih al-Bukhari",
         language="en",
-        enabled=False,
+        enabled=True,
         approved_for_answering=False,
         default_for_explain=False,
         supports_quran_composition=False,
         priority_rank=1000,
-        policy_note="Planned Hadith domain placeholder until canonical ingestion and grading metadata are implemented.",
+        policy_note="Canonical Hadith collection slot for Sahih al-Bukhari. Data may be ingested and lookup-capable before public answer composition is approved.",
     ),
 }
 
-# Backwards-compatible alias for existing imports.
 SOURCE_REGISTRY = SOURCE_REGISTRY_BOOTSTRAP
 
 
@@ -190,3 +189,20 @@ def resolve_tafsir_source_for_explain(
             return None
         return source
     return get_default_tafsir_source_for_explain(database_url=database_url)
+
+
+def resolve_hadith_collection_source(
+    requested_source_id: str | None,
+    *,
+    database_url: str | None = None,
+    require_answer_approval: bool = False,
+) -> SourceRecord | None:
+    source_id = requested_source_id or 'hadith:sahih-al-bukhari-en'
+    source = get_source_record(source_id, database_url=database_url)
+    if source is None or source.source_domain != 'hadith' or source.source_kind != 'hadith_collection':
+        return None
+    if not source.enabled:
+        return None
+    if require_answer_approval and not source.approved_for_answering:
+        return None
+    return source

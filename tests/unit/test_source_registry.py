@@ -7,6 +7,7 @@ from domains.source_registry.registry import (
     is_source_enabled,
     resolve_quran_text_source,
     resolve_quran_translation_source,
+    resolve_hadith_collection_source,
 )
 
 
@@ -19,12 +20,14 @@ def test_quran_sources_are_present_and_enabled():
 
 
 
-def test_tafsir_is_now_enabled_while_hadith_remains_placeholder():
+def test_tafsir_is_enabled_and_hadith_is_registered_but_not_answer_approved():
     tafsir_source = get_source_record("tafsir:ibn-kathir-en")
-    hadith_source = get_source_record("hadith:sahih-bukhari-en")
+    hadith_source = get_source_record("hadith:sahih-al-bukhari-en")
 
     assert tafsir_source is not None
     assert hadith_source is not None
+    assert tafsir_source.enabled is True
+    assert hadith_source.enabled is True
     assert can_use_source_for_answering(tafsir_source) is True
     assert can_use_source_for_answering(hadith_source) is False
 
@@ -59,4 +62,10 @@ def test_quran_source_resolution_validates_kind_and_enabled_status() -> None:
     assert resolve_quran_text_source("quran:tanzil-simple").source_id == "quran:tanzil-simple"
     assert resolve_quran_translation_source("quran:towards-understanding-en").source_id == "quran:towards-understanding-en"
     assert resolve_quran_text_source("quran:towards-understanding-en") is None
-    assert resolve_quran_translation_source("hadith:sahih-bukhari-en") is None
+    assert resolve_quran_translation_source("hadith:sahih-al-bukhari-en") is None
+
+
+
+def test_hadith_collection_resolution_allows_enabled_lookup_but_not_answer_approval() -> None:
+    assert resolve_hadith_collection_source('hadith:sahih-al-bukhari-en') is not None
+    assert resolve_hadith_collection_source('hadith:sahih-al-bukhari-en', require_answer_approval=True) is None

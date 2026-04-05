@@ -1,4 +1,15 @@
-from domains.hadith.ingestion.ingest_collection import HadithCollectionIngestionService
-from domains.hadith.ingestion.normalizer import HadithCollectionNormalizer, NormalizedHadithCollectionBatch
+from __future__ import annotations
 
-__all__ = ['HadithCollectionIngestionService', 'HadithCollectionNormalizer', 'NormalizedHadithCollectionBatch']
+from importlib import import_module
+from typing import Any
+
+__all__ = ['HadithCollectionIngestionService', 'HadithCollectionNormalizer', 'HadithJsonMirrorNormalizerConfig']
+
+
+def __getattr__(name: str) -> Any:
+    if name == 'HadithCollectionIngestionService':
+        return import_module('domains.hadith.ingestion.ingest_collection').HadithCollectionIngestionService
+    if name in {'HadithCollectionNormalizer', 'HadithJsonMirrorNormalizerConfig'}:
+        mod = import_module('domains.hadith.ingestion.normalizer')
+        return getattr(mod, name)
+    raise AttributeError(name)

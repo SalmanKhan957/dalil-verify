@@ -1,5 +1,3 @@
-from domains.hadith.repositories.citation_repository import HadithCitationRepository
-from domains.hadith.repositories.collection_repository import HadithCollectionRepository
-from domains.hadith.repositories.grading_repository import HadithGradingRepository
+from domains.hadith.repositories.hadith_repository import HadithRepository, SqlAlchemyHadithRepository
 
-__all__ = ['HadithCitationRepository', 'HadithCollectionRepository', 'HadithGradingRepository']
+__all__ = ['HadithRepository', 'SqlAlchemyHadithRepository']
