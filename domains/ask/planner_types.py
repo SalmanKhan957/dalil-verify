@@ -4,38 +4,40 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from domains.ask.source_policy_types import AskSourcePolicyDecision
+
 
 class ResponseMode(str, Enum):
-    QURAN_TEXT = "quran_text"
-    QURAN_EXPLANATION = "quran_explanation"
-    QURAN_WITH_TAFSIR = "quran_with_tafsir"
-    VERIFICATION_ONLY = "verification_only"
-    VERIFICATION_THEN_EXPLAIN = "verification_then_explain"
-    ABSTAIN = "abstain"
+    QURAN_TEXT = 'quran_text'
+    QURAN_EXPLANATION = 'quran_explanation'
+    QURAN_WITH_TAFSIR = 'quran_with_tafsir'
+    VERIFICATION_ONLY = 'verification_only'
+    VERIFICATION_THEN_EXPLAIN = 'verification_then_explain'
+    ABSTAIN = 'abstain'
 
 
 class EvidenceDomain(str, Enum):
-    QURAN = "quran"
-    TAFSIR = "tafsir"
-    HADITH = "hadith"
+    QURAN = 'quran'
+    TAFSIR = 'tafsir'
+    HADITH = 'hadith'
 
 
 class EvidenceRequirement(str, Enum):
-    QURAN_REFERENCE_RESOLUTION = "quran_reference_resolution"
-    QURAN_SPAN = "quran_span"
-    QURAN_VERIFICATION = "quran_verification"
-    TAFSIR_OVERLAP = "tafsir_overlap"
+    QURAN_REFERENCE_RESOLUTION = 'quran_reference_resolution'
+    QURAN_SPAN = 'quran_span'
+    QURAN_VERIFICATION = 'quran_verification'
+    TAFSIR_OVERLAP = 'tafsir_overlap'
 
 
 class AbstentionReason(str, Enum):
-    UNSUPPORTED_DOMAIN = "unsupported_domain"
-    UNSUPPORTED_CAPABILITY = "unsupported_capability"
-    NO_RESOLVED_REFERENCE = "no_resolved_reference"
-    SOURCE_NOT_ENABLED = "source_not_enabled"
-    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
-    HADITH_NOT_SUPPORTED_YET = "hadith_not_supported_yet"
-    NEEDS_CLARIFICATION = "needs_clarification"
-    POLICY_RESTRICTED = "policy_restricted"
+    UNSUPPORTED_DOMAIN = 'unsupported_domain'
+    UNSUPPORTED_CAPABILITY = 'unsupported_capability'
+    NO_RESOLVED_REFERENCE = 'no_resolved_reference'
+    SOURCE_NOT_ENABLED = 'source_not_enabled'
+    INSUFFICIENT_EVIDENCE = 'insufficient_evidence'
+    HADITH_NOT_SUPPORTED_YET = 'hadith_not_supported_yet'
+    NEEDS_CLARIFICATION = 'needs_clarification'
+    POLICY_RESTRICTED = 'policy_restricted'
 
 
 @dataclass(slots=True)
@@ -75,6 +77,11 @@ class AskPlan:
     source_resolution_strategy: str | None = None
     requested_quran_work_source_id: str | None = None
     requested_translation_work_source_id: str | None = None
+    quran_text_source_origin: str | None = None
+    quran_translation_source_origin: str | None = None
+    quran_text_source_requested: bool = False
+    quran_translation_source_requested: bool = False
+    source_policy: AskSourcePolicyDecision | None = None
 
     @property
     def mode(self) -> ResponseMode:

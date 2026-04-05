@@ -75,6 +75,8 @@ def explain_answer(
     repository_mode: str | None = None,
     quran_work_source_id: str | None = None,
     translation_work_source_id: str | None = None,
+    quran_text_source_requested: bool = False,
+    quran_translation_source_requested: bool = False,
     debug: bool = False,
 ) -> dict[str, object]:
     try:
@@ -95,6 +97,8 @@ def explain_answer(
             repository_mode=repository_context.repository_mode,
             quran_work_source_id=repository_context.quran_work_source_id,
             translation_work_source_id=repository_context.translation_work_source_id,
+            quran_text_source_requested=quran_text_source_requested,
+            quran_translation_source_requested=quran_translation_source_requested,
             debug=debug,
         )
         evidence = execute_plan(plan, request=request, database_url=repository_context.database_url)

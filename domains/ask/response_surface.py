@@ -3,17 +3,19 @@ from __future__ import annotations
 from typing import Any
 
 ANSWER_SURFACE_FIELDS: tuple[str, ...] = (
-    "answer_mode",
-    "answer_text",
-    "citations",
-    "quran_support",
-    "tafsir_support",
-    "resolution",
-    "partial_success",
-    "warnings",
-    "quran_source_selection",
-    "debug",
+    'answer_mode',
+    'answer_text',
+    'citations',
+    'quran_support',
+    'tafsir_support',
+    'resolution',
+    'partial_success',
+    'warnings',
+    'quran_source_selection',
+    'source_policy',
+    'debug',
 )
+
 
 
 def extract_answer_surface(result: dict[str, Any] | None) -> dict[str, Any]:
@@ -28,6 +30,7 @@ def extract_answer_surface(result: dict[str, Any] | None) -> dict[str, Any]:
     return payload
 
 
+
 def build_ask_response_payload(
     *,
     query: str,
@@ -37,13 +40,53 @@ def build_ask_response_payload(
     result_dict = result or {}
 
     payload: dict[str, Any] = {
-        "ok": bool(result_dict.get("ok")),
-        "query": query,
-        "route_type": str(route.get("route_type") or result_dict.get("route_type") or "unsupported_for_now"),
-        "action_type": str(route.get("action_type") or result_dict.get("action_type") or "unknown"),
-        "route": route,
-        "result": result,
-        "error": result_dict.get("error"),
+        'ok': bool(result_dict.get('ok')),
+        'query': query,
+        'route_type': str(route.get('route_type') or result_dict.get('route_type') or 'unsupported_for_now'),
+        'action_type': str(route.get('action_type') or result_dict.get('action_type') or 'unknown'),
+        'route': route,
+        'result': result,
+        'error': result_dict.get('error'),
     }
     payload.update(extract_answer_surface(result_dict))
     return payload
+
+
+EXPLAIN_SURFACE_FIELDS: tuple[str, ...] = (
+    'ok',
+    'query',
+    'answer_mode',
+    'route_type',
+    'action_type',
+    'answer_text',
+    'citations',
+    'quran_support',
+    'tafsir_support',
+    'resolution',
+    'partial_success',
+    'warnings',
+    'quran_source_selection',
+    'source_policy',
+    'debug',
+    'error',
+)
+
+
+
+def build_explain_response_payload_from_ask_payload(ask_payload: dict[str, Any] | None) -> dict[str, Any]:
+    payload = ask_payload or {}
+    explain_payload: dict[str, Any] = {}
+    for field in EXPLAIN_SURFACE_FIELDS:
+        if field in payload:
+            explain_payload[field] = payload.get(field)
+
+    explain_payload.setdefault('ok', False)
+    explain_payload.setdefault('query', payload.get('query') if isinstance(payload, dict) else None)
+    explain_payload.setdefault('answer_mode', None)
+    explain_payload.setdefault('route_type', 'unsupported_for_now')
+    explain_payload.setdefault('action_type', 'unknown')
+    explain_payload.setdefault('citations', [])
+    explain_payload.setdefault('tafsir_support', [])
+    explain_payload.setdefault('partial_success', False)
+    explain_payload.setdefault('warnings', [])
+    return explain_payload

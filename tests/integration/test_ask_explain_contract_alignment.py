@@ -21,7 +21,6 @@ ANSWER_SURFACE_FIELDS = (
 
 @pytest.mark.anyio
 async def test_ask_and_explain_surfaces_align_for_answer_fields(monkeypatch: pytest.MonkeyPatch) -> None:
-    import apps.ask_api.routes.explain as explain_route_module
     import domains.ask.dispatcher as dispatcher_module
 
     shared_result = {
@@ -74,7 +73,6 @@ async def test_ask_and_explain_surfaces_align_for_answer_fields(monkeypatch: pyt
         lambda query: {"route_type": "explicit_quran_reference", "action_type": "explain"},
     )
     monkeypatch.setattr(dispatcher_module, "explain_answer", lambda **kwargs: shared_result)
-    monkeypatch.setattr(explain_route_module, "explain_answer", lambda **kwargs: shared_result)
 
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)

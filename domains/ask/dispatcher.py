@@ -11,8 +11,13 @@ def dispatch_ask_query(
     query: str,
     *,
     request: Request | None = None,
+    include_tafsir: bool | None = None,
+    tafsir_source_id: str | None = "tafsir:ibn-kathir-en",
+    tafsir_limit: int = 3,
     quran_work_source_id: str | None = None,
     translation_work_source_id: str | None = None,
+    quran_text_source_requested: bool = False,
+    quran_translation_source_requested: bool = False,
     debug: bool = False,
 ) -> dict[str, object]:
     route = classify_ask_query(query)
@@ -20,9 +25,13 @@ def dispatch_ask_query(
         query=query,
         request=request,
         route=route,
-        include_tafsir=None,
+        include_tafsir=include_tafsir,
+        tafsir_source_id=tafsir_source_id,
+        tafsir_limit=tafsir_limit,
         quran_work_source_id=quran_work_source_id,
         translation_work_source_id=translation_work_source_id,
+        quran_text_source_requested=quran_text_source_requested,
+        quran_translation_source_requested=quran_translation_source_requested,
         debug=debug,
     )
     return build_ask_response_payload(
