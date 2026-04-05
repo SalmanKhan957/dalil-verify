@@ -8,6 +8,16 @@ from domains.ask.response_surface import build_explain_response_payload_from_ask
 
 router = APIRouter(prefix="/ask", tags=["ask"])
 
+# Compatibility contract: /ask/explain remains the legacy explain-shaped surface
+# and defaults to attaching Tafsir when the caller omits include_tafsir entirely.
+# /ask keeps the omission semantics route-driven. We preserve that difference
+# deliberately until a later response-contract/deprecation tranche.
+_EXPLAIN_DEFAULT_INCLUDE_TAFSIR = True
+
+
+def _resolve_explain_include_tafsir(include_tafsir: bool | None) -> bool:
+    return include_tafsir if include_tafsir is not None else _EXPLAIN_DEFAULT_INCLUDE_TAFSIR
+
 
 def explain_answer(
     *,
@@ -25,7 +35,7 @@ def explain_answer(
     ask_payload = dispatch_ask_query(
         query,
         request=request,
-        include_tafsir=(include_tafsir if include_tafsir is not None else True),
+        include_tafsir=_resolve_explain_include_tafsir(include_tafsir),
         tafsir_source_id=tafsir_source_id,
         tafsir_limit=tafsir_limit,
         quran_work_source_id=quran_work_source_id,

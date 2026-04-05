@@ -240,8 +240,9 @@ class AskResponse(BaseModel):
     result: dict[str, Any] | None = Field(
         default=None,
         description=(
-            'Legacy compatibility envelope mirroring the top-level answer surface. '
-            'Retained temporarily for backward compatibility and planned for later retirement.'
+            'Legacy compatibility envelope carrying the explain-style result payload. '
+            'It mostly mirrors the top-level answer surface but may still include legacy internal '
+            'compatibility fields retained for older clients until the later deprecation tranche.'
         ),
     )
     error: str | None = None

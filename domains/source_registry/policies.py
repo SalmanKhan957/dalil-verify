@@ -1,6 +1,15 @@
 from __future__ import annotations
 
+"""Canonical source-eligibility policy helpers.
+
+This module is the single truth layer for runtime source eligibility and
+composition rules. Legacy import paths should re-export from here rather than
+carrying duplicate logic.
+"""
+
 from shared.schemas.source_record import SourceRecord
+
+__all__ = ["can_use_source_for_answering", "can_mix_sources"]
 
 
 def can_use_source_for_answering(source: SourceRecord) -> bool:

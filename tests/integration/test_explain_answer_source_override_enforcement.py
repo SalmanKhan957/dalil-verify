@@ -25,7 +25,7 @@ async def test_explain_route_rejects_invalid_translation_source_override() -> No
     assert body["ok"] is False
     assert body["route_type"] == "explicit_quran_reference"
     assert body["action_type"] == "explain"
-    assert body["warnings"] == ["requested_quran_source_override_rejected"]
+    assert body["warnings"] == ["requested_quran_translation_source_override_rejected"]
     assert "translation source" in body["error"]
 
 
@@ -47,5 +47,5 @@ async def test_ask_route_rejects_invalid_translation_source_override() -> None:
     assert body["ok"] is False
     assert body["route_type"] == "explicit_quran_reference"
     assert body["action_type"] == "explain"
-    assert body["result"]["warnings"] == ["requested_quran_source_override_rejected"]
+    assert body["result"]["warnings"] == ["requested_quran_translation_source_override_rejected"]
     assert "translation source" in body["result"]["error"]

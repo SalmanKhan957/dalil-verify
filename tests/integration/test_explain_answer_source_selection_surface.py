@@ -57,10 +57,10 @@ async def test_ask_route_surfaces_quran_source_selection_for_rejected_override(m
     payload = response.json()
     assert payload["ok"] is False
     result = payload["result"]
-    assert result["warnings"] == ["requested_quran_source_override_rejected"]
+    assert result["warnings"] == ["requested_quran_translation_source_override_rejected"]
     assert result["quran_source_selection"] == {
         "repository_mode": None,
-        "source_resolution_strategy": "error",
+        "source_resolution_strategy": "selection_error",
         "requested_quran_text_source_id": "quran:tanzil-simple",
         "requested_quran_translation_source_id": "quran:not-approved",
         "selected_quran_text_source_id": None,

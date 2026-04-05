@@ -2,6 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
+# These fields remain available inside the legacy nested `result` envelope for
+# backward compatibility, but they are intentionally excluded from the canonical
+# top-level Ask and Explain answer surfaces.
+LEGACY_RESULT_ONLY_FIELDS: tuple[str, ...] = (
+    'quran_span',
+    'verifier_result',
+    'quote_payload',
+)
+
 ANSWER_SURFACE_FIELDS: tuple[str, ...] = (
     'answer_mode',
     'answer_text',
@@ -17,7 +26,6 @@ ANSWER_SURFACE_FIELDS: tuple[str, ...] = (
 )
 
 
-
 def extract_answer_surface(result: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(result, dict):
         return {}
@@ -28,7 +36,6 @@ def extract_answer_surface(result: dict[str, Any] | None) -> dict[str, Any]:
             payload[field] = result.get(field)
 
     return payload
-
 
 
 def build_ask_response_payload(
@@ -70,7 +77,6 @@ EXPLAIN_SURFACE_FIELDS: tuple[str, ...] = (
     'debug',
     'error',
 )
-
 
 
 def build_explain_response_payload_from_ask_payload(ask_payload: dict[str, Any] | None) -> dict[str, Any]:

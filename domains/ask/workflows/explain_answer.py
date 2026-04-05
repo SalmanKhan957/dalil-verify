@@ -14,6 +14,40 @@ from domains.quran.repositories.context import (
 from domains.source_registry.db_registry import SourceRegistryDatabaseError
 
 
+def _classify_source_selection_warning(
+    *,
+    error: Exception,
+    quran_text_source_requested: bool,
+    quran_translation_source_requested: bool,
+) -> str:
+    if isinstance(error, SourceRegistryDatabaseError):
+        return "quran_source_registry_database_unavailable"
+    if isinstance(error, RuntimeError):
+        return "quran_repository_runtime_unavailable"
+
+    if quran_text_source_requested and quran_translation_source_requested:
+        return "requested_quran_source_override_rejected"
+    if quran_text_source_requested:
+        return "requested_quran_text_source_override_rejected"
+    if quran_translation_source_requested:
+        return "requested_quran_translation_source_override_rejected"
+
+    message = str(error).lower()
+    if "translation source" in message:
+        return "quran_translation_source_not_available"
+    if "canonical text source" in message:
+        return "quran_text_source_not_available"
+    return "quran_source_selection_failed"
+
+
+def _classify_source_resolution_strategy(error: Exception) -> str:
+    if isinstance(error, SourceRegistryDatabaseError):
+        return "registry_error"
+    if isinstance(error, RuntimeError):
+        return "runtime_error"
+    return "selection_error"
+
+
 def _build_source_selection_error_payload(
     *,
     query: str,
@@ -22,6 +56,8 @@ def _build_source_selection_error_payload(
     quran_work_source_id: str | None,
     translation_work_source_id: str | None,
     repository_mode: str | None,
+    quran_text_source_requested: bool,
+    quran_translation_source_requested: bool,
     debug: bool,
 ) -> dict[str, object]:
     resolved_route = route or classify_ask_query(query)
@@ -29,10 +65,17 @@ def _build_source_selection_error_payload(
         quran_work_source_id=quran_work_source_id,
         translation_work_source_id=translation_work_source_id,
     )
+    warning_code = _classify_source_selection_warning(
+        error=error,
+        quran_text_source_requested=quran_text_source_requested,
+        quran_translation_source_requested=quran_translation_source_requested,
+    )
     debug_payload = None
     if debug:
         debug_payload = {
             "repository_error": str(error),
+            "repository_error_type": type(error).__name__,
+            "warning_code": warning_code,
             "requested_quran_work_source_id": requested_quran_source_id,
             "requested_translation_work_source_id": requested_translation_source_id,
             "repository_mode": repository_mode,
@@ -49,12 +92,12 @@ def _build_source_selection_error_payload(
         tafsir_support=[],
         resolution=None,
         partial_success=False,
-        warnings=["requested_quran_source_override_rejected"],
+        warnings=[warning_code],
         debug=debug_payload,
         error=str(error),
         quran_source_selection={
             "repository_mode": repository_mode,
-            "source_resolution_strategy": "error",
+            "source_resolution_strategy": _classify_source_resolution_strategy(error),
             "requested_quran_text_source_id": requested_quran_source_id,
             "requested_quran_translation_source_id": requested_translation_source_id,
             "selected_quran_text_source_id": None,
@@ -111,5 +154,7 @@ def explain_answer(
             quran_work_source_id=quran_work_source_id,
             translation_work_source_id=translation_work_source_id,
             repository_mode=repository_mode,
+            quran_text_source_requested=quran_text_source_requested,
+            quran_translation_source_requested=quran_translation_source_requested,
             debug=debug,
         )
