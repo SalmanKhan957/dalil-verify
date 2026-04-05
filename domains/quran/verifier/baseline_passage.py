@@ -6,13 +6,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from scripts.common.quran_ranking import sort_verifier_candidates
-from scripts.common.quran_scoring import compute_candidate_score
+from domains.quran.verifier.internal.quran_ranking import sort_verifier_candidates
+from domains.quran.verifier.internal.quran_scoring import compute_candidate_score
 from domains.quran.verifier.baseline_ayah import (
     classify_query,
     determine_match_status,
 )
-from scripts.common.text_normalization import normalize_arabic_light, normalize_arabic_aggressive, tokenize
+from shared.utils.arabic_text import normalize_arabic_light, normalize_arabic_aggressive, tokenize
 
 
 def load_quran_passage_dataset(csv_path: Path) -> list[dict[str, Any]]:

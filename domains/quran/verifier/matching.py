@@ -6,29 +6,29 @@ Application/runtime modules should import from this package instead of reaching
 directly into scripts/* so the runtime has a clean dependency boundary.
 """
 
-from scripts.common.query_routing import (
+from domains.quran.verifier.internal.query_routing import (
     ROUTE_SIMPLE_FIRST,
     ROUTE_UTHMANI_FIRST,
     detect_quran_query_route,
 )
-from scripts.common.quran_citation_units import get_result_canonical_unit_type
-from scripts.common.quran_match_collections import (
+from domains.quran.verifier.internal.quran_citation_units import get_result_canonical_unit_type
+from domains.quran.verifier.internal.quran_match_collections import (
     build_exact_groups,
     build_lane_match_collections,
     build_passage_rows_by_window_size,
     build_unique_exact_map,
 )
-from scripts.common.quran_passage_neighbors import (
+from domains.quran.verifier.internal.quran_passage_neighbors import (
     build_passage_row_lookup,
     load_passage_neighbor_lookup,
 )
-from scripts.common.quran_span_index import (
+from domains.quran.verifier.internal.quran_span_index import (
     GIANT_ANCHOR_SIZE,
     GIANT_MIN_TOKEN_COUNT,
     QuranSurahSpanIndex,
 )
-from scripts.common.retrieval_shortlist import QuranShortlistIndex
-from scripts.common.text_normalization import (
+from domains.quran.verifier.internal.retrieval_shortlist import QuranShortlistIndex
+from shared.utils.arabic_text import (
     normalize_arabic_aggressive,
     normalize_arabic_light,
     sanitize_quran_text_for_matching,

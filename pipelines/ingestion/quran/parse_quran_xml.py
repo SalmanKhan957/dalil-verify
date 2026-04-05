@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from scripts.common.text_normalization import (
+from shared.utils.arabic_text import (
     normalize_arabic_light,
     normalize_arabic_aggressive,
 )

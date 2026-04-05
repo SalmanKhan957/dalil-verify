@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from scripts.common.text_normalization import normalize_arabic_aggressive, normalize_arabic_light
+from shared.utils.arabic_text import normalize_arabic_aggressive, normalize_arabic_light
 
 
 def build_quran_rows(xml_path: Path) -> list[dict]:

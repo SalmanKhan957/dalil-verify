@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Facade for Quran verifier scoring/ranking helpers used by the API runtime."""
 
-from scripts.common.quran_status import get_status_rank
+from domains.quran.verifier.internal.quran_status import get_status_rank
 from domains.quran.verifier.fusion import build_fusion_output
 from domains.quran.verifier.baseline_passage import (
     build_passage_result,

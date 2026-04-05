@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from scripts.common.quran_ranking import sort_verifier_candidates
-from scripts.common.quran_scoring import compute_candidate_score
-from scripts.common.text_normalization import (
+from domains.quran.verifier.internal.quran_ranking import sort_verifier_candidates
+from domains.quran.verifier.internal.quran_scoring import compute_candidate_score
+from shared.utils.arabic_text import (
     normalize_arabic_light,
     normalize_arabic_aggressive,
     tokenize,

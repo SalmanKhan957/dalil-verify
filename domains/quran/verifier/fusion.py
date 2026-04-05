@@ -5,9 +5,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from scripts.common.text_normalization import normalize_arabic_light, tokenize
-from scripts.common.quran_status import get_result_status_rank
-from scripts.common.quran_citation_units import (
+from shared.utils.arabic_text import normalize_arabic_light, tokenize
+from domains.quran.verifier.internal.quran_status import get_result_status_rank
+from domains.quran.verifier.internal.quran_citation_units import (
     annotate_result_with_canonical_unit,
     get_result_canonical_unit_rank,
     get_result_canonical_unit_type,
