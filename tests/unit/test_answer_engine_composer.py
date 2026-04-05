@@ -1,7 +1,7 @@
-from services.answer_engine.composer import compose_explain_answer
-from services.answer_engine.evidence_pack import EvidencePack, QuranEvidence, TafsirEvidence
-from services.answer_engine.plan_types import EvidenceDomain, ResponseMode, AnswerPlan, SourceInvocationPlan
-from services.tafsir.types import TafsirOverlapHit
+from domains.answer_engine.composer import compose_explain_answer
+from domains.answer_engine.evidence_pack import EvidencePack, QuranEvidence, TafsirEvidence
+from domains.ask.planner_types import EvidenceDomain, ResponseMode, AskPlan as AnswerPlan, DomainInvocation as SourceInvocationPlan
+from domains.tafsir.types import TafsirOverlapHit
 
 
 
@@ -52,6 +52,7 @@ def test_compose_explain_answer_with_quran_and_tafsir() -> None:
         quran=QuranEvidence(
             citation_string="Quran 112:1-4",
             canonical_source_id="quran:112:1-4",
+            quran_source_id="quran:tanzil-simple",
             surah_no=112,
             ayah_start=1,
             ayah_end=4,

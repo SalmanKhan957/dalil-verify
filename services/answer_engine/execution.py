@@ -7,7 +7,6 @@ from services.answer_engine.evidence_pack import EvidencePack
 from services.answer_engine.planner_types import AskPlan
 
 
-
 def execute_plan(
     plan: AskPlan,
     *,

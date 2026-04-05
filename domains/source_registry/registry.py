@@ -91,6 +91,74 @@ def get_source_records_by_domain(source_domain: str, *, database_url: str | None
     return sorted(merged, key=lambda record: (record.priority_rank, record.source_id))
 
 
+def _eligible_quran_sources(
+    source_kind: str,
+    *,
+    database_url: str | None = None,
+    language: str | None = None,
+) -> list[SourceRecord]:
+    eligible = [
+        source
+        for source in get_source_records_by_domain("quran", database_url=database_url)
+        if source.enabled and source.approved_for_answering and source.source_kind == source_kind
+    ]
+    if language is not None:
+        eligible = [source for source in eligible if source.language == language]
+    return sorted(eligible, key=lambda source: (source.priority_rank, source.source_id))
+
+
+def get_default_quran_text_source(*, database_url: str | None = None) -> SourceRecord | None:
+    eligible = _eligible_quran_sources("canonical_text", database_url=database_url)
+    return eligible[0] if eligible else None
+
+
+def get_default_quran_translation_source(
+    *,
+    database_url: str | None = None,
+    language: str | None = "en",
+) -> SourceRecord | None:
+    eligible = _eligible_quran_sources("translation", database_url=database_url, language=language)
+    if eligible:
+        return eligible[0]
+    if language is not None:
+        fallback = _eligible_quran_sources("translation", database_url=database_url)
+        return fallback[0] if fallback else None
+    return None
+
+
+def resolve_quran_text_source(
+    requested_source_id: str | None,
+    *,
+    database_url: str | None = None,
+) -> SourceRecord | None:
+    if requested_source_id:
+        source = get_source_record(requested_source_id, database_url=database_url)
+        if source is None or source.source_domain != "quran" or source.source_kind != "canonical_text":
+            return None
+        if not (source.enabled and source.approved_for_answering):
+            return None
+        return source
+    return get_default_quran_text_source(database_url=database_url)
+
+
+def resolve_quran_translation_source(
+    requested_source_id: str | None,
+    *,
+    database_url: str | None = None,
+    language: str | None = "en",
+) -> SourceRecord | None:
+    if requested_source_id:
+        source = get_source_record(requested_source_id, database_url=database_url)
+        if source is None or source.source_domain != "quran" or source.source_kind != "translation":
+            return None
+        if not (source.enabled and source.approved_for_answering):
+            return None
+        if language is not None and source.language != language:
+            return None
+        return source
+    return get_default_quran_translation_source(database_url=database_url, language=language)
+
+
 def _eligible_tafsir_sources(*, database_url: str | None = None) -> list[SourceRecord]:
     return [
         source

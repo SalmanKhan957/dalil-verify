@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.evaluation.quran_tafsir_acceptance import load_suite
+from pipelines.evaluation.suites.quran_tafsir_acceptance import load_suite
 
 
 def test_acceptance_suite_loads_and_has_unique_cases() -> None:

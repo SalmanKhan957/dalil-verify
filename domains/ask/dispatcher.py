@@ -3,25 +3,30 @@ from __future__ import annotations
 from fastapi import Request
 
 from domains.ask.classifier import classify_ask_query
+from domains.ask.response_surface import build_ask_response_payload
 from domains.ask.workflows.explain_answer import explain_answer
 
 
-
-def dispatch_ask_query(query: str, *, request: Request | None = None, debug: bool = False) -> dict[str, object]:
+def dispatch_ask_query(
+    query: str,
+    *,
+    request: Request | None = None,
+    quran_work_source_id: str | None = None,
+    translation_work_source_id: str | None = None,
+    debug: bool = False,
+) -> dict[str, object]:
     route = classify_ask_query(query)
     result = explain_answer(
         query=query,
         request=request,
         route=route,
         include_tafsir=None,
+        quran_work_source_id=quran_work_source_id,
+        translation_work_source_id=translation_work_source_id,
         debug=debug,
     )
-    return {
-        "ok": bool(result.get("ok")),
-        "query": query,
-        "route_type": str(route.get("route_type") or result.get("route_type") or "unsupported_for_now"),
-        "action_type": str(route.get("action_type") or result.get("action_type") or "unknown"),
-        "route": route,
-        "result": result,
-        "error": result.get("error"),
-    }
+    return build_ask_response_payload(
+        query=query,
+        route=route,
+        result=result,
+    )

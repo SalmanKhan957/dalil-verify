@@ -1,5 +1,3 @@
-"""Future-state Quran verifier package."""
-from domains.quran.verifier.bootstrap import lifespan
-from domains.quran.verifier.types import CorpusRuntime
+from domains.quran.verifier.service import build_health_payload, verify_quran_text
 
-__all__ = ["bootstrap", "CorpusRuntime", "lifespan"]
+__all__ = ["build_health_payload", "verify_quran_text"]

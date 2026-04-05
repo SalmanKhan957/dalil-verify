@@ -6,7 +6,7 @@ from apps.public_api.routes.ask import router as ask_router
 from apps.public_api.routes.explain import router as explain_router
 from apps.public_api.routes.health import router as health_router
 from apps.public_api.routes.verify_quran import router as verify_router
-from services.quran_runtime.bootstrap import lifespan
+from domains.quran.verifier.bootstrap import lifespan
 
 app = FastAPI(
     title="Dalil Public API",

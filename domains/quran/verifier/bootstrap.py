@@ -17,6 +17,7 @@ from domains.quran.repositories.runtime_assets_repository import (
     DEFAULT_QURAN_UTHMANI_DATA_PATH,
     DEFAULT_QURAN_UTHMANI_PASSAGE_DATA_PATH,
 )
+from domains.quran.repositories.context import inspect_quran_repository_runtime
 from domains.quran.verifier.loaders import load_runtime
 from domains.quran.verifier.matching import load_passage_neighbor_lookup
 from domains.quran.verifier.translation import load_english_translation_map
@@ -47,6 +48,7 @@ SOURCE_GOVERNANCE_INFO: dict[str, object] = {
     "warning_count": 0,
     "error_count": 0,
     "issues": [],
+    "quran_repository": {},
 }
 
 _RUNTIME_LOCK = Lock()
@@ -57,11 +59,16 @@ def _run_startup_source_governance_checks() -> None:
 
     strict = os.getenv("DALIL_STRICT_SOURCE_GOVERNANCE", "false").strip().lower() in {"1", "true", "yes", "on"}
     issues = run_source_governance_checks(strict=strict)
+    quran_repository = inspect_quran_repository_runtime()
     SOURCE_GOVERNANCE_INFO = {
         "checked": True,
-        "issue_count": len(issues),
-        "warning_count": sum(1 for issue in issues if issue.severity == "warning"),
-        "error_count": sum(1 for issue in issues if issue.severity == "error"),
+        "issue_count": len(issues) + int(quran_repository.get("issue_count", 0)),
+        "warning_count": sum(1 for issue in issues if issue.severity == "warning") + int(
+            quran_repository.get("warning_count", 0)
+        ),
+        "error_count": sum(1 for issue in issues if issue.severity == "error") + int(
+            quran_repository.get("error_count", 0)
+        ),
         "issues": [
             {
                 "code": issue.code,
@@ -70,11 +77,19 @@ def _run_startup_source_governance_checks() -> None:
                 "severity": issue.severity,
             }
             for issue in issues
-        ],
+        ]
+        + list(quran_repository.get("issues", [])),
+        "quran_repository": quran_repository,
     }
 
     for issue in issues:
         warnings.warn(f"[dalil-governance:{issue.severity}] {issue.message}")
+    for issue in quran_repository.get("issues", []):
+        warnings.warn(f"[dalil-governance:{issue['severity']}] {issue['message']}")
+
+    if strict and int(quran_repository.get("error_count", 0)) > 0:
+        joined = "; ".join(issue["message"] for issue in quran_repository.get("issues", []))
+        raise RuntimeError(joined)
 
 
 @asynccontextmanager

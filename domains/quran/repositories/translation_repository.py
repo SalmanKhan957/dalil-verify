@@ -5,6 +5,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from domains.quran.repositories.db_repository import (
+    DEFAULT_QURAN_TRANSLATION_WORK_SOURCE_ID,
+    QuranRepositoryUnavailable,
+    fetch_translation_span_from_db,
+    is_database_required,
+    should_use_database,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_QURAN_TRANSLATION_PATH = REPO_ROOT / "data/processed/quran_translations/quran_en_single_translation.csv"
 
@@ -54,15 +62,32 @@ def load_english_translation_map(csv_path: Path | None) -> tuple[dict[tuple[int,
     return rows, {"loaded": True, "row_count": len(rows), "path": str(csv_path)}
 
 
+
 def fetch_translation_span(
     *,
     surah_no: int,
     ayah_start: int,
     ayah_end: int,
     csv_path: str | Path = DEFAULT_QURAN_TRANSLATION_PATH,
+    repository_mode: str | None = None,
+    database_url: str | None = None,
+    work_source_id: str = DEFAULT_QURAN_TRANSLATION_WORK_SOURCE_ID,
 ) -> dict[str, Any]:
     if ayah_end < ayah_start:
         raise ValueError("ayah_end must be greater than or equal to ayah_start")
+
+    if should_use_database(repository_mode):
+        try:
+            return fetch_translation_span_from_db(
+                surah_no=int(surah_no),
+                ayah_start=int(ayah_start),
+                ayah_end=int(ayah_end),
+                database_url=database_url,
+                work_source_id=work_source_id,
+            )
+        except QuranRepositoryUnavailable:
+            if is_database_required(repository_mode):
+                raise
 
     index = load_translation_row_index(csv_path)
     rows: list[dict[str, Any]] = []
@@ -94,6 +119,7 @@ def fetch_translation_span(
         "text": " ".join((row.get("text_display") or "").strip() for row in rows if row.get("text_display")).strip(),
         "rows": rows,
     }
+
 
 
 def attach_english_translation(best_match: dict[str, Any] | None, en_map: dict[tuple[int, int], dict[str, Any]]) -> dict[str, Any] | None:

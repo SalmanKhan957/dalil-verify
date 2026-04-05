@@ -10,6 +10,7 @@ from domains.tafsir.types import TafsirOverlapHit
 class QuranEvidence:
     citation_string: str
     canonical_source_id: str
+    quran_source_id: str | None
     surah_no: int
     ayah_start: int
     ayah_end: int
@@ -51,6 +52,7 @@ def build_quran_evidence(quran_span: dict[str, Any] | None) -> QuranEvidence | N
     return QuranEvidence(
         citation_string=str(quran_span.get("citation_string") or ""),
         canonical_source_id=str(quran_span.get("canonical_source_id") or ""),
+        quran_source_id=quran_span.get("source_id"),
         surah_no=int(quran_span.get("surah_no") or 0),
         ayah_start=int(quran_span.get("ayah_start") or 0),
         ayah_end=int(quran_span.get("ayah_end") or 0),

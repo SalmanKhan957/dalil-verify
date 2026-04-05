@@ -1,4 +1,4 @@
-from services.tafsir.html_utils import compute_text_hash, normalize_search_text, strip_html_to_text
+from domains.tafsir.html_utils import compute_text_hash, normalize_search_text, strip_html_to_text
 
 
 def test_strip_html_to_text_preserves_readable_breaks() -> None:

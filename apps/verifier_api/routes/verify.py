@@ -3,14 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from apps.api.schemas import VerifyQuranRequest, VerifyQuranResponse
-from apps.verifier_api.service import build_health_payload, verify_quran_logic
+from apps.verifier_api.service import verify_quran_logic
 
 router = APIRouter(tags=["verifier"])
-
-
-@router.get("/health")
-def health() -> dict:
-    return build_health_payload()
 
 
 @router.post("/verify/quran", response_model=VerifyQuranResponse)

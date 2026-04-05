@@ -9,6 +9,7 @@ def _quran_evidence() -> QuranEvidence:
     return QuranEvidence(
         citation_string="Quran 112:1-4",
         canonical_source_id="quran:112:1-4",
+        quran_source_id="quran:tanzil-simple",
         surah_no=112,
         ayah_start=1,
         ayah_end=4,

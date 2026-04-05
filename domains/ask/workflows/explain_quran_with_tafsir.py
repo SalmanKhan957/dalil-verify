@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 from domains.ask.workflows.explain_quran_reference import explain_quran_reference
+from domains.ask.workflows.tafsir_attachment import attach_tafsir_to_quran_result
 from domains.quran.retrieval.metadata_loader import DEFAULT_QURAN_ARABIC_PATH
 from domains.quran.retrieval.translation_fetcher import DEFAULT_QURAN_TRANSLATION_PATH
+from domains.quran.repositories.context import resolve_quran_repository_context
 from domains.tafsir.formatter import build_tafsir_citation
 from domains.tafsir.service import TafsirService
 
@@ -21,59 +22,32 @@ def explain_quran_with_tafsir(
     database_url: str | None = None,
     quran_csv_path: str | Path = DEFAULT_QURAN_ARABIC_PATH,
     translation_csv_path: str | Path = DEFAULT_QURAN_TRANSLATION_PATH,
+    repository_mode: str | None = None,
+    quran_work_source_id: str = DEFAULT_QURAN_TEXT_WORK_SOURCE_ID,
+    translation_work_source_id: str = DEFAULT_QURAN_TRANSLATION_WORK_SOURCE_ID,
 ) -> dict[str, Any]:
+    repository_context = resolve_quran_repository_context(
+        repository_mode=repository_mode,
+        database_url=database_url,
+        quran_work_source_id=quran_work_source_id,
+        translation_work_source_id=translation_work_source_id,
+    )
     base_result = explain_quran_reference(
         query,
         resolution=resolution,
         quran_csv_path=quran_csv_path,
         translation_csv_path=translation_csv_path,
+        repository_mode=repository_context.repository_mode,
+        database_url=repository_context.database_url,
+        quran_work_source_id=repository_context.quran_work_source_id,
+        translation_work_source_id=repository_context.translation_work_source_id,
     )
-
-    response: dict[str, Any] = {
-        **base_result,
-        "tafsir": [],
-        "tafsir_source_id": tafsir_source_id if include_tafsir else None,
-        "tafsir_error": None,
-    }
-
-    if not include_tafsir:
-        return response
-
-    if not base_result.get("ok"):
-        response["tafsir_error"] = "tafsir_skipped_due_to_quran_resolution_failure"
-        return response
-
-    quran_span = base_result.get("quran_span") or {}
-    if not quran_span:
-        response["tafsir_error"] = "tafsir_skipped_due_to_missing_quran_span"
-        return response
-
-    try:
-        tafsir_service = TafsirService(database_url=database_url)
-        hits = tafsir_service.get_overlap_for_quran_span(
-            source_id=tafsir_source_id,
-            surah_no=int(quran_span["surah_no"]),
-            ayah_start=int(quran_span["ayah_start"]),
-            ayah_end=int(quran_span["ayah_end"]),
-            limit=int(tafsir_limit),
-        )
-    except (PermissionError, LookupError, RuntimeError, ValueError) as exc:
-        response["tafsir_error"] = str(exc)
-        return response
-
-    response["tafsir"] = [
-        {
-            "citation": asdict(build_tafsir_citation(hit)),
-            "text_plain": hit.text_plain,
-            "text_html": hit.text_html,
-            "coverage_mode": hit.coverage_mode,
-            "coverage_confidence": float(hit.coverage_confidence),
-            "surah_no": hit.surah_no,
-            "ayah_start": hit.ayah_start,
-            "ayah_end": hit.ayah_end,
-            "anchor_verse_key": hit.anchor_verse_key,
-            "quran_span_ref": hit.quran_span_ref,
-        }
-        for hit in hits
-    ]
-    return response
+    return attach_tafsir_to_quran_result(
+        base_result,
+        include_tafsir=include_tafsir,
+        tafsir_source_id=tafsir_source_id,
+        tafsir_limit=tafsir_limit,
+        database_url=repository_context.database_url,
+        tafsir_service_factory=TafsirService,
+        citation_builder=build_tafsir_citation,
+    )

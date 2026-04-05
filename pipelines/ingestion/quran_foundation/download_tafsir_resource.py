@@ -7,7 +7,7 @@ from pathlib import Path
 
 import httpx
 
-from services.quran_foundation_client import (
+from infrastructure.clients.quran_foundation import (
     QuranFoundationContentClient,
     QuranFoundationSettings,
     QuranFoundationTafsirAPI,

@@ -10,7 +10,7 @@ from domains.ask.planner_types import AskPlan, ResponseMode
 
 
 
-def _build_quran_support(evidence: EvidencePack) -> dict[str, Any] | None:
+def _build_quran_support(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None:
     if evidence.quran is None:
         return None
 
@@ -25,7 +25,8 @@ def _build_quran_support(evidence: EvidencePack) -> dict[str, Any] | None:
         "arabic_text": quran.arabic_text,
         "translation_text": quran.translation_text,
         "canonical_source_id": quran.canonical_source_id,
-        "translation_source_id": quran.translation_source_id,
+        "quran_source_id": plan.quran_work_source_id or quran.quran_source_id,
+        "translation_source_id": plan.translation_work_source_id or quran.translation_source_id,
     }
 
 
@@ -118,6 +119,28 @@ def _build_answer_text(plan: AskPlan, evidence: EvidencePack) -> str | None:
 
 
 
+def _build_quran_source_selection(plan: AskPlan) -> dict[str, Any] | None:
+    if not any(
+        [
+            plan.repository_mode,
+            plan.quran_work_source_id,
+            plan.translation_work_source_id,
+            plan.requested_quran_work_source_id,
+            plan.requested_translation_work_source_id,
+        ]
+    ):
+        return None
+
+    return {
+        "repository_mode": plan.repository_mode,
+        "source_resolution_strategy": plan.source_resolution_strategy,
+        "requested_quran_text_source_id": plan.requested_quran_work_source_id,
+        "requested_quran_translation_source_id": plan.requested_translation_work_source_id,
+        "selected_quran_text_source_id": plan.quran_work_source_id,
+        "selected_quran_translation_source_id": plan.translation_work_source_id,
+    }
+
+
 def _build_debug(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None:
     if not plan.debug:
         return None
@@ -137,6 +160,12 @@ def _build_debug(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None
             "tafsir_requested": plan.tafsir_requested,
             "tafsir_explicit": plan.tafsir_explicit,
             "notes": list(plan.notes),
+            "repository_mode": plan.repository_mode,
+            "source_resolution_strategy": plan.source_resolution_strategy,
+            "quran_work_source_id": plan.quran_work_source_id,
+            "translation_work_source_id": plan.translation_work_source_id,
+            "requested_quran_work_source_id": plan.requested_quran_work_source_id,
+            "requested_translation_work_source_id": plan.requested_translation_work_source_id,
         },
         "route": plan.route,
         "resolution": evidence.resolution,
@@ -168,7 +197,7 @@ def _derive_partial_success(plan: AskPlan, evidence: EvidencePack) -> bool:
 
 def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any]:
     citations = render_citation_list(evidence)
-    quran_support = _build_quran_support(evidence)
+    quran_support = _build_quran_support(plan, evidence)
     tafsir_support = _build_tafsir_support(evidence)
     answer_text = _build_answer_text(plan, evidence)
     partial_success = _derive_partial_success(plan, evidence)
@@ -194,6 +223,7 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         warnings=list(evidence.warnings),
         debug=_build_debug(plan, evidence),
         error=error,
+        quran_source_selection=_build_quran_source_selection(plan),
     )
     payload["quran_span"] = evidence.quran.raw if evidence.quran else None
     payload["verifier_result"] = evidence.verifier_result

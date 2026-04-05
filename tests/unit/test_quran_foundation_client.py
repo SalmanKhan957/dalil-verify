@@ -5,11 +5,11 @@ import time
 
 import httpx
 
-from services.quran_foundation_client.auth import QuranFoundationTokenProvider
-from services.quran_foundation_client.client import QuranFoundationContentClient
-from services.quran_foundation_client.config import QuranFoundationSettings
-from services.quran_foundation_client.resources_api import QuranFoundationResourcesAPI
-from services.quran_foundation_client.tafsir_api import QuranFoundationTafsirAPI
+from infrastructure.clients.quran_foundation.auth import QuranFoundationTokenProvider
+from infrastructure.clients.quran_foundation.client import QuranFoundationContentClient
+from infrastructure.clients.quran_foundation.config import QuranFoundationSettings
+from infrastructure.clients.quran_foundation.resources_api import QuranFoundationResourcesAPI
+from infrastructure.clients.quran_foundation.tafsir_api import QuranFoundationTafsirAPI
 
 
 TEST_SETTINGS = QuranFoundationSettings(

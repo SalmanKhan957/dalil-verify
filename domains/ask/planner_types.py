@@ -68,6 +68,13 @@ class AskPlan:
     debug: bool = False
     tafsir_requested: bool = False
     tafsir_explicit: bool = False
+    repository_mode: str | None = None
+    database_url: str | None = None
+    quran_work_source_id: str | None = None
+    translation_work_source_id: str | None = None
+    source_resolution_strategy: str | None = None
+    requested_quran_work_source_id: str | None = None
+    requested_translation_work_source_id: str | None = None
 
     @property
     def mode(self) -> ResponseMode:

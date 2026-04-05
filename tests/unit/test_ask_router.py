@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from services.ask_router.classifier import classify_ask_query
-from services.ask_router.route_types import AskActionType, AskRouteType
+from domains.ask.classifier import classify_ask_query
+from domains.ask.route_types import AskActionType, AskRouteType
 
 
 def test_routes_embedded_numeric_reference_question() -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.evaluation.quran_tafsir_acceptance import evaluate_case, summarize_results
+from pipelines.evaluation.suites.quran_tafsir_acceptance import evaluate_case, summarize_results
 
 
 def test_evaluate_case_passes_for_good_tafsir_response() -> None:

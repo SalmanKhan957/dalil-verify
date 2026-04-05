@@ -7,6 +7,14 @@ from pydantic import BaseModel, Field
 
 class ExplainQuranReferenceRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Explicit Quran reference to explain.")
+    quran_text_source_id: str | None = Field(
+        default=None,
+        description="Optional governed Quran canonical text source override.",
+    )
+    quran_translation_source_id: str | None = Field(
+        default=None,
+        description="Optional governed Quran translation source override.",
+    )
     include_tafsir: bool | None = Field(
         default=None,
         description=(
@@ -44,7 +52,17 @@ class QuranSupport(BaseModel):
     arabic_text: str | None = None
     translation_text: str | None = None
     canonical_source_id: str | None = None
+    quran_source_id: str | None = None
     translation_source_id: str | None = None
+
+
+class QuranSourceSelection(BaseModel):
+    repository_mode: str | None = None
+    source_resolution_strategy: str | None = None
+    requested_quran_text_source_id: str | None = None
+    requested_quran_translation_source_id: str | None = None
+    selected_quran_text_source_id: str | None = None
+    selected_quran_translation_source_id: str | None = None
 
 
 class TafsirSupportItem(BaseModel):
@@ -76,12 +94,21 @@ class ExplainAnswerResponse(BaseModel):
     resolution: dict[str, Any] | None = None
     partial_success: bool = False
     warnings: list[str] = Field(default_factory=list)
+    quran_source_selection: QuranSourceSelection | None = None
     debug: dict[str, Any] | None = None
     error: str | None = None
 
 
 class AskRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Ask query to classify and route.")
+    quran_text_source_id: str | None = Field(
+        default=None,
+        description="Optional governed Quran canonical text source override.",
+    )
+    quran_translation_source_id: str | None = Field(
+        default=None,
+        description="Optional governed Quran translation source override.",
+    )
     debug: bool = Field(default=False, description="Whether to include verifier debug output where available.")
 
 
@@ -91,5 +118,15 @@ class AskResponse(BaseModel):
     route_type: str
     action_type: str
     route: dict[str, Any]
+    answer_mode: str | None = None
+    answer_text: str | None = None
+    citations: list[SourceCitationView] = Field(default_factory=list)
+    quran_support: QuranSupport | None = None
+    tafsir_support: list[TafsirSupportItem] = Field(default_factory=list)
+    resolution: dict[str, Any] | None = None
+    partial_success: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    quran_source_selection: QuranSourceSelection | None = None
+    debug: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     error: str | None = None

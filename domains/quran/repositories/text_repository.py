@@ -5,6 +5,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from domains.quran.repositories.db_repository import (
+    DEFAULT_QURAN_TEXT_WORK_SOURCE_ID,
+    QuranRepositoryUnavailable,
+    is_database_required,
+    lookup_quran_span_from_db,
+    should_use_database,
+)
 from domains.quran.repositories.metadata_repository import DEFAULT_QURAN_ARABIC_PATH
 
 
@@ -28,15 +35,32 @@ def load_quran_row_index(csv_path: str | Path = DEFAULT_QURAN_ARABIC_PATH) -> di
     return index
 
 
+
 def lookup_quran_span(
     *,
     surah_no: int,
     ayah_start: int,
     ayah_end: int,
     csv_path: str | Path = DEFAULT_QURAN_ARABIC_PATH,
+    repository_mode: str | None = None,
+    database_url: str | None = None,
+    work_source_id: str = DEFAULT_QURAN_TEXT_WORK_SOURCE_ID,
 ) -> list[dict[str, Any]]:
     if ayah_end < ayah_start:
         raise ValueError("ayah_end must be greater than or equal to ayah_start")
+
+    if should_use_database(repository_mode):
+        try:
+            return lookup_quran_span_from_db(
+                surah_no=int(surah_no),
+                ayah_start=int(ayah_start),
+                ayah_end=int(ayah_end),
+                database_url=database_url,
+                work_source_id=work_source_id,
+            )
+        except QuranRepositoryUnavailable:
+            if is_database_required(repository_mode):
+                raise
 
     index = load_quran_row_index(csv_path)
     surah_rows = index.get(int(surah_no))

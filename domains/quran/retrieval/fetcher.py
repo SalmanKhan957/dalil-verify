@@ -4,6 +4,11 @@ from pathlib import Path
 from typing import Any
 
 from domains.quran.citations.resolver import build_canonical_source_id
+from domains.quran.repositories.db_repository import (
+    DEFAULT_QURAN_TEXT_WORK_SOURCE_ID,
+    DEFAULT_QURAN_TRANSLATION_WORK_SOURCE_ID,
+    resolve_quran_repository_mode,
+)
 from domains.quran.repositories.metadata_repository import DEFAULT_QURAN_ARABIC_PATH, load_quran_metadata
 from domains.quran.repositories.text_repository import lookup_quran_span
 from domains.quran.repositories.translation_repository import (
@@ -12,10 +17,12 @@ from domains.quran.repositories.translation_repository import (
 )
 
 
+
 def build_citation_string(surah_no: int, ayah_start: int, ayah_end: int) -> str:
     if ayah_start == ayah_end:
         return f"Quran {surah_no}:{ayah_start}"
     return f"Quran {surah_no}:{ayah_start}-{ayah_end}"
+
 
 
 def fetch_quran_span(
@@ -26,9 +33,19 @@ def fetch_quran_span(
     metadata: dict[int, dict[str, Any]] | None = None,
     quran_csv_path: str | Path = DEFAULT_QURAN_ARABIC_PATH,
     translation_csv_path: str | Path = DEFAULT_QURAN_TRANSLATION_PATH,
+    repository_mode: str | None = None,
+    database_url: str | None = None,
+    quran_work_source_id: str = DEFAULT_QURAN_TEXT_WORK_SOURCE_ID,
+    translation_work_source_id: str = DEFAULT_QURAN_TRANSLATION_WORK_SOURCE_ID,
 ) -> dict[str, Any]:
     """Fetch a deterministic Quran span with Arabic rows and English translation."""
-    meta = metadata or load_quran_metadata(quran_csv_path)
+    resolved_mode = resolve_quran_repository_mode(repository_mode)
+    meta = metadata or load_quran_metadata(
+        quran_csv_path,
+        repository_mode=resolved_mode,
+        database_url=database_url,
+        work_source_id=quran_work_source_id,
+    )
     surah_meta = meta.get(int(surah_no))
     if surah_meta is None:
         raise KeyError(f"Unknown surah metadata for surah {surah_no}")
@@ -38,12 +55,18 @@ def fetch_quran_span(
         ayah_start=int(ayah_start),
         ayah_end=int(ayah_end),
         csv_path=quran_csv_path,
+        repository_mode=resolved_mode,
+        database_url=database_url,
+        work_source_id=quran_work_source_id,
     )
     translation = fetch_translation_span(
         surah_no=int(surah_no),
         ayah_start=int(ayah_start),
         ayah_end=int(ayah_end),
         csv_path=translation_csv_path,
+        repository_mode=resolved_mode,
+        database_url=database_url,
+        work_source_id=translation_work_source_id,
     )
 
     ayah_rows: list[dict[str, Any]] = []
@@ -56,12 +79,13 @@ def fetch_quran_span(
                 "arabic_text": arabic_row.get("text_display") or "",
                 "arabic_canonical_source_id": arabic_row.get("canonical_source_id") or "",
                 "translation_text": translation_row.get("text_display") or "",
-                "translation_source_id": translation_row.get("source_id") or "",
+                "translation_source_id": translation_row.get("source_id") or translation.get("source_id") or "",
             }
         )
 
     return {
         "source_type": "quran_span",
+        "source_id": quran_work_source_id,
         "canonical_source_id": build_canonical_source_id(int(surah_no), int(ayah_start), int(ayah_end)),
         "citation_string": build_citation_string(int(surah_no), int(ayah_start), int(ayah_end)),
         "surah_no": int(surah_no),

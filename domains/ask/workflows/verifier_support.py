@@ -6,8 +6,8 @@ from fastapi import Request
 
 from domains.ask.route_types import AskActionType, AskRouteType
 from domains.quran.retrieval.fetcher import fetch_quran_span
+from domains.quran.repositories.context import resolve_quran_repository_context
 from domains.quran.verifier.service import verify_quran_text
-
 
 
 def is_verifier_match_usable(verifier_result: dict[str, Any]) -> bool:
@@ -21,8 +21,14 @@ def is_verifier_match_usable(verifier_result: dict[str, Any]) -> bool:
     return True
 
 
-
-def build_span_from_verifier_result(verifier_result: dict[str, Any]) -> dict[str, Any] | None:
+def build_span_from_verifier_result(
+    verifier_result: dict[str, Any],
+    *,
+    repository_mode: str | None = None,
+    database_url: str | None = None,
+    quran_work_source_id: str | None = None,
+    translation_work_source_id: str | None = None,
+) -> dict[str, Any] | None:
     best_match = (verifier_result or {}).get("best_match") or {}
     if not best_match:
         return None
@@ -41,15 +47,25 @@ def build_span_from_verifier_result(verifier_result: dict[str, Any]) -> dict[str
     if start_ayah is None or end_ayah is None:
         return None
 
+    repository_context = resolve_quran_repository_context(
+        repository_mode=repository_mode,
+        database_url=database_url,
+        quran_work_source_id=quran_work_source_id,
+        translation_work_source_id=translation_work_source_id,
+    )
+
     try:
         return fetch_quran_span(
             surah_no=int(surah_no),
             ayah_start=int(start_ayah),
             ayah_end=int(end_ayah),
+            repository_mode=repository_context.repository_mode,
+            database_url=repository_context.database_url,
+            quran_work_source_id=repository_context.quran_work_source_id,
+            translation_work_source_id=repository_context.translation_work_source_id,
         )
     except Exception:
         return None
-
 
 
 def run_arabic_quran_quote_workflow(
@@ -59,6 +75,10 @@ def run_arabic_quran_quote_workflow(
     action_type: str,
     request: Request | None = None,
     debug: bool = False,
+    repository_mode: str | None = None,
+    database_url: str | None = None,
+    quran_work_source_id: str | None = None,
+    translation_work_source_id: str | None = None,
 ) -> dict[str, Any]:
     del request
     try:
@@ -81,7 +101,13 @@ def run_arabic_quran_quote_workflow(
         AskActionType.FETCH_TEXT.value,
         AskActionType.VERIFY_THEN_EXPLAIN.value,
     } and is_verifier_match_usable(verifier_result):
-        quran_span = build_span_from_verifier_result(verifier_result)
+        quran_span = build_span_from_verifier_result(
+            verifier_result,
+            repository_mode=repository_mode,
+            database_url=database_url,
+            quran_work_source_id=quran_work_source_id,
+            translation_work_source_id=translation_work_source_id,
+        )
 
     return {
         "ok": True,

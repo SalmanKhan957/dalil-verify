@@ -4,10 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
-from infrastructure.db.session import get_session
-from domains.tafsir.normalizer import normalize_resource_directory
-from services.tafsir.repository import SqlAlchemyTafsirRepository
-from services.tafsir.types import SourceWorkSeed, TafsirIngestionChapterResult, TafsirIngestionRunSummary
+from domains.tafsir.ingestion.ingest_resource import ingest_resource
+from domains.tafsir.types import SourceWorkSeed
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,47 +23,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--supports-quran-composition", action="store_true", help="Allow this Tafsir work to be composed with Quran evidence.")
     parser.add_argument("--priority-rank", type=int, default=1000, help="Lower numbers win when selecting between multiple approved Tafsir works.")
     return parser.parse_args()
-
-
-def ingest_resource(
-    *,
-    source_dir: Path,
-    resource_id: int,
-    work_seed: SourceWorkSeed,
-) -> TafsirIngestionRunSummary:
-    normalized_sections = normalize_resource_directory(
-        source_dir=source_dir,
-        expected_resource_id=resource_id,
-        source_id=work_seed.source_id,
-        upstream_provider=work_seed.upstream_provider,
-        language_code=work_seed.language_code,
-    )
-
-    with get_session() as session:
-        repository = SqlAlchemyTafsirRepository(session)
-        work = repository.upsert_source_work(work_seed)
-        run = repository.open_ingestion_run(work_id=work.id, resource_id=resource_id, source_root=source_dir)
-
-        notes: dict[str, object] = {"work_slug": work.work_slug, "source_dir": str(source_dir.as_posix())}
-        status = "completed"
-        for chapter_number, sections in normalized_sections.items():
-            warnings: list[str] = []
-            counts = repository.bulk_upsert_tafsir_sections(work_id=work.id, sections=sections)
-            result = TafsirIngestionChapterResult(
-                chapter_number=chapter_number,
-                raw_rows_seen=len({section.anchor_verse_key for section in sections}) + sum(
-                    max(0, section.ayah_end - section.ayah_start) for section in sections
-                ),
-                sections_built=len(sections),
-                inserted_count=counts["inserted"],
-                updated_count=counts["updated"],
-                skipped_count=counts["skipped"],
-                failed_count=0,
-                warnings=warnings,
-            )
-            repository.record_chapter_result(run_id=run.run_id, result=result)
-
-        return repository.finalize_ingestion_run(run_id=run.run_id, status=status, notes_json=notes)
 
 
 def main() -> None:
@@ -88,11 +45,27 @@ def main() -> None:
         supports_quran_composition=args.supports_quran_composition,
         priority_rank=args.priority_rank,
         version_label=None,
-        policy_note="Approved bounded Tafsir source for Quran span explanation and commentary-backed answer composition." if args.enable_source else None,
-        metadata_json={"ingested_from": "raw_quran_foundation_snapshot"},
+        policy_note="",
+        metadata_json={},
     )
     summary = ingest_resource(source_dir=args.source_dir, resource_id=args.resource_id, work_seed=seed)
-    print(json.dumps(summary.__dict__, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "run_id": summary.run_id,
+                "status": summary.status,
+                "chapters_seen": summary.chapters_seen,
+                "raw_rows_seen": summary.raw_rows_seen,
+                "sections_built": summary.sections_built,
+                "inserted_count": summary.inserted_count,
+                "updated_count": summary.updated_count,
+                "skipped_count": summary.skipped_count,
+                "failed_count": summary.failed_count,
+                "notes_json": summary.notes_json,
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

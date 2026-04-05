@@ -1,5 +1,5 @@
 
-from services.citation_resolver.surah_aliases import resolve_surah_name
+from domains.quran.citations.surah_aliases import resolve_surah_name
 
 
 def test_resolve_surah_name_ikhlas():

@@ -21,6 +21,7 @@ def make_explain_answer_payload(
     warnings: list[str],
     debug: dict[str, Any] | None,
     error: str | None,
+    quran_source_selection: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "ok": ok,
@@ -37,4 +38,5 @@ def make_explain_answer_payload(
         "warnings": warnings,
         "debug": debug,
         "error": error,
+        "quran_source_selection": quran_source_selection,
     }

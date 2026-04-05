@@ -1,4 +1,4 @@
-from services.answer_engine.excerpting import build_tafsir_excerpt
+from domains.answer_engine.excerpting import build_tafsir_excerpt
 
 
 

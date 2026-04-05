@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import Request
 
 from domains.ask.abstention import infer_unsupported_abstention_reason
+from domains.ask.classifier import classify_ask_query
+from domains.ask.heuristics import detect_tafsir_intent
 from domains.ask.planner_types import (
     AbstentionReason,
     AskPlan,
@@ -11,12 +13,14 @@ from domains.ask.planner_types import (
     EvidenceRequirement,
     ResponseMode,
 )
-from domains.ask.classifier import classify_ask_query
-from domains.ask.heuristics import detect_tafsir_intent
 from domains.ask.route_types import AskActionType, AskRouteType
-from domains.quran.citations.resolver import resolve_quran_reference
-from domains.quran.repositories.metadata_repository import load_quran_metadata
 from domains.policies.source_mixing import can_mix_sources
+from domains.quran.citations.resolver import resolve_quran_reference
+from domains.quran.repositories.context import (
+    resolve_quran_repository_context,
+    resolve_requested_quran_repository_source_inputs,
+)
+from domains.quran.repositories.metadata_repository import load_quran_metadata
 from domains.source_registry.registry import get_source_record, resolve_tafsir_source_for_explain
 
 
@@ -41,7 +45,6 @@ def _response_mode_for_plan(
     return ResponseMode.QURAN_EXPLANATION
 
 
-
 def _base_plan(
     *,
     query: str,
@@ -60,7 +63,6 @@ def _base_plan(
     )
 
 
-
 def build_ask_plan(
     query: str,
     *,
@@ -70,6 +72,9 @@ def build_ask_plan(
     tafsir_source_id: str | None = "tafsir:ibn-kathir-en",
     tafsir_limit: int = 3,
     database_url: str | None = None,
+    repository_mode: str | None = None,
+    quran_work_source_id: str | None = None,
+    translation_work_source_id: str | None = None,
     debug: bool = False,
 ) -> AskPlan:
     del request
@@ -85,9 +90,32 @@ def build_ask_plan(
         plan.notes.append(str(route.get("reason") or "unsupported_query_type_for_now"))
         return plan
 
+    requested_quran_source_id, requested_translation_source_id = resolve_requested_quran_repository_source_inputs(
+        quran_work_source_id=quran_work_source_id,
+        translation_work_source_id=translation_work_source_id,
+    )
+    repository_context = resolve_quran_repository_context(
+        repository_mode=repository_mode,
+        database_url=database_url,
+        quran_work_source_id=quran_work_source_id,
+        translation_work_source_id=translation_work_source_id,
+    )
+    plan.repository_mode = repository_context.repository_mode
+    plan.database_url = repository_context.database_url
+    plan.quran_work_source_id = repository_context.quran_work_source_id
+    plan.translation_work_source_id = repository_context.translation_work_source_id
+    plan.source_resolution_strategy = repository_context.source_resolution_strategy
+    plan.requested_quran_work_source_id = requested_quran_source_id
+    plan.requested_translation_work_source_id = requested_translation_source_id
     plan.quran_plan = DomainInvocation(
         domain=EvidenceDomain.QURAN,
-        source_id="quran:tanzil-simple",
+        source_id=repository_context.quran_work_source_id,
+        params={
+            "repository_mode": repository_context.repository_mode,
+            "database_url": repository_context.database_url,
+            "quran_work_source_id": repository_context.quran_work_source_id,
+            "translation_work_source_id": repository_context.translation_work_source_id,
+        },
     )
     plan.eligible_domains.append(EvidenceDomain.QURAN)
     plan.selected_domains.append(EvidenceDomain.QURAN)
@@ -99,7 +127,14 @@ def build_ask_plan(
         )
 
         reference_text = str(route.get("reference_text") or query)
-        resolution = resolve_quran_reference(reference_text, quran_metadata=load_quran_metadata())
+        resolution = resolve_quran_reference(
+            reference_text,
+            quran_metadata=load_quran_metadata(
+                repository_mode=repository_context.repository_mode,
+                database_url=repository_context.database_url,
+                work_source_id=repository_context.quran_work_source_id,
+            ),
+        )
         plan.resolved_quran_ref = resolution
         if not resolution.get("resolved"):
             plan.should_abstain = True
@@ -117,10 +152,10 @@ def build_ask_plan(
         plan.tafsir_explicit = explicit_tafsir
 
         if use_tafsir:
-            quran_source = get_source_record("quran:tanzil-simple", database_url=database_url)
+            quran_source = get_source_record(repository_context.quran_work_source_id, database_url=repository_context.database_url)
             selected_tafsir = resolve_tafsir_source_for_explain(
                 tafsir_source_id if explicit_tafsir or include_tafsir is True else None,
-                database_url=database_url,
+                database_url=repository_context.database_url,
             )
             if quran_source is None or selected_tafsir is None:
                 plan.should_abstain = True

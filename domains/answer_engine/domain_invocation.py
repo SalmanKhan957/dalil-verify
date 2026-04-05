@@ -6,8 +6,9 @@ from typing import Any
 from fastapi import Request
 
 from domains.answer_engine.evidence_pack import QuranEvidence, TafsirEvidence, build_quran_evidence, build_tafsir_evidence
-from domains.ask.planner_types import AskPlan, EvidenceRequirement, ResponseMode
+from domains.ask.planner_types import AskPlan, ResponseMode
 from domains.ask.workflows.verifier_support import is_verifier_match_usable, run_arabic_quran_quote_workflow
+from domains.quran.repositories.context import resolve_quran_repository_context
 from domains.quran.retrieval.fetcher import fetch_quran_span
 from domains.tafsir.service import TafsirService
 
@@ -29,12 +30,20 @@ class TafsirInvocationEvidence:
     errors: list[str] = field(default_factory=list)
 
 
-
 def invoke_quran_domain(
     plan: AskPlan,
     *,
     request: Request | None = None,
+    database_url: str | None = None,
 ) -> QuranInvocationEvidence:
+    quran_plan_params = dict((plan.quran_plan.params if plan.quran_plan is not None else {}) or {})
+    repository_context = resolve_quran_repository_context(
+        repository_mode=quran_plan_params.get("repository_mode"),
+        database_url=quran_plan_params.get("database_url") or database_url,
+        quran_work_source_id=quran_plan_params.get("quran_work_source_id"),
+        translation_work_source_id=quran_plan_params.get("translation_work_source_id"),
+    )
+
     if plan.requires_quran_reference_resolution:
         resolution = plan.resolved_quran_ref or {}
         if not resolution.get("resolved"):
@@ -48,6 +57,10 @@ def invoke_quran_domain(
                 surah_no=int(resolution["surah_no"]),
                 ayah_start=int(resolution["ayah_start"]),
                 ayah_end=int(resolution["ayah_end"]),
+                repository_mode=repository_context.repository_mode,
+                database_url=repository_context.database_url,
+                quran_work_source_id=repository_context.quran_work_source_id,
+                translation_work_source_id=repository_context.translation_work_source_id,
             )
         except Exception as exc:  # pragma: no cover - defensive protection
             return QuranInvocationEvidence(
@@ -68,6 +81,10 @@ def invoke_quran_domain(
             action_type=plan.action_type,
             request=request,
             debug=plan.debug,
+            repository_mode=repository_context.repository_mode,
+            database_url=repository_context.database_url,
+            quran_work_source_id=repository_context.quran_work_source_id,
+            translation_work_source_id=repository_context.translation_work_source_id,
         )
         evidence = QuranInvocationEvidence(
             resolution=plan.resolved_quran_ref,
@@ -86,7 +103,6 @@ def invoke_quran_domain(
         return evidence
 
     return QuranInvocationEvidence()
-
 
 
 def invoke_tafsir_domain(

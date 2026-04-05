@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from services.tafsir.overlap import TafsirOverlapService, validate_overlap_query
-from services.tafsir.types import TafsirOverlapHit, TafsirOverlapQuery
+from domains.tafsir.overlap import TafsirOverlapService, validate_overlap_query
+from domains.tafsir.types import TafsirOverlapHit, TafsirOverlapQuery
 
 
 class _FakeRepository:

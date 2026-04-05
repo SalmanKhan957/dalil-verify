@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from apps.verifier_api.routes.health import router as health_router
 from apps.verifier_api.routes.verify_quran import router as verify_router
-from services.quran_runtime.bootstrap import lifespan
+from domains.quran.verifier.bootstrap import lifespan
 
 app = FastAPI(
     title="Dalil Verifier API",

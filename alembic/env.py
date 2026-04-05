@@ -14,7 +14,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from infrastructure.db.base import Base
-from infrastructure.db.models import source_work, tafsir_ingestion_run, tafsir_section  # noqa: F401,E402
+from infrastructure.db.models import (  # noqa: F401,E402
+    quran_ayah,
+    quran_surah,
+    quran_translation_ayah,
+    source_work,
+    tafsir_ingestion_run,
+    tafsir_section,
+)
 
 config = context.config
 

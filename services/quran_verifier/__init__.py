@@ -1,3 +1,3 @@
-from services.quran_verifier.service import verify_quran_text
+from domains.quran.verifier.service import build_health_payload, verify_quran_text
 
-__all__ = ['verify_quran_text']
+__all__ = ["build_health_payload", "verify_quran_text"]

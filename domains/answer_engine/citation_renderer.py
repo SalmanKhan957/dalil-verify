@@ -11,7 +11,7 @@ QURAN_ARABIC_SOURCE_ID = "quran:tanzil-simple"
 
 def render_quran_citation(quran: QuranEvidence) -> SourceCitation:
     return SourceCitation(
-        source_id=QURAN_ARABIC_SOURCE_ID,
+        source_id=str(quran.quran_source_id or QURAN_ARABIC_SOURCE_ID),
         citation_text=quran.citation_string,
         canonical_ref=quran.canonical_source_id,
         source_domain="quran",

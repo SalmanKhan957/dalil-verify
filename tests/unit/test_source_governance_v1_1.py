@@ -1,6 +1,6 @@
 from shared.schemas.source_record import SourceRecord
-from services.source_registry.invariants import run_source_governance_checks, validate_source_records
-from services.source_registry.registry import get_default_tafsir_source_for_explain, resolve_tafsir_source_for_explain
+from domains.source_registry.invariants import run_source_governance_checks, validate_source_records
+from domains.source_registry.registry import get_default_tafsir_source_for_explain, resolve_tafsir_source_for_explain
 
 
 def test_validate_source_records_flags_inconsistent_default_source():

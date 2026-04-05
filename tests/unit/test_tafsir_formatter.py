@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from services.tafsir.formatter import build_tafsir_citation, render_tafsir_label
-from services.tafsir.types import TafsirOverlapHit
+from domains.tafsir.formatter import build_tafsir_citation, render_tafsir_label
+from domains.tafsir.types import TafsirOverlapHit
 
 
 def _hit() -> TafsirOverlapHit:

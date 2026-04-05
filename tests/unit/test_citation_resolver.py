@@ -1,4 +1,4 @@
-from services.citation_resolver.resolver import resolve_quran_reference
+from domains.quran.citations.resolver import resolve_quran_reference
 
 
 QURAN_METADATA = {

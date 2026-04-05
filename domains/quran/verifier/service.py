@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from domains.quran.verifier import bootstrap as verifier_runtime
-from services.telemetry.jsonl import append_jsonl_log
+from infrastructure.telemetry.logging import append_jsonl_log
 from domains.quran.verifier.translation import attach_english_translation
 from domains.quran.verifier.long_span_fastpath import (
     build_long_span_debug_block,
@@ -56,8 +56,11 @@ def build_health_payload() -> dict:
         "uthmani_quran_passage_rows_loaded": len(verifier_runtime.UTHMANI_RUNTIME.passage_rows) if verifier_runtime.UTHMANI_RUNTIME else 0,
         "english_translation_loaded": verifier_runtime.ENGLISH_TRANSLATION_INFO.get("loaded", False),
         "english_translation_rows_loaded": verifier_runtime.ENGLISH_TRANSLATION_INFO.get("row_count", 0),
+        "source_governance": verifier_runtime.SOURCE_GOVERNANCE_INFO,
     }
 
+
+# remaining file unchanged from original after build_health_payload
 
 def _resolve_exact_ayah_row(query: str, runtime: CorpusRuntime) -> tuple[dict | None, dict[str, str | bool]]:
     light = normalize_arabic_light(query)

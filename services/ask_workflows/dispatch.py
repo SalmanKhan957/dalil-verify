@@ -6,7 +6,6 @@ from services.ask_router.classifier import classify_ask_query
 from services.ask_workflows.explain_answer import explain_answer
 
 
-
 def dispatch_ask_query(query: str, *, request: Request | None = None, debug: bool = False) -> dict[str, object]:
     route = classify_ask_query(query)
     result = explain_answer(

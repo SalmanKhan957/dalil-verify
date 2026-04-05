@@ -116,6 +116,37 @@ def validate_source_records(records: Iterable[SourceRecord]) -> list[SourceGover
                     )
                 )
 
+        if domain == "quran":
+            eligible_text = [
+                record
+                for record in domain_records
+                if record.enabled and record.approved_for_answering and record.source_kind == "canonical_text"
+            ]
+            if not eligible_text:
+                issues.append(
+                    _issue(
+                        "no_enabled_quran_text_source",
+                        None,
+                        "No enabled+approved Quran canonical text source is configured.",
+                        severity="warning",
+                    )
+                )
+
+            eligible_translation = [
+                record
+                for record in domain_records
+                if record.enabled and record.approved_for_answering and record.source_kind == "translation"
+            ]
+            if not eligible_translation:
+                issues.append(
+                    _issue(
+                        "no_enabled_quran_translation_source",
+                        None,
+                        "No enabled+approved Quran translation source is configured.",
+                        severity="warning",
+                    )
+                )
+
     return issues
 
 

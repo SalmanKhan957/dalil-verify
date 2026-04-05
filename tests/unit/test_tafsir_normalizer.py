@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from services.tafsir.normalizer import build_sections_from_rows, load_and_validate_chapter_file
+from domains.tafsir.normalizer import build_sections_from_rows, load_and_validate_chapter_file
 
 
 def _write_chapter(tmp_path, chapter_number: int, tafsirs: list[dict]) -> str:
