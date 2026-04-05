@@ -9,6 +9,7 @@ def test_evaluate_ask_source_policy_selects_default_tafsir_for_query_intent() ->
 
     policy = evaluate_ask_source_policy(
         route_type=AskRouteType.EXPLICIT_QURAN_REFERENCE.value,
+        action_type='explain',
         include_tafsir=None,
         tafsir_intent_detected=True,
         requested_tafsir_source_id=None,
@@ -39,6 +40,7 @@ def test_evaluate_ask_source_policy_honors_explicit_suppression() -> None:
 
     policy = evaluate_ask_source_policy(
         route_type=AskRouteType.EXPLICIT_QURAN_REFERENCE.value,
+        action_type='explain',
         include_tafsir=False,
         tafsir_intent_detected=True,
         requested_tafsir_source_id='tafsir:ibn-kathir-en',
@@ -65,6 +67,7 @@ def test_evaluate_ask_source_policy_marks_non_eligible_route() -> None:
 
     policy = evaluate_ask_source_policy(
         route_type=AskRouteType.ARABIC_QURAN_QUOTE.value,
+        action_type='verify_source',
         include_tafsir=True,
         tafsir_intent_detected=False,
         requested_tafsir_source_id='tafsir:ibn-kathir-en',
@@ -80,3 +83,30 @@ def test_evaluate_ask_source_policy_marks_non_eligible_route() -> None:
     assert policy.tafsir.allowed is False
     assert policy.tafsir.included is False
     assert policy.tafsir.policy_reason == 'route_not_eligible_for_tafsir'
+
+
+
+def test_evaluate_ask_source_policy_allows_tafsir_for_arabic_quote_explain_flow() -> None:
+    quran_source = get_source_record('quran:tanzil-simple')
+
+    policy = evaluate_ask_source_policy(
+        route_type=AskRouteType.ARABIC_QURAN_QUOTE.value,
+        action_type='verify_then_explain',
+        include_tafsir=None,
+        tafsir_intent_detected=True,
+        requested_tafsir_source_id=None,
+        quran_source=quran_source,
+        requested_quran_text_source_id='quran:tanzil-simple',
+        requested_quran_translation_source_id='quran:towards-understanding-en',
+        selected_quran_text_source_id='quran:tanzil-simple',
+        selected_quran_translation_source_id='quran:towards-understanding-en',
+        quran_text_source_origin='implicit_default',
+        quran_translation_source_origin='implicit_default',
+    )
+
+    assert policy.tafsir.requested is True
+    assert policy.tafsir.request_origin == 'query_intent'
+    assert policy.tafsir.allowed is True
+    assert policy.tafsir.included is True
+    assert policy.tafsir.selected_source_id == 'tafsir:ibn-kathir-en'
+    assert policy.tafsir.policy_reason == 'selected'

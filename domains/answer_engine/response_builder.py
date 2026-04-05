@@ -6,6 +6,7 @@ from domains.answer_engine.citation_renderer import render_citation_list
 from domains.answer_engine.contracts import make_explain_answer_payload
 from domains.answer_engine.evidence_pack import EvidencePack
 from domains.answer_engine.excerpting import build_tafsir_excerpt
+from domains.answer_engine.orchestration_contract import build_orchestration_envelope, serialize_contract
 from domains.ask.planner_types import AskPlan, ResponseMode
 
 
@@ -117,7 +118,7 @@ def _build_quran_only_answer(plan: AskPlan, evidence: EvidencePack) -> str | Non
 def _build_answer_text(plan: AskPlan, evidence: EvidencePack) -> str | None:
     if plan.response_mode == ResponseMode.ABSTAIN:
         return None
-    if plan.response_mode == ResponseMode.QURAN_WITH_TAFSIR:
+    if plan.use_tafsir and evidence.tafsir:
         tafsir_answer = _build_quran_with_tafsir_answer(plan, evidence)
         if tafsir_answer:
             return tafsir_answer
@@ -180,9 +181,28 @@ def _build_source_policy(plan: AskPlan) -> dict[str, Any] | None:
 
 
 
-def _build_debug(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None:
+def _build_debug(
+    plan: AskPlan,
+    evidence: EvidencePack,
+    *,
+    answer_text: str | None,
+    tafsir_support: list[dict[str, Any]],
+    source_policy: dict[str, Any] | None,
+    partial_success: bool,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     if not plan.debug:
-        return None
+        return None, None
+
+    orchestration = serialize_contract(
+        build_orchestration_envelope(
+            plan=plan,
+            evidence=evidence,
+            answer_text=answer_text,
+            tafsir_support=tafsir_support,
+            source_policy=source_policy,
+            partial_success=partial_success,
+        )
+    )
     return {
         'plan': {
             'response_mode': plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
@@ -207,7 +227,7 @@ def _build_debug(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None
             'requested_translation_work_source_id': plan.requested_translation_work_source_id,
             'quran_text_source_origin': plan.quran_text_source_origin,
             'quran_translation_source_origin': plan.quran_translation_source_origin,
-            'source_policy': _build_source_policy(plan),
+            'source_policy': source_policy,
         },
         'route': plan.route,
         'resolution': evidence.resolution,
@@ -224,7 +244,8 @@ def _build_debug(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None
             }
             for item in evidence.tafsir
         ],
-    }
+        'orchestration': orchestration,
+    }, orchestration
 
 
 
@@ -243,12 +264,22 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
     tafsir_support = _build_tafsir_support(evidence)
     answer_text = _build_answer_text(plan, evidence)
     partial_success = _derive_partial_success(plan, evidence)
+    source_policy = _build_source_policy(plan)
 
     error = None
     if plan.should_abstain and not quran_support:
         error = plan.abstain_reason.value if plan.abstain_reason else None
     elif evidence.quran is None and evidence.errors:
         error = evidence.errors[0]
+
+    debug_payload, orchestration_payload = _build_debug(
+        plan,
+        evidence,
+        answer_text=answer_text,
+        tafsir_support=tafsir_support,
+        source_policy=source_policy,
+        partial_success=partial_success,
+    )
 
     payload = make_explain_answer_payload(
         ok=bool(answer_text or quran_support or tafsir_support) and not bool(plan.should_abstain and not quran_support),
@@ -263,10 +294,11 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         resolution=evidence.resolution,
         partial_success=partial_success,
         warnings=list(evidence.warnings),
-        debug=_build_debug(plan, evidence),
+        debug=debug_payload,
         error=error,
         quran_source_selection=_build_quran_source_selection(plan),
-        source_policy=_build_source_policy(plan),
+        source_policy=source_policy,
+        orchestration=orchestration_payload,
     )
     payload['quran_span'] = evidence.quran.raw if evidence.quran else None
     payload['verifier_result'] = evidence.verifier_result

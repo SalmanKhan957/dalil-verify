@@ -1,0 +1,313 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field, is_dataclass
+from enum import Enum
+from typing import Any
+
+from domains.answer_engine.evidence_pack import EvidencePack
+from domains.ask.planner_types import AskPlan
+
+
+@dataclass(slots=True)
+class QueryInterpretation:
+    primary_intent: str
+    secondary_intents: list[str] = field(default_factory=list)
+    query_class: str | None = None
+    confidence: float | None = None
+    signals: list[str] = field(default_factory=list)
+    route_reason: str | None = None
+    normalized_query: str | None = None
+    route_type: str | None = None
+    action_type: str | None = None
+
+
+@dataclass(slots=True)
+class DomainPlanDecision:
+    domain: str
+    eligible: bool
+    selected: bool
+    requested: bool = False
+    policy_reason: str | None = None
+    source_id: str | None = None
+    request_origin: str | None = None
+
+
+@dataclass(slots=True)
+class EvidenceItem:
+    evidence_type: str
+    domain: str
+    source_id: str | None = None
+    canonical_ref: str | None = None
+    citation_text: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class AnswerBlock:
+    block_type: str
+    domain: str
+    text: str
+    title: str | None = None
+    citations: list[str] = field(default_factory=list)
+    source_id: str | None = None
+
+
+@dataclass(slots=True)
+class ConversationAnchor:
+    anchor_type: str
+    source_domain: str
+    canonical_ref: str
+    display_text: str
+
+
+@dataclass(slots=True)
+class CanonicalAnswer:
+    mode: str
+    summary_text: str | None = None
+    blocks: list[AnswerBlock] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class PolicySurface:
+    source_policy: dict[str, Any] | None = None
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    partial_success: bool = False
+
+
+@dataclass(slots=True)
+class OrchestrationEnvelope:
+    request: dict[str, Any]
+    interpretation: QueryInterpretation
+    plan: dict[str, Any]
+    answer: CanonicalAnswer
+    evidence: list[EvidenceItem] = field(default_factory=list)
+    conversation: dict[str, Any] = field(default_factory=dict)
+    policy: PolicySurface = field(default_factory=PolicySurface)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+
+
+def _intent_from_plan(plan: AskPlan) -> str:
+    if plan.should_abstain:
+        return 'abstain'
+    if plan.requires_quran_verification and plan.use_tafsir:
+        return 'source_grounded_quran_verification_with_tafsir'
+    if plan.requires_quran_verification:
+        return 'source_grounded_quran_verification'
+    if plan.use_tafsir:
+        return 'source_grounded_quran_explanation_with_tafsir'
+    if plan.requires_quran_reference_resolution:
+        return 'source_grounded_quran_explanation'
+    return 'source_grounded_answer'
+
+
+def _query_class(plan: AskPlan) -> str:
+    if plan.requires_quran_verification and plan.tafsir_requested:
+        return 'quoted_text_with_modifier'
+    if plan.requires_quran_verification:
+        return 'quoted_text'
+    if plan.requires_quran_reference_resolution and plan.use_tafsir:
+        return 'explicit_reference_with_modifier'
+    if plan.requires_quran_reference_resolution:
+        return 'explicit_reference'
+    return 'unsupported'
+
+
+def _build_interpretation(plan: AskPlan) -> QueryInterpretation:
+    route = plan.route or {}
+    secondary_intents: list[str] = []
+    if plan.requires_quran_verification:
+        secondary_intents.append('quote_verification')
+    if plan.requires_quran_reference_resolution:
+        secondary_intents.append('reference_resolution')
+    if plan.tafsir_requested:
+        secondary_intents.append('tafsir_request')
+    return QueryInterpretation(
+        primary_intent=_intent_from_plan(plan),
+        secondary_intents=secondary_intents,
+        query_class=_query_class(plan),
+        confidence=route.get('confidence'),
+        signals=list(route.get('signals') or []),
+        route_reason=route.get('reason'),
+        normalized_query=route.get('normalized_query'),
+        route_type=plan.route_type,
+        action_type=plan.action_type,
+    )
+
+
+def _build_plan(plan: AskPlan) -> dict[str, Any]:
+    decisions: list[DomainPlanDecision] = []
+    if plan.source_policy is not None:
+        decisions.append(
+            DomainPlanDecision(
+                domain='quran',
+                eligible=True,
+                selected=bool(plan.source_policy.quran.included),
+                requested=True,
+                policy_reason=plan.source_policy.quran.policy_reason,
+                source_id=plan.source_policy.quran.selected_text_source_id,
+                request_origin=plan.source_policy.quran.text_source_origin,
+            )
+        )
+        decisions.append(
+            DomainPlanDecision(
+                domain='tafsir',
+                eligible=bool(plan.source_policy.tafsir.allowed) or bool(plan.source_policy.tafsir.requested),
+                selected=bool(plan.source_policy.tafsir.included),
+                requested=bool(plan.source_policy.tafsir.requested),
+                policy_reason=plan.source_policy.tafsir.policy_reason,
+                source_id=plan.source_policy.tafsir.selected_source_id,
+                request_origin=plan.source_policy.tafsir.request_origin,
+            )
+        )
+    return {
+        'plan_type': plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
+        'eligible_domains': [d.value if hasattr(d, 'value') else str(d) for d in plan.eligible_domains],
+        'selected_domains': [d.value if hasattr(d, 'value') else str(d) for d in plan.selected_domains],
+        'domain_decisions': [serialize_contract(x) for x in decisions],
+        'abstain_reason': plan.abstain_reason.value if plan.abstain_reason else None,
+        'notes': list(plan.notes),
+        'planner_version': 'v1.5',
+    }
+
+
+def _build_answer(plan: AskPlan, evidence: EvidencePack, *, answer_text: str | None, tafsir_support: list[dict[str, Any]]) -> CanonicalAnswer:
+    blocks: list[AnswerBlock] = []
+    if evidence.quran is not None:
+        blocks.append(
+            AnswerBlock(
+                block_type='quran_quote',
+                domain='quran',
+                title=evidence.quran.citation_string,
+                text=evidence.quran.translation_text or evidence.quran.arabic_text or '',
+                citations=[evidence.quran.canonical_source_id],
+                source_id=evidence.quran.quran_source_id,
+            )
+        )
+    for item in tafsir_support:
+        blocks.append(
+            AnswerBlock(
+                block_type='tafsir_support',
+                domain='tafsir',
+                title=item.get('display_text'),
+                text=str(item.get('excerpt') or ''),
+                citations=[str(item.get('canonical_section_id') or '')],
+                source_id=item.get('source_id'),
+            )
+        )
+    return CanonicalAnswer(
+        mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
+        summary_text=answer_text,
+        blocks=blocks,
+    )
+
+
+def _build_evidence(evidence: EvidencePack) -> list[EvidenceItem]:
+    items: list[EvidenceItem] = []
+    if evidence.quran is not None:
+        items.append(
+            EvidenceItem(
+                evidence_type='quran_span',
+                domain='quran',
+                source_id=evidence.quran.quran_source_id,
+                canonical_ref=evidence.quran.canonical_source_id,
+                citation_text=evidence.quran.citation_string,
+                payload={
+                    'surah_no': evidence.quran.surah_no,
+                    'ayah_start': evidence.quran.ayah_start,
+                    'ayah_end': evidence.quran.ayah_end,
+                    'surah_name_en': evidence.quran.surah_name_en,
+                    'surah_name_ar': evidence.quran.surah_name_ar,
+                    'translation_source_id': evidence.quran.translation_source_id,
+                },
+            )
+        )
+    if evidence.verifier_result is not None:
+        best = (evidence.verifier_result or {}).get('best_match') or {}
+        items.append(
+            EvidenceItem(
+                evidence_type='quran_verification',
+                domain='quran',
+                source_id=best.get('source_id'),
+                canonical_ref=best.get('canonical_source_id'),
+                citation_text=best.get('citation'),
+                payload={
+                    'match_status': evidence.verifier_result.get('match_status'),
+                    'confidence': evidence.verifier_result.get('confidence'),
+                    'quote_payload': evidence.quote_payload,
+                    'exact_match_count': len(evidence.verifier_result.get('exact_matches') or []),
+                },
+            )
+        )
+    for item in evidence.tafsir:
+        hit = item.hit
+        items.append(
+            EvidenceItem(
+                evidence_type='tafsir_section',
+                domain='tafsir',
+                source_id=hit.source_id,
+                canonical_ref=hit.canonical_section_id,
+                citation_text=f'{hit.citation_label} on Quran {hit.quran_span_ref}',
+                payload={
+                    'surah_no': hit.surah_no,
+                    'ayah_start': hit.ayah_start,
+                    'ayah_end': hit.ayah_end,
+                    'coverage_mode': hit.coverage_mode,
+                    'coverage_confidence': float(hit.coverage_confidence),
+                    'anchor_verse_key': hit.anchor_verse_key,
+                    'quran_span_ref': hit.quran_span_ref,
+                },
+            )
+        )
+    return items
+
+
+def _build_conversation(evidence: EvidencePack) -> dict[str, Any]:
+    anchors: list[ConversationAnchor] = []
+    if evidence.quran is not None:
+        anchors.append(
+            ConversationAnchor(
+                anchor_type='quran_ref',
+                source_domain='quran',
+                canonical_ref=evidence.quran.canonical_source_id,
+                display_text=evidence.quran.citation_string,
+            )
+        )
+    for item in evidence.tafsir:
+        anchors.append(
+            ConversationAnchor(
+                anchor_type='tafsir_section',
+                source_domain='tafsir',
+                canonical_ref=item.hit.canonical_section_id,
+                display_text=f'{item.hit.citation_label} on Quran {item.hit.quran_span_ref}',
+            )
+        )
+    return {
+        'followup_ready': bool(anchors),
+        'anchors': [serialize_contract(x) for x in anchors],
+    }
+
+
+def build_orchestration_envelope(*, plan: AskPlan, evidence: EvidencePack, answer_text: str | None, tafsir_support: list[dict[str, Any]], source_policy: dict[str, Any] | None, partial_success: bool) -> OrchestrationEnvelope:
+    return OrchestrationEnvelope(
+        request={'query': plan.query, 'route_type': plan.route_type, 'action_type': plan.action_type},
+        interpretation=_build_interpretation(plan),
+        plan=_build_plan(plan),
+        answer=_build_answer(plan, evidence, answer_text=answer_text, tafsir_support=tafsir_support),
+        evidence=_build_evidence(evidence),
+        conversation=_build_conversation(evidence),
+        policy=PolicySurface(source_policy=source_policy, warnings=list(evidence.warnings), errors=list(evidence.errors), partial_success=partial_success),
+        diagnostics={'selected_domains': list(evidence.selected_domains), 'response_mode': evidence.response_mode, 'has_resolution': evidence.resolution is not None, 'has_verifier_result': evidence.verifier_result is not None},
+    )
+
+
+def serialize_contract(value: Any) -> Any:
+    if isinstance(value, Enum):
+        return value.value
+    if is_dataclass(value):
+        return {k: serialize_contract(v) for k, v in asdict(value).items()}
+    if isinstance(value, dict):
+        return {str(k): serialize_contract(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [serialize_contract(v) for v in value]
+    return value

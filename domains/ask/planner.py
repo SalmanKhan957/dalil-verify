@@ -157,6 +157,7 @@ def build_ask_plan(
             plan.notes.append(str(resolution.get('error') or 'could_not_resolve_reference'))
             plan.source_policy = evaluate_ask_source_policy(
                 route_type=route_type,
+                action_type=action_type,
                 include_tafsir=include_tafsir,
                 tafsir_intent_detected=False,
                 requested_tafsir_source_id=tafsir_source_id,
@@ -174,6 +175,7 @@ def build_ask_plan(
         tafsir_signal = detect_tafsir_intent(query)
         plan.source_policy = evaluate_ask_source_policy(
             route_type=route_type,
+            action_type=action_type,
             include_tafsir=include_tafsir,
             tafsir_intent_detected=bool(tafsir_signal['matched']),
             requested_tafsir_source_id=tafsir_source_id,
@@ -226,10 +228,12 @@ def build_ask_plan(
         plan.evidence_requirements.append(EvidenceRequirement.QURAN_VERIFICATION)
         if action_type != AskActionType.VERIFY_SOURCE.value:
             plan.evidence_requirements.append(EvidenceRequirement.QURAN_SPAN)
+        tafsir_signal = detect_tafsir_intent(query)
         plan.source_policy = evaluate_ask_source_policy(
             route_type=route_type,
+            action_type=action_type,
             include_tafsir=include_tafsir,
-            tafsir_intent_detected=False,
+            tafsir_intent_detected=bool(tafsir_signal['matched']),
             requested_tafsir_source_id=tafsir_source_id,
             quran_source=quran_source,
             requested_quran_text_source_id=requested_quran_source_id,
@@ -240,9 +244,21 @@ def build_ask_plan(
             quran_translation_source_origin=plan.quran_translation_source_origin,
             database_url=repository_context.database_url,
         )
+        plan.use_tafsir = bool(plan.source_policy.tafsir.included)
+        plan.tafsir_requested = bool(plan.source_policy.tafsir.requested)
+        plan.tafsir_explicit = plan.source_policy.tafsir.request_origin == 'explicit_flag'
+        if plan.use_tafsir:
+            plan.eligible_domains.append(EvidenceDomain.TAFSIR)
+            plan.selected_domains.append(EvidenceDomain.TAFSIR)
+            plan.evidence_requirements.append(EvidenceRequirement.TAFSIR_OVERLAP)
+            plan.tafsir_plan = DomainInvocation(domain=EvidenceDomain.TAFSIR, source_id=plan.source_policy.tafsir.selected_source_id, params={'source_id': plan.source_policy.tafsir.selected_source_id, 'limit': int(tafsir_limit)})
+            plan.notes.append(f"tafsir_source:{plan.source_policy.tafsir.selected_source_id}")
+        elif plan.source_policy.tafsir.policy_reason == 'suppressed_by_request':
+            plan.notes.append('tafsir_suppressed_by_request')
     else:
         plan.source_policy = evaluate_ask_source_policy(
             route_type=route_type,
+            action_type=action_type,
             include_tafsir=include_tafsir,
             tafsir_intent_detected=False,
             requested_tafsir_source_id=tafsir_source_id,

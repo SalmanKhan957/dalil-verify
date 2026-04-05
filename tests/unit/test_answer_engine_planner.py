@@ -56,3 +56,18 @@ def test_build_ask_plan_explicit_flag_false_suppresses_tafsir_intent() -> None:
     assert plan.source_policy is not None
     assert plan.source_policy.tafsir.request_origin == 'explicit_suppression'
     assert plan.source_policy.tafsir.policy_reason == 'suppressed_by_request'
+
+
+
+def test_build_ask_plan_for_arabic_quote_with_tafsir_intent() -> None:
+    plan = build_ask_plan('فَبِأَيِّ آلَاءِ رَبِّكُمَا تُكَذِّبَانِ tafsir')
+
+    assert plan.requires_quran_verification is True
+    assert plan.response_mode == ResponseMode.VERIFICATION_THEN_EXPLAIN
+    assert plan.selected_domains == [EvidenceDomain.QURAN, EvidenceDomain.TAFSIR]
+    assert plan.use_tafsir is True
+    assert plan.tafsir_requested is True
+    assert plan.source_policy is not None
+    assert plan.source_policy.tafsir.request_origin == 'query_intent'
+    assert plan.source_policy.tafsir.policy_reason == 'selected'
+    assert EvidenceRequirement.TAFSIR_OVERLAP in plan.evidence_requirements

@@ -212,6 +212,7 @@ class ExplainAnswerResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     quran_source_selection: QuranSourceSelection | None = None
     source_policy: SourcePolicyView | None = None
+    orchestration: dict[str, Any] | None = Field(default=None, description='Internal canonical orchestration contract for planner/evidence introspection.')
     debug: dict[str, Any] | None = None
     error: str | None = None
 
@@ -236,6 +237,7 @@ class AskResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     quran_source_selection: QuranSourceSelection | None = None
     source_policy: SourcePolicyView | None = None
+    orchestration: dict[str, Any] | None = Field(default=None, description='Internal canonical orchestration contract for planner/evidence introspection.')
     debug: dict[str, Any] | None = None
     result: dict[str, Any] | None = Field(
         default=None,

@@ -22,6 +22,7 @@ ANSWER_SURFACE_FIELDS: tuple[str, ...] = (
     'warnings',
     'quran_source_selection',
     'source_policy',
+    'orchestration',
     'debug',
 )
 
@@ -74,6 +75,7 @@ EXPLAIN_SURFACE_FIELDS: tuple[str, ...] = (
     'warnings',
     'quran_source_selection',
     'source_policy',
+    'orchestration',
     'debug',
     'error',
 )

@@ -1,1 +1,3 @@
-"""Future-state package scaffold."""
+from domains.hadith.retrieval.citation_lookup import HadithCitationLookupService
+
+__all__ = ['HadithCitationLookupService']

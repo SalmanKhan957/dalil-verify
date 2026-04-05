@@ -23,6 +23,7 @@ def make_explain_answer_payload(
     error: str | None,
     quran_source_selection: dict[str, Any] | None = None,
     source_policy: dict[str, Any] | None = None,
+    orchestration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         'ok': ok,
@@ -37,8 +38,9 @@ def make_explain_answer_payload(
         'resolution': resolution,
         'partial_success': partial_success,
         'warnings': warnings,
-        'debug': debug,
-        'error': error,
         'quran_source_selection': quran_source_selection,
         'source_policy': source_policy,
+        'orchestration': orchestration,
+        'debug': debug,
+        'error': error,
     }
