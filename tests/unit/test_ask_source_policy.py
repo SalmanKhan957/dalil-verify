@@ -110,3 +110,57 @@ def test_evaluate_ask_source_policy_allows_tafsir_for_arabic_quote_explain_flow(
     assert policy.tafsir.included is True
     assert policy.tafsir.selected_source_id == 'tafsir:ibn-kathir-en'
     assert policy.tafsir.policy_reason == 'selected'
+
+
+
+def test_evaluate_ask_source_policy_selects_hadith_lookup_collection() -> None:
+    policy = evaluate_ask_source_policy(
+        route_type=AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
+        action_type='fetch_text',
+        include_tafsir=None,
+        tafsir_intent_detected=False,
+        requested_tafsir_source_id=None,
+        quran_source=None,
+        requested_quran_text_source_id=None,
+        requested_quran_translation_source_id=None,
+        selected_quran_text_source_id=None,
+        selected_quran_translation_source_id=None,
+        quran_text_source_origin=None,
+        quran_translation_source_origin=None,
+        requested_hadith_source_id='hadith:sahih-al-bukhari-en',
+    )
+
+    assert policy.hadith is not None
+    assert policy.hadith.allowed is True
+    assert policy.hadith.included is True
+    assert policy.hadith.selected_source_id == 'hadith:sahih-al-bukhari-en'
+    assert policy.hadith.approved_for_answering is False
+    assert policy.hadith.answer_capability == 'explicit_lookup_and_explain'
+    assert policy.hadith.selected_capability == 'explicit_lookup'
+    assert 'explicit_lookup' in policy.hadith.available_capabilities
+
+
+def test_evaluate_ask_source_policy_selects_hadith_explain_capability() -> None:
+    policy = evaluate_ask_source_policy(
+        route_type=AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
+        action_type='explain',
+        include_tafsir=None,
+        tafsir_intent_detected=False,
+        requested_tafsir_source_id=None,
+        quran_source=None,
+        requested_quran_text_source_id=None,
+        requested_quran_translation_source_id=None,
+        selected_quran_text_source_id=None,
+        selected_quran_translation_source_id=None,
+        quran_text_source_origin=None,
+        quran_translation_source_origin=None,
+        requested_hadith_source_id='hadith:sahih-al-bukhari-en',
+    )
+
+    assert policy.hadith is not None
+    assert policy.hadith.allowed is True
+    assert policy.hadith.included is True
+    assert policy.hadith.selected_capability == 'explain_from_source'
+    assert 'explain_from_source' in policy.hadith.available_capabilities
+    assert policy.hadith.answer_capability == 'explicit_lookup_and_explain'
+    assert policy.hadith.policy_reason == 'explicit_hadith_explain_selected'

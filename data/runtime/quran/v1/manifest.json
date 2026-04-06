@@ -1,0 +1,45 @@
+{
+  "artifact_family": "quran_runtime",
+  "manifest_version": 1,
+  "artifact_version": "v1",
+  "builder": "pipelines.maintenance.rebuild_runtime_assets",
+  "asset_count": 6,
+  "assets": {
+    "quran_arabic": {
+      "relative_path": "quran/quran_arabic_canonical.csv",
+      "sha256": "94bf5567dcdee258103d6d1069e7b721b7e8e5fb3c61787bff88673eef0f5fce",
+      "row_count": 6236,
+      "size_bytes": 3261125
+    },
+    "quran_passage": {
+      "relative_path": "quran_passages/quran_passage_windows_v1.csv",
+      "sha256": "6b6445229e5cdd5215e7cf88aeed749d24bb011f2fdda403af4fc5afcda5b13d",
+      "row_count": 18024,
+      "size_bytes": 28322977
+    },
+    "quran_uthmani": {
+      "relative_path": "quran_uthmani/quran_arabic_uthmani_canonical.csv",
+      "sha256": "e8f37f6222f71080067e0035b050fcab9ee3225cf6e09fa8616e92c1ddda6f45",
+      "row_count": 6236,
+      "size_bytes": 3334727
+    },
+    "quran_uthmani_passage": {
+      "relative_path": "quran_uthmani_passages/quran_uthmani_passage_windows_v1.csv",
+      "sha256": "2f00053d2947aedeb34c256019de7a6edfb7e1cb535b61e9aa5e6e7557743358",
+      "row_count": 18024,
+      "size_bytes": 28674547
+    },
+    "quran_translation_en": {
+      "relative_path": "quran_translations/quran_en_single_translation.csv",
+      "sha256": "722d1d8c800cecbe365b1f3ecdd523173af88a2a5e8d1098164d721597f509da",
+      "row_count": 6236,
+      "size_bytes": 2479177
+    },
+    "quran_passage_neighbors": {
+      "relative_path": "quran_passage_neighbors/passage_neighbors_v1.jsonl",
+      "sha256": "4a8471845e60e800846052cbeedc675d1cc69233334147221c82eed09f912531",
+      "row_count": 21597,
+      "size_bytes": 42384355
+    }
+  }
+}

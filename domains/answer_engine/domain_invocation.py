@@ -5,9 +5,10 @@ from typing import Any
 
 from fastapi import Request
 
-from domains.answer_engine.evidence_pack import QuranEvidence, TafsirEvidence, build_quran_evidence, build_tafsir_evidence
+from domains.answer_engine.evidence_pack import HadithEvidence, QuranEvidence, TafsirEvidence, build_hadith_evidence, build_quran_evidence, build_tafsir_evidence
 from domains.ask.planner_types import AskPlan, ResponseMode
 from domains.ask.workflows.verifier_support import is_verifier_match_usable, run_arabic_quran_quote_workflow
+from domains.hadith.retrieval.citation_lookup import HadithCitationLookupService
 from domains.quran.repositories.context import resolve_quran_repository_context
 from domains.quran.retrieval.fetcher import fetch_quran_span
 from domains.tafsir.service import TafsirService
@@ -30,13 +31,17 @@ class TafsirInvocationEvidence:
     errors: list[str] = field(default_factory=list)
 
 
-def invoke_quran_domain(
-    plan: AskPlan,
-    *,
-    request: Request | None = None,
-    database_url: str | None = None,
-) -> QuranInvocationEvidence:
+@dataclass(slots=True)
+class HadithInvocationEvidence:
+    hadith: HadithEvidence | None = None
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+def invoke_quran_domain(plan: AskPlan, *, request: Request | None = None, database_url: str | None = None) -> QuranInvocationEvidence:
     quran_plan_params = dict((plan.quran_plan.params if plan.quran_plan is not None else {}) or {})
+    if plan.quran_plan is None and not plan.requires_quran_reference_resolution and not plan.requires_quran_verification:
+        return QuranInvocationEvidence()
     repository_context = resolve_quran_repository_context(
         repository_mode=quran_plan_params.get("repository_mode"),
         database_url=quran_plan_params.get("database_url") or database_url,
@@ -47,10 +52,7 @@ def invoke_quran_domain(
     if plan.requires_quran_reference_resolution:
         resolution = plan.resolved_quran_ref or {}
         if not resolution.get("resolved"):
-            return QuranInvocationEvidence(
-                resolution=resolution,
-                errors=[str((resolution or {}).get("error") or "no_resolved_reference")],
-            )
+            return QuranInvocationEvidence(resolution=resolution, errors=[str((resolution or {}).get("error") or "no_resolved_reference")])
 
         try:
             quran_span = fetch_quran_span(
@@ -62,16 +64,10 @@ def invoke_quran_domain(
                 quran_work_source_id=repository_context.quran_work_source_id,
                 translation_work_source_id=repository_context.translation_work_source_id,
             )
-        except Exception as exc:  # pragma: no cover - defensive protection
-            return QuranInvocationEvidence(
-                resolution=resolution,
-                errors=[f"quran_span_fetch_failed: {exc}"],
-            )
+        except Exception as exc:  # pragma: no cover
+            return QuranInvocationEvidence(resolution=resolution, errors=[f"quran_span_fetch_failed: {exc}"])
 
-        return QuranInvocationEvidence(
-            quran=build_quran_evidence(quran_span),
-            resolution=resolution,
-        )
+        return QuranInvocationEvidence(quran=build_quran_evidence(quran_span), resolution=resolution)
 
     if plan.requires_quran_verification:
         quote_payload = str(plan.route.get("quote_payload") or plan.query)
@@ -105,12 +101,7 @@ def invoke_quran_domain(
     return QuranInvocationEvidence()
 
 
-def invoke_tafsir_domain(
-    plan: AskPlan,
-    quran: QuranEvidence | None,
-    *,
-    database_url: str | None = None,
-) -> TafsirInvocationEvidence:
+def invoke_tafsir_domain(plan: AskPlan, quran: QuranEvidence | None, *, database_url: str | None = None) -> TafsirInvocationEvidence:
     if not plan.use_tafsir or plan.tafsir_plan is None or quran is None:
         return TafsirInvocationEvidence()
 
@@ -126,16 +117,25 @@ def invoke_tafsir_domain(
             limit=limit,
         )
     except (PermissionError, LookupError, RuntimeError, ValueError) as exc:
-        return TafsirInvocationEvidence(
-            warnings=[f"Tafsir retrieval failed; returned Quran-only answer. Cause: {exc}"],
-        )
+        return TafsirInvocationEvidence(warnings=[f"Tafsir retrieval failed; returned Quran-only answer. Cause: {exc}"])
 
     tafsir = build_tafsir_evidence(hits)
     if not tafsir:
-        return TafsirInvocationEvidence(
-            tafsir=[],
-            warnings=[
-                f"No approved Tafsir sections were found for {selected_source_id}; returned Quran-only answer."
-            ],
-        )
+        return TafsirInvocationEvidence(tafsir=[], warnings=[f"No approved Tafsir sections were found for {selected_source_id}; returned Quran-only answer."])
     return TafsirInvocationEvidence(tafsir=tafsir)
+
+
+def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> HadithInvocationEvidence:
+    if plan.hadith_plan is None or plan.resolved_hadith_citation is None:
+        return HadithInvocationEvidence()
+    try:
+        lookup = HadithCitationLookupService(database_url=database_url).lookup(plan.resolved_hadith_citation)
+    except Exception as exc:  # pragma: no cover
+        return HadithInvocationEvidence(errors=[f'hadith_lookup_failed: {exc}'])
+    if not lookup.resolved or lookup.entry is None:
+        return HadithInvocationEvidence(warnings=list(lookup.warnings), errors=[lookup.error or 'hadith_citation_not_found'])
+    return HadithInvocationEvidence(
+        hadith=build_hadith_evidence(lookup.entry, citation=lookup.citation),
+        warnings=list(lookup.warnings),
+        errors=[],
+    )

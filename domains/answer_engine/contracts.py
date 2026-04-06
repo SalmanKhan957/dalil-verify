@@ -15,6 +15,7 @@ def make_explain_answer_payload(
     answer_text: str | None,
     citations: list[SourceCitation],
     quran_support: dict[str, Any] | None,
+    hadith_support: dict[str, Any] | None,
     tafsir_support: list[dict[str, Any]],
     resolution: dict[str, Any] | None,
     partial_success: bool,
@@ -24,6 +25,7 @@ def make_explain_answer_payload(
     quran_source_selection: dict[str, Any] | None = None,
     source_policy: dict[str, Any] | None = None,
     orchestration: dict[str, Any] | None = None,
+    conversation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         'ok': ok,
@@ -34,6 +36,7 @@ def make_explain_answer_payload(
         'answer_text': answer_text,
         'citations': [citation.model_dump() for citation in citations],
         'quran_support': quran_support,
+        'hadith_support': hadith_support,
         'tafsir_support': tafsir_support,
         'resolution': resolution,
         'partial_success': partial_success,
@@ -41,6 +44,7 @@ def make_explain_answer_payload(
         'quran_source_selection': quran_source_selection,
         'source_policy': source_policy,
         'orchestration': orchestration,
+        'conversation': conversation,
         'debug': debug,
         'error': error,
     }

@@ -7,6 +7,7 @@ from domains.answer_engine.execution import execute_plan
 from domains.answer_engine.response_builder import build_explain_answer_payload
 from domains.ask.classifier import classify_ask_query
 from domains.ask.planner import build_ask_plan
+from domains.ask.route_types import AskRouteType
 from domains.quran.repositories.context import (
     resolve_quran_repository_context,
     resolve_requested_quran_repository_source_inputs,
@@ -14,12 +15,7 @@ from domains.quran.repositories.context import (
 from domains.source_registry.db_registry import SourceRegistryDatabaseError
 
 
-def _classify_source_selection_warning(
-    *,
-    error: Exception,
-    quran_text_source_requested: bool,
-    quran_translation_source_requested: bool,
-) -> str:
+def _classify_source_selection_warning(*, error: Exception, quran_text_source_requested: bool, quran_translation_source_requested: bool) -> str:
     if isinstance(error, SourceRegistryDatabaseError):
         return "quran_source_registry_database_unavailable"
     if isinstance(error, RuntimeError):
@@ -48,28 +44,10 @@ def _classify_source_resolution_strategy(error: Exception) -> str:
     return "selection_error"
 
 
-def _build_source_selection_error_payload(
-    *,
-    query: str,
-    route: dict[str, object] | None,
-    error: Exception,
-    quran_work_source_id: str | None,
-    translation_work_source_id: str | None,
-    repository_mode: str | None,
-    quran_text_source_requested: bool,
-    quran_translation_source_requested: bool,
-    debug: bool,
-) -> dict[str, object]:
+def _build_source_selection_error_payload(*, query: str, route: dict[str, object] | None, error: Exception, quran_work_source_id: str | None, translation_work_source_id: str | None, repository_mode: str | None, quran_text_source_requested: bool, quran_translation_source_requested: bool, debug: bool) -> dict[str, object]:
     resolved_route = route or classify_ask_query(query)
-    requested_quran_source_id, requested_translation_source_id = resolve_requested_quran_repository_source_inputs(
-        quran_work_source_id=quran_work_source_id,
-        translation_work_source_id=translation_work_source_id,
-    )
-    warning_code = _classify_source_selection_warning(
-        error=error,
-        quran_text_source_requested=quran_text_source_requested,
-        quran_translation_source_requested=quran_translation_source_requested,
-    )
+    requested_quran_source_id, requested_translation_source_id = resolve_requested_quran_repository_source_inputs(quran_work_source_id=quran_work_source_id, translation_work_source_id=translation_work_source_id)
+    warning_code = _classify_source_selection_warning(error=error, quran_text_source_requested=quran_text_source_requested, quran_translation_source_requested=quran_translation_source_requested)
     debug_payload = None
     if debug:
         debug_payload = {
@@ -89,6 +67,7 @@ def _build_source_selection_error_payload(
         answer_text=None,
         citations=[],
         quran_support=None,
+        hadith_support=None,
         tafsir_support=[],
         resolution=None,
         partial_success=False,
@@ -106,22 +85,32 @@ def _build_source_selection_error_payload(
     )
 
 
-def explain_answer(
-    *,
-    query: str,
-    request: Request | None = None,
-    route: dict[str, object] | None = None,
-    include_tafsir: bool | None = None,
-    tafsir_source_id: str | None = "tafsir:ibn-kathir-en",
-    tafsir_limit: int = 3,
-    database_url: str | None = None,
-    repository_mode: str | None = None,
-    quran_work_source_id: str | None = None,
-    translation_work_source_id: str | None = None,
-    quran_text_source_requested: bool = False,
-    quran_translation_source_requested: bool = False,
-    debug: bool = False,
-) -> dict[str, object]:
+def explain_answer(*, query: str, request: Request | None = None, route: dict[str, object] | None = None, include_tafsir: bool | None = None, tafsir_source_id: str | None = "tafsir:ibn-kathir-en", tafsir_limit: int = 3, database_url: str | None = None, repository_mode: str | None = None, quran_work_source_id: str | None = None, translation_work_source_id: str | None = None, quran_text_source_requested: bool = False, quran_translation_source_requested: bool = False, hadith_source_id: str | None = None, request_context: dict[str, object] | None = None, request_preferences: dict[str, object] | None = None, source_controls: dict[str, object] | None = None, request_contract_version: str = 'ask.vnext', debug: bool = False) -> dict[str, object]:
+    route = route or classify_ask_query(query)
+    if str(route.get('route_type')) == AskRouteType.EXPLICIT_HADITH_REFERENCE.value:
+        plan = build_ask_plan(
+            query,
+            route=route,
+            request=request,
+            include_tafsir=include_tafsir,
+            tafsir_source_id=tafsir_source_id,
+            tafsir_limit=tafsir_limit,
+            database_url=database_url,
+            repository_mode=None,
+            quran_work_source_id=None,
+            translation_work_source_id=None,
+            quran_text_source_requested=False,
+            quran_translation_source_requested=False,
+            hadith_source_id=hadith_source_id,
+            request_context=request_context,
+            request_preferences=request_preferences,
+            source_controls=source_controls,
+            request_contract_version=request_contract_version,
+            debug=debug,
+        )
+        evidence = execute_plan(plan, request=request, database_url=database_url)
+        return build_explain_answer_payload(plan, evidence)
+
     try:
         repository_context = resolve_quran_repository_context(
             repository_mode=repository_mode,
@@ -142,6 +131,11 @@ def explain_answer(
             translation_work_source_id=repository_context.translation_work_source_id,
             quran_text_source_requested=quran_text_source_requested,
             quran_translation_source_requested=quran_translation_source_requested,
+            hadith_source_id=hadith_source_id,
+            request_context=request_context,
+            request_preferences=request_preferences,
+            source_controls=source_controls,
+            request_contract_version=request_contract_version,
             debug=debug,
         )
         evidence = execute_plan(plan, request=request, database_url=repository_context.database_url)

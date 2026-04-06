@@ -56,6 +56,7 @@ def build_health_payload() -> dict:
         "uthmani_quran_passage_rows_loaded": len(verifier_runtime.UTHMANI_RUNTIME.passage_rows) if verifier_runtime.UTHMANI_RUNTIME else 0,
         "english_translation_loaded": verifier_runtime.ENGLISH_TRANSLATION_INFO.get("loaded", False),
         "english_translation_rows_loaded": verifier_runtime.ENGLISH_TRANSLATION_INFO.get("row_count", 0),
+        "runtime_artifacts": verifier_runtime.RUNTIME_ARTIFACT_INFO,
         "source_governance": verifier_runtime.SOURCE_GOVERNANCE_INFO,
     }
 

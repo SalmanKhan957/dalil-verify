@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from shared.schemas.source_citation import SourceCitation
-from domains.answer_engine.evidence_pack import EvidencePack, QuranEvidence, TafsirEvidence
+from domains.answer_engine.evidence_pack import EvidencePack, HadithEvidence, QuranEvidence, TafsirEvidence
 from domains.tafsir.formatter import render_tafsir_label
 
 
 QURAN_ARABIC_SOURCE_ID = "quran:tanzil-simple"
-
 
 
 def render_quran_citation(quran: QuranEvidence) -> SourceCitation:
@@ -16,7 +15,6 @@ def render_quran_citation(quran: QuranEvidence) -> SourceCitation:
         canonical_ref=quran.canonical_source_id,
         source_domain="quran",
     )
-
 
 
 def render_tafsir_citation(tafsir: TafsirEvidence) -> SourceCitation:
@@ -29,10 +27,20 @@ def render_tafsir_citation(tafsir: TafsirEvidence) -> SourceCitation:
     )
 
 
+def render_hadith_citation(hadith: HadithEvidence) -> SourceCitation:
+    return SourceCitation(
+        source_id=hadith.source_id,
+        citation_text=hadith.citation_string,
+        canonical_ref=hadith.canonical_ref,
+        source_domain='hadith',
+    )
+
 
 def render_citation_list(evidence: EvidencePack) -> list[SourceCitation]:
     citations: list[SourceCitation] = []
     if evidence.quran is not None:
         citations.append(render_quran_citation(evidence.quran))
     citations.extend(render_tafsir_citation(item) for item in evidence.tafsir)
+    if evidence.hadith is not None:
+        citations.append(render_hadith_citation(evidence.hadith))
     return citations

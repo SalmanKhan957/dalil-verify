@@ -30,6 +30,11 @@ def explain_answer(
     translation_work_source_id: str | None = None,
     quran_text_source_requested: bool = False,
     quran_translation_source_requested: bool = False,
+    hadith_source_id: str | None = None,
+    request_context: dict[str, object] | None = None,
+    request_preferences: dict[str, object] | None = None,
+    source_controls: dict[str, object] | None = None,
+    request_contract_version: str = 'ask.vnext',
     debug: bool = False,
 ) -> dict[str, object]:
     ask_payload = dispatch_ask_query(
@@ -42,23 +47,33 @@ def explain_answer(
         translation_work_source_id=translation_work_source_id,
         quran_text_source_requested=quran_text_source_requested,
         quran_translation_source_requested=quran_translation_source_requested,
+        hadith_source_id=hadith_source_id,
+        request_context=request_context,
+        request_preferences=request_preferences,
+        source_controls=source_controls,
+        request_contract_version=request_contract_version,
         debug=debug,
     )
     return build_explain_response_payload_from_ask_payload(ask_payload)
 
 
 @router.post("/explain", response_model=ExplainAnswerResponse)
-def explain_reference(payload: ExplainQuranReferenceRequest, request: Request) -> ExplainAnswerResponse:
-    result = explain_answer(
+def explain(payload: ExplainQuranReferenceRequest, request: Request) -> ExplainAnswerResponse:
+    response_payload = explain_answer(
         query=payload.query,
         request=request,
-        include_tafsir=payload.include_tafsir,
-        tafsir_source_id=payload.tafsir_source_id,
-        tafsir_limit=payload.tafsir_limit,
-        quran_work_source_id=payload.quran_text_source_id,
-        translation_work_source_id=payload.quran_translation_source_id,
-        quran_text_source_requested=payload.quran_text_source_id is not None,
-        quran_translation_source_requested=payload.quran_translation_source_id is not None,
-        debug=payload.debug,
+        include_tafsir=payload.effective_include_tafsir,
+        tafsir_source_id=payload.effective_tafsir_source_id,
+        tafsir_limit=payload.effective_tafsir_limit,
+        quran_work_source_id=payload.effective_quran_text_source_id,
+        translation_work_source_id=payload.effective_quran_translation_source_id,
+        quran_text_source_requested=payload.effective_quran_text_source_id is not None,
+        quran_translation_source_requested=payload.effective_quran_translation_source_id is not None,
+        hadith_source_id=payload.effective_hadith_source_id,
+        request_context=payload.request_context_payload,
+        request_preferences=payload.request_preferences_payload,
+        source_controls=payload.source_controls_payload,
+        request_contract_version=payload.request_contract_version,
+        debug=payload.effective_debug,
     )
-    return ExplainAnswerResponse(**result)
+    return ExplainAnswerResponse(**response_payload)

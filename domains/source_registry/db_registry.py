@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, ProgrammingError, SQLAlchemyError
 
 from infrastructure.db.models.source_work import SourceWorkORM
 from infrastructure.db.session import get_session
@@ -24,12 +24,18 @@ def _to_source_record(row: SourceWorkORM) -> SourceRecord:
         language=row.language_code,
         enabled=bool(row.enabled),
         approved_for_answering=bool(row.approved_for_answering),
-        default_for_explain=bool(getattr(row, "default_for_explain", False)),
-        supports_quran_composition=bool(getattr(row, "supports_quran_composition", False)),
-        priority_rank=int(getattr(row, "priority_rank", 1000) or 1000),
+        default_for_explain=bool(getattr(row, 'default_for_explain', False)),
+        supports_quran_composition=bool(getattr(row, 'supports_quran_composition', False)),
+        priority_rank=int(getattr(row, 'priority_rank', 1000) or 1000),
         upstream_resource_id=row.upstream_resource_id,
-        policy_note=getattr(row, "policy_note", None),
+        policy_note=getattr(row, 'policy_note', None),
+        answer_capabilities=dict((getattr(row, 'metadata_json', None) or {}).get('answer_capabilities') or {}),
     )
+
+
+def _is_missing_source_works_error(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return 'no such table: source_works' in message or 'relation "source_works" does not exist' in message
 
 
 def _safe_rows(source_domain: str | None = None, *, database_url: str | None = None) -> list[SourceWorkORM]:
@@ -41,6 +47,10 @@ def _safe_rows(source_domain: str | None = None, *, database_url: str | None = N
             return list(session.execute(stmt).scalars().all())
     except RuntimeError:
         return []
+    except (OperationalError, ProgrammingError) as exc:
+        if _is_missing_source_works_error(exc):
+            return []
+        raise SourceRegistryDatabaseError(str(exc)) from exc
     except SQLAlchemyError as exc:  # pragma: no cover
         raise SourceRegistryDatabaseError(str(exc)) from exc
 
@@ -70,14 +80,14 @@ def merge_source_records(*record_groups: Iterable[SourceRecord]) -> list[SourceR
 
 
 def _derive_work_slug(record: SourceRecord) -> str:
-    _, _, slug = record.source_id.partition(":")
-    return slug.replace(":", "-")
+    _, _, slug = record.source_id.partition(':')
+    return slug.replace(':', '-')
 
 
 UPSTREAM_PROVIDER_BY_DOMAIN: dict[str, str] = {
-    "quran": "dalil_bootstrap",
-    "tafsir": "quran_foundation",
-    "hadith": "dalil_bootstrap",
+    'quran': 'dalil_bootstrap',
+    'tafsir': 'quran_foundation',
+    'hadith': 'dalil_bootstrap',
 }
 
 
@@ -89,7 +99,7 @@ def backfill_source_works(*, database_url: str | None = None) -> dict[str, int]:
     """
     from domains.source_registry.registry import SOURCE_REGISTRY_BOOTSTRAP
 
-    counts = {"inserted": 0, "updated": 0, "unchanged": 0}
+    counts = {'inserted': 0, 'updated': 0, 'unchanged': 0}
 
     with get_session(database_url=database_url) as session:
         for record in SOURCE_REGISTRY_BOOTSTRAP.values():
@@ -98,29 +108,29 @@ def backfill_source_works(*, database_url: str | None = None) -> dict[str, int]:
             ).scalar_one_or_none()
 
             values = {
-                "source_domain": record.source_domain,
-                "work_slug": _derive_work_slug(record),
-                "source_id": record.source_id,
-                "display_name": record.display_name,
-                "citation_label": record.citation_label,
-                "author_name": None,
-                "language_code": record.language,
-                "source_kind": record.source_kind,
-                "upstream_provider": UPSTREAM_PROVIDER_BY_DOMAIN.get(record.source_domain, "dalil_bootstrap"),
-                "upstream_resource_id": record.upstream_resource_id,
-                "enabled": record.enabled,
-                "approved_for_answering": record.approved_for_answering,
-                "default_for_explain": record.default_for_explain,
-                "supports_quran_composition": record.supports_quran_composition,
-                "priority_rank": record.priority_rank,
-                "version_label": None,
-                "policy_note": record.policy_note,
-                "metadata_json": {},
+                'source_domain': record.source_domain,
+                'work_slug': _derive_work_slug(record),
+                'source_id': record.source_id,
+                'display_name': record.display_name,
+                'citation_label': record.citation_label,
+                'author_name': None,
+                'language_code': record.language,
+                'source_kind': record.source_kind,
+                'upstream_provider': UPSTREAM_PROVIDER_BY_DOMAIN.get(record.source_domain, 'dalil_bootstrap'),
+                'upstream_resource_id': record.upstream_resource_id,
+                'enabled': record.enabled,
+                'approved_for_answering': record.approved_for_answering,
+                'default_for_explain': record.default_for_explain,
+                'supports_quran_composition': record.supports_quran_composition,
+                'priority_rank': record.priority_rank,
+                'version_label': None,
+                'policy_note': record.policy_note,
+                'metadata_json': {'answer_capabilities': dict(record.answer_capabilities or {})},
             }
 
             if existing is None:
                 session.add(SourceWorkORM(**values))
-                counts["inserted"] += 1
+                counts['inserted'] += 1
                 continue
 
             changed = False
@@ -128,7 +138,7 @@ def backfill_source_works(*, database_url: str | None = None) -> dict[str, int]:
                 if getattr(existing, field) != value:
                     setattr(existing, field, value)
                     changed = True
-            counts["updated"] += int(changed)
-            counts["unchanged"] += int(not changed)
+            counts['updated'] += int(changed)
+            counts['unchanged'] += int(not changed)
 
     return counts

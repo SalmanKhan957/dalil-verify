@@ -1,9 +1,9 @@
-from services.ask_workflows.dispatch import dispatch_ask_query
+from domains.ask.dispatcher import dispatch_ask_query
 
 
 
 def test_dispatch_routes_tafsir_intent_to_answer_flow(monkeypatch) -> None:
-    import services.ask_workflows.dispatch as dispatch_module
+    import domains.ask.dispatcher as dispatch_module
 
     monkeypatch.setattr(
         dispatch_module,

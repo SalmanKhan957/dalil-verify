@@ -10,7 +10,6 @@ from domains.quran.verifier import bootstrap as _bootstrap
 from domains.quran.verifier.bootstrap import lifespan
 from domains.quran.verifier.types import CorpusRuntime
 
-
 __all__ = ["lifespan", "CorpusRuntime"]
 
 
@@ -32,6 +31,7 @@ def __getattr__(name: str):
         "runtime_state_loaded",
         "RUNTIME_BOOT_INFO",
         "SOURCE_GOVERNANCE_INFO",
+        "RUNTIME_ARTIFACT_INFO",
     }:
         return getattr(_bootstrap, name)
     raise AttributeError(name)

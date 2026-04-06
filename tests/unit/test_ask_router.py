@@ -45,3 +45,11 @@ def test_routes_arabic_quote_with_explain_question() -> None:
 def test_unsupported_generic_topic_question() -> None:
     result = classify_ask_query("What does Islam say about anxiety?")
     assert result["route_type"] == AskRouteType.UNSUPPORTED_FOR_NOW.value
+
+
+
+def test_routes_explicit_hadith_reference() -> None:
+    result = classify_ask_query("Bukhari 2")
+    assert result["route_type"] == AskRouteType.EXPLICIT_HADITH_REFERENCE.value
+    assert result["action_type"] == AskActionType.FETCH_TEXT.value
+    assert result["parsed_hadith_citation"]["canonical_ref"] == "hadith:sahih-al-bukhari-en:2"

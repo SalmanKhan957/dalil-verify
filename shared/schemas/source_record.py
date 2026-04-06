@@ -40,3 +40,7 @@ class SourceRecord(BaseModel):
         default=None,
         description="Optional note for trust boundaries or rendering constraints.",
     )
+    answer_capabilities: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Capability flags used by the planner/policy layer to determine whether this source may be used for explicit lookup, bounded explanation, topical retrieval, or composition.",
+    )

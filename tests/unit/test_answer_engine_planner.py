@@ -71,3 +71,18 @@ def test_build_ask_plan_for_arabic_quote_with_tafsir_intent() -> None:
     assert plan.source_policy.tafsir.request_origin == 'query_intent'
     assert plan.source_policy.tafsir.policy_reason == 'selected'
     assert EvidenceRequirement.TAFSIR_OVERLAP in plan.evidence_requirements
+
+
+
+def test_build_ask_plan_for_explicit_hadith_reference() -> None:
+    plan = build_ask_plan('Bukhari 2')
+
+    assert plan.response_mode == ResponseMode.HADITH_TEXT
+    assert plan.hadith_plan is not None
+    assert plan.resolved_hadith_citation is not None
+    assert plan.resolved_hadith_citation.canonical_ref == 'hadith:sahih-al-bukhari-en:2'
+    assert plan.selected_domains == [EvidenceDomain.HADITH]
+    assert EvidenceRequirement.HADITH_CITATION_LOOKUP in plan.evidence_requirements
+    assert plan.source_policy is not None
+    assert plan.source_policy.hadith is not None
+    assert plan.source_policy.hadith.policy_reason == 'explicit_citation_lookup_selected'

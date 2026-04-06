@@ -1,7 +1,7 @@
-from services.answer_engine.execution import execute_plan
-from services.answer_engine.plan_types import EvidenceDomain, EvidenceRequirement, ResponseMode, AnswerPlan, SourceInvocationPlan
-from services.answer_engine.evidence_pack import QuranEvidence, TafsirEvidence
-from services.tafsir.types import TafsirOverlapHit
+from domains.answer_engine.execution import execute_plan
+from domains.ask.planner_types import EvidenceDomain, EvidenceRequirement, ResponseMode, AnswerPlan, SourceInvocationPlan
+from domains.answer_engine.evidence_pack import QuranEvidence, TafsirEvidence
+from domains.tafsir.types import TafsirOverlapHit
 
 
 
@@ -51,8 +51,8 @@ def _tafsir_hit() -> TafsirOverlapHit:
 
 
 def test_execute_plan_assembles_quran_and_tafsir(monkeypatch) -> None:
-    import services.answer_engine.execution as execution_module
-    from services.answer_engine.domain_invocation import QuranInvocationEvidence, TafsirInvocationEvidence
+    import domains.answer_engine.execution as execution_module
+    from domains.answer_engine.domain_invocation import QuranInvocationEvidence, TafsirInvocationEvidence
 
     plan = AnswerPlan(
         query="Tafsir of Surah Ikhlas",

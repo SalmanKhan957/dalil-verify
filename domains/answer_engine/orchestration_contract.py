@@ -6,6 +6,8 @@ from typing import Any
 
 from domains.answer_engine.evidence_pack import EvidencePack
 from domains.ask.planner_types import AskPlan
+from domains.ask.request_control_honesty import build_request_control_honesty
+from domains.ask.response_surface import describe_response_surfaces
 
 
 @dataclass(slots=True)
@@ -30,6 +32,8 @@ class DomainPlanDecision:
     policy_reason: str | None = None
     source_id: str | None = None
     request_origin: str | None = None
+    selected_capability: str | None = None
+    available_capabilities: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -90,6 +94,8 @@ class OrchestrationEnvelope:
 def _intent_from_plan(plan: AskPlan) -> str:
     if plan.should_abstain:
         return 'abstain'
+    if plan.hadith_plan is not None:
+        return 'source_grounded_hadith_lookup'
     if plan.requires_quran_verification and plan.use_tafsir:
         return 'source_grounded_quran_verification_with_tafsir'
     if plan.requires_quran_verification:
@@ -102,6 +108,8 @@ def _intent_from_plan(plan: AskPlan) -> str:
 
 
 def _query_class(plan: AskPlan) -> str:
+    if plan.hadith_plan is not None:
+        return 'explicit_hadith_reference'
     if plan.requires_quran_verification and plan.tafsir_requested:
         return 'quoted_text_with_modifier'
     if plan.requires_quran_verification:
@@ -122,6 +130,8 @@ def _build_interpretation(plan: AskPlan) -> QueryInterpretation:
         secondary_intents.append('reference_resolution')
     if plan.tafsir_requested:
         secondary_intents.append('tafsir_request')
+    if plan.hadith_requested:
+        secondary_intents.append('hadith_citation_lookup')
     return QueryInterpretation(
         primary_intent=_intent_from_plan(plan),
         secondary_intents=secondary_intents,
@@ -138,28 +148,13 @@ def _build_interpretation(plan: AskPlan) -> QueryInterpretation:
 def _build_plan(plan: AskPlan) -> dict[str, Any]:
     decisions: list[DomainPlanDecision] = []
     if plan.source_policy is not None:
-        decisions.append(
-            DomainPlanDecision(
-                domain='quran',
-                eligible=True,
-                selected=bool(plan.source_policy.quran.included),
-                requested=True,
-                policy_reason=plan.source_policy.quran.policy_reason,
-                source_id=plan.source_policy.quran.selected_text_source_id,
-                request_origin=plan.source_policy.quran.text_source_origin,
-            )
-        )
-        decisions.append(
-            DomainPlanDecision(
-                domain='tafsir',
-                eligible=bool(plan.source_policy.tafsir.allowed) or bool(plan.source_policy.tafsir.requested),
-                selected=bool(plan.source_policy.tafsir.included),
-                requested=bool(plan.source_policy.tafsir.requested),
-                policy_reason=plan.source_policy.tafsir.policy_reason,
-                source_id=plan.source_policy.tafsir.selected_source_id,
-                request_origin=plan.source_policy.tafsir.request_origin,
-            )
-        )
+        decisions.append(DomainPlanDecision(domain='quran', eligible=bool(plan.source_policy.quran.allowed), selected=bool(plan.source_policy.quran.included), requested=bool(plan.quran_plan is not None), policy_reason=plan.source_policy.quran.policy_reason, source_id=plan.source_policy.quran.selected_text_source_id, request_origin=plan.source_policy.quran.text_source_origin, selected_capability=plan.source_policy.quran.selected_capability, available_capabilities=list(plan.source_policy.quran.available_capabilities)))
+        decisions.append(DomainPlanDecision(domain='tafsir', eligible=bool(plan.source_policy.tafsir.allowed) or bool(plan.source_policy.tafsir.requested), selected=bool(plan.source_policy.tafsir.included), requested=bool(plan.source_policy.tafsir.requested), policy_reason=plan.source_policy.tafsir.policy_reason, source_id=plan.source_policy.tafsir.selected_source_id, request_origin=plan.source_policy.tafsir.request_origin, selected_capability=plan.source_policy.tafsir.selected_capability, available_capabilities=list(plan.source_policy.tafsir.available_capabilities)))
+        if plan.source_policy.hadith is not None:
+            hadith_reason = plan.source_policy.hadith.request_origin
+            if plan.source_policy.hadith.request_mode:
+                hadith_reason = f"{hadith_reason or 'request'}|mode:{plan.source_policy.hadith.request_mode}"
+            decisions.append(DomainPlanDecision(domain='hadith', eligible=bool(plan.source_policy.hadith.allowed) or bool(plan.source_policy.hadith.requested), selected=bool(plan.source_policy.hadith.included), requested=bool(plan.source_policy.hadith.requested), policy_reason=plan.source_policy.hadith.policy_reason, source_id=plan.source_policy.hadith.selected_source_id, request_origin=hadith_reason, selected_capability=plan.source_policy.hadith.selected_capability, available_capabilities=list(plan.source_policy.hadith.available_capabilities)))
     return {
         'plan_type': plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
         'eligible_domains': [d.value if hasattr(d, 'value') else str(d) for d in plan.eligible_domains],
@@ -167,138 +162,61 @@ def _build_plan(plan: AskPlan) -> dict[str, Any]:
         'domain_decisions': [serialize_contract(x) for x in decisions],
         'abstain_reason': plan.abstain_reason.value if plan.abstain_reason else None,
         'notes': list(plan.notes),
-        'planner_version': 'v1.5',
+        'planner_version': 'v1.6',
     }
 
 
 def _build_answer(plan: AskPlan, evidence: EvidencePack, *, answer_text: str | None, tafsir_support: list[dict[str, Any]]) -> CanonicalAnswer:
     blocks: list[AnswerBlock] = []
     if evidence.quran is not None:
-        blocks.append(
-            AnswerBlock(
-                block_type='quran_quote',
-                domain='quran',
-                title=evidence.quran.citation_string,
-                text=evidence.quran.translation_text or evidence.quran.arabic_text or '',
-                citations=[evidence.quran.canonical_source_id],
-                source_id=evidence.quran.quran_source_id,
-            )
-        )
+        blocks.append(AnswerBlock(block_type='quran_quote', domain='quran', title=evidence.quran.citation_string, text=evidence.quran.translation_text or evidence.quran.arabic_text or '', citations=[evidence.quran.canonical_source_id], source_id=evidence.quran.quran_source_id))
+    if evidence.hadith is not None:
+        hadith_block_type = 'hadith_explanation' if str(plan.response_mode) == 'ResponseMode.HADITH_EXPLANATION' or getattr(plan.response_mode, 'value', None) == 'hadith_explanation' else 'hadith_text'
+        hadith_text = ' '.join(x for x in [evidence.hadith.english_narrator or '', evidence.hadith.english_text or ''] if x).strip()
+        blocks.append(AnswerBlock(block_type=hadith_block_type, domain='hadith', title=evidence.hadith.citation_string, text=hadith_text, citations=[evidence.hadith.canonical_ref], source_id=evidence.hadith.source_id))
     for item in tafsir_support:
-        blocks.append(
-            AnswerBlock(
-                block_type='tafsir_support',
-                domain='tafsir',
-                title=item.get('display_text'),
-                text=str(item.get('excerpt') or ''),
-                citations=[str(item.get('canonical_section_id') or '')],
-                source_id=item.get('source_id'),
-            )
-        )
-    return CanonicalAnswer(
-        mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
-        summary_text=answer_text,
-        blocks=blocks,
-    )
+        blocks.append(AnswerBlock(block_type='tafsir_support', domain='tafsir', title=item.get('display_text'), text=str(item.get('excerpt') or ''), citations=[str(item.get('canonical_section_id') or '')], source_id=item.get('source_id')))
+    return CanonicalAnswer(mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode), summary_text=answer_text, blocks=blocks)
 
 
 def _build_evidence(evidence: EvidencePack) -> list[EvidenceItem]:
     items: list[EvidenceItem] = []
     if evidence.quran is not None:
-        items.append(
-            EvidenceItem(
-                evidence_type='quran_span',
-                domain='quran',
-                source_id=evidence.quran.quran_source_id,
-                canonical_ref=evidence.quran.canonical_source_id,
-                citation_text=evidence.quran.citation_string,
-                payload={
-                    'surah_no': evidence.quran.surah_no,
-                    'ayah_start': evidence.quran.ayah_start,
-                    'ayah_end': evidence.quran.ayah_end,
-                    'surah_name_en': evidence.quran.surah_name_en,
-                    'surah_name_ar': evidence.quran.surah_name_ar,
-                    'translation_source_id': evidence.quran.translation_source_id,
-                },
-            )
-        )
+        items.append(EvidenceItem(evidence_type='quran_span', domain='quran', source_id=evidence.quran.quran_source_id, canonical_ref=evidence.quran.canonical_source_id, citation_text=evidence.quran.citation_string, payload={'surah_no': evidence.quran.surah_no, 'ayah_start': evidence.quran.ayah_start, 'ayah_end': evidence.quran.ayah_end, 'surah_name_en': evidence.quran.surah_name_en, 'surah_name_ar': evidence.quran.surah_name_ar, 'translation_source_id': evidence.quran.translation_source_id}))
     if evidence.verifier_result is not None:
         best = (evidence.verifier_result or {}).get('best_match') or {}
-        items.append(
-            EvidenceItem(
-                evidence_type='quran_verification',
-                domain='quran',
-                source_id=best.get('source_id'),
-                canonical_ref=best.get('canonical_source_id'),
-                citation_text=best.get('citation'),
-                payload={
-                    'match_status': evidence.verifier_result.get('match_status'),
-                    'confidence': evidence.verifier_result.get('confidence'),
-                    'quote_payload': evidence.quote_payload,
-                    'exact_match_count': len(evidence.verifier_result.get('exact_matches') or []),
-                },
-            )
-        )
+        items.append(EvidenceItem(evidence_type='quran_verification', domain='quran', source_id=best.get('source_id'), canonical_ref=best.get('canonical_source_id'), citation_text=best.get('citation'), payload={'match_status': evidence.verifier_result.get('match_status'), 'confidence': evidence.verifier_result.get('confidence'), 'quote_payload': evidence.quote_payload, 'exact_match_count': len(evidence.verifier_result.get('exact_matches') or [])}))
     for item in evidence.tafsir:
         hit = item.hit
-        items.append(
-            EvidenceItem(
-                evidence_type='tafsir_section',
-                domain='tafsir',
-                source_id=hit.source_id,
-                canonical_ref=hit.canonical_section_id,
-                citation_text=f'{hit.citation_label} on Quran {hit.quran_span_ref}',
-                payload={
-                    'surah_no': hit.surah_no,
-                    'ayah_start': hit.ayah_start,
-                    'ayah_end': hit.ayah_end,
-                    'coverage_mode': hit.coverage_mode,
-                    'coverage_confidence': float(hit.coverage_confidence),
-                    'anchor_verse_key': hit.anchor_verse_key,
-                    'quran_span_ref': hit.quran_span_ref,
-                },
-            )
-        )
+        items.append(EvidenceItem(evidence_type='tafsir_section', domain='tafsir', source_id=hit.source_id, canonical_ref=hit.canonical_section_id, citation_text=f'{hit.citation_label} on Quran {hit.quran_span_ref}', payload={'surah_no': hit.surah_no, 'ayah_start': hit.ayah_start, 'ayah_end': hit.ayah_end, 'coverage_mode': hit.coverage_mode, 'coverage_confidence': float(hit.coverage_confidence), 'anchor_verse_key': hit.anchor_verse_key, 'quran_span_ref': hit.quran_span_ref}))
+    if evidence.hadith is not None:
+        items.append(EvidenceItem(evidence_type='hadith_entry', domain='hadith', source_id=evidence.hadith.source_id, canonical_ref=evidence.hadith.canonical_ref, citation_text=evidence.hadith.citation_string, payload={'collection_hadith_number': evidence.hadith.collection_hadith_number, 'book_number': evidence.hadith.book_number, 'chapter_number': evidence.hadith.chapter_number, 'in_book_hadith_number': evidence.hadith.in_book_hadith_number, 'grading_label': evidence.hadith.grading_label, 'numbering_quality': 'bootstrap_unverified' if 'hadith_bootstrap_numbering_unverified' in (evidence.warnings or []) else 'collection_number_stable'}))
     return items
 
 
 def _build_conversation(evidence: EvidencePack) -> dict[str, Any]:
     anchors: list[ConversationAnchor] = []
     if evidence.quran is not None:
-        anchors.append(
-            ConversationAnchor(
-                anchor_type='quran_ref',
-                source_domain='quran',
-                canonical_ref=evidence.quran.canonical_source_id,
-                display_text=evidence.quran.citation_string,
-            )
-        )
+        anchors.append(ConversationAnchor(anchor_type='quran_ref', source_domain='quran', canonical_ref=evidence.quran.canonical_source_id, display_text=evidence.quran.citation_string))
     for item in evidence.tafsir:
-        anchors.append(
-            ConversationAnchor(
-                anchor_type='tafsir_section',
-                source_domain='tafsir',
-                canonical_ref=item.hit.canonical_section_id,
-                display_text=f'{item.hit.citation_label} on Quran {item.hit.quran_span_ref}',
-            )
-        )
-    return {
-        'followup_ready': bool(anchors),
-        'anchors': [serialize_contract(x) for x in anchors],
-    }
+        anchors.append(ConversationAnchor(anchor_type='tafsir_section', source_domain='tafsir', canonical_ref=item.hit.canonical_section_id, display_text=f'{item.hit.citation_label} on Quran {item.hit.quran_span_ref}'))
+    if evidence.hadith is not None:
+        anchors.append(ConversationAnchor(anchor_type='hadith_ref', source_domain='hadith', canonical_ref=evidence.hadith.canonical_ref, display_text=evidence.hadith.citation_string))
+    return {'followup_ready': bool(anchors), 'anchors': [serialize_contract(x) for x in anchors]}
 
 
 def build_orchestration_envelope(*, plan: AskPlan, evidence: EvidencePack, answer_text: str | None, tafsir_support: list[dict[str, Any]], source_policy: dict[str, Any] | None, partial_success: bool) -> OrchestrationEnvelope:
-    return OrchestrationEnvelope(
-        request={'query': plan.query, 'route_type': plan.route_type, 'action_type': plan.action_type},
-        interpretation=_build_interpretation(plan),
-        plan=_build_plan(plan),
-        answer=_build_answer(plan, evidence, answer_text=answer_text, tafsir_support=tafsir_support),
-        evidence=_build_evidence(evidence),
-        conversation=_build_conversation(evidence),
-        policy=PolicySurface(source_policy=source_policy, warnings=list(evidence.warnings), errors=list(evidence.errors), partial_success=partial_success),
-        diagnostics={'selected_domains': list(evidence.selected_domains), 'response_mode': evidence.response_mode, 'has_resolution': evidence.resolution is not None, 'has_verifier_result': evidence.verifier_result is not None},
-    )
+    request_payload = {
+        'contract_version': plan.request_contract_version,
+        'query': plan.query,
+        'route_type': plan.route_type,
+        'action_type': plan.action_type,
+        'context': dict(plan.request_context or {}),
+        'preferences': dict(plan.request_preferences or {}),
+        'sources': dict(plan.source_controls or {}),
+        'control_honesty': build_request_control_honesty(plan),
+    }
+    return OrchestrationEnvelope(request=request_payload, interpretation=_build_interpretation(plan), plan=_build_plan(plan), answer=_build_answer(plan, evidence, answer_text=answer_text, tafsir_support=tafsir_support), evidence=_build_evidence(evidence), conversation=_build_conversation(evidence), policy=PolicySurface(source_policy=source_policy, warnings=list(evidence.warnings), errors=list(evidence.errors), partial_success=partial_success), diagnostics={'selected_domains': list(evidence.selected_domains), 'response_mode': evidence.response_mode, 'has_resolution': evidence.resolution is not None, 'has_verifier_result': evidence.verifier_result is not None, 'has_hadith': evidence.hadith is not None, 'response_surface_contract': describe_response_surfaces()})
 
 
 def serialize_contract(value: Any) -> Any:

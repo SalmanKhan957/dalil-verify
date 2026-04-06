@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from shared.schemas.source_record import SourceRecord
+from domains.source_registry.capabilities import SourceCapability
 from domains.source_registry.db_registry import get_source_record_from_db, list_source_records_from_db, merge_source_records
 
 
@@ -18,6 +19,12 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
         supports_quran_composition=False,
         priority_rank=10,
         policy_note="Canonical Arabic Quran text used for deterministic lookup and verification.",
+        answer_capabilities={
+            SourceCapability.EXPLICIT_LOOKUP.value: True,
+            SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
+            SourceCapability.QUOTE_VERIFICATION.value: True,
+            SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
+        },
     ),
     "quran:towards-understanding-en": SourceRecord(
         source_id="quran:towards-understanding-en",
@@ -32,6 +39,11 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
         supports_quran_composition=False,
         priority_rank=20,
         policy_note="English translation attached to Quran spans for bounded explanation flows.",
+        answer_capabilities={
+            SourceCapability.EXPLICIT_LOOKUP.value: True,
+            SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
+            SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
+        },
     ),
     "tafsir:ibn-kathir-en": SourceRecord(
         source_id="tafsir:ibn-kathir-en",
@@ -47,6 +59,12 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
         priority_rank=10,
         upstream_resource_id=169,
         policy_note="Approved bounded Tafsir source for Quran span explanation and commentary-backed answer composition.",
+        answer_capabilities={
+            SourceCapability.EXPLICIT_LOOKUP.value: True,
+            SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
+            SourceCapability.COMPOSITION_ALLOWED.value: True,
+            SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
+        },
     ),
     "hadith:sahih-al-bukhari-en": SourceRecord(
         source_id="hadith:sahih-al-bukhari-en",
@@ -61,6 +79,11 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
         supports_quran_composition=False,
         priority_rank=1000,
         policy_note="Canonical Hadith collection slot for Sahih al-Bukhari. Data may be ingested and lookup-capable before public answer composition is approved.",
+        answer_capabilities={
+            SourceCapability.EXPLICIT_LOOKUP.value: True,
+            SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
+            SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
+        },
     ),
 }
 

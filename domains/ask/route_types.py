@@ -6,6 +6,7 @@ from enum import Enum
 class AskRouteType(str, Enum):
     EXPLICIT_QURAN_REFERENCE = "explicit_quran_reference"
     ARABIC_QURAN_QUOTE = "arabic_quran_quote"
+    EXPLICIT_HADITH_REFERENCE = "explicit_hadith_reference"
     UNSUPPORTED_FOR_NOW = "unsupported_for_now"
 
 

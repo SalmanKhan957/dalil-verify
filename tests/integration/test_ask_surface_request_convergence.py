@@ -147,3 +147,116 @@ async def test_explain_route_omitted_include_tafsir_defaults_true_for_compatibil
     assert response.status_code == 200
     assert captured["query"] == "Tafsir of Surah Ikhlas"
     assert captured["include_tafsir"] is True
+
+
+@pytest.mark.anyio
+async def test_ask_route_accepts_vnext_nested_request_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    import apps.ask_api.routes.ask as ask_route_module
+
+    captured: dict[str, object] = {}
+
+    def _fake_dispatch(query: str, **kwargs):
+        captured["query"] = query
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "query": query,
+            "route_type": "explicit_quran_reference",
+            "action_type": "explain",
+            "route": {"route_type": "explicit_quran_reference", "action_type": "explain"},
+            "answer_mode": "quran_with_tafsir",
+            "answer_text": "Answer",
+            "citations": [],
+            "quran_support": None,
+            "tafsir_support": [],
+            "resolution": None,
+            "partial_success": False,
+            "warnings": [],
+            "quran_source_selection": None,
+            "source_policy": None,
+            "orchestration": {"conversation": {"followup_ready": False, "anchors": []}},
+            "conversation": {"followup_ready": False, "anchors": []},
+            "debug": None,
+            "result": {"answer_mode": "quran_with_tafsir"},
+            "error": None,
+        }
+
+    monkeypatch.setattr(ask_route_module, "dispatch_ask_query", _fake_dispatch)
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/ask",
+                json={
+                    "query": "Explain 2:255 with tafsir",
+                    "context": {"conversation_id": "conv_123", "parent_turn_id": "turn_9", "anchor_refs": ["quran:2:255"]},
+                    "preferences": {"language": "en", "verbosity": "standard", "citations": "inline"},
+                    "sources": {
+                        "tafsir": {"mode": "required", "limit": 3, "source_ids": ["tafsir:ibn-kathir-en"]},
+                        "quran": {"translation_source_id": "quran:towards-understanding-en"},
+                    },
+                    "diagnostics": {"debug": False},
+                },
+            )
+
+    assert response.status_code == 200
+    assert captured["query"] == "Explain 2:255 with tafsir"
+    assert captured["include_tafsir"] is True
+    assert captured["tafsir_source_id"] == "tafsir:ibn-kathir-en"
+    assert captured["tafsir_limit"] == 3
+    assert captured["translation_work_source_id"] == "quran:towards-understanding-en"
+    assert captured["request_context"] == {"conversation_id": "conv_123", "parent_turn_id": "turn_9", "anchor_refs": ["quran:2:255"]}
+    assert captured["request_preferences"] == {"language": "en", "verbosity": "standard", "citations": "inline"}
+    assert captured["request_contract_version"] == "ask.vnext"
+
+
+@pytest.mark.anyio
+async def test_explain_route_supports_vnext_tafsir_mode_auto_without_overriding_compatibility_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    import apps.ask_api.routes.explain as explain_route_module
+
+    captured: dict[str, object] = {}
+
+    def _fake_dispatch(query: str, **kwargs):
+        captured["query"] = query
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "query": query,
+            "route_type": "explicit_quran_reference",
+            "action_type": "explain",
+            "route": {"route_type": "explicit_quran_reference", "action_type": "explain"},
+            "answer_mode": "quran_with_tafsir",
+            "answer_text": "Answer",
+            "citations": [],
+            "quran_support": None,
+            "tafsir_support": [],
+            "resolution": None,
+            "partial_success": False,
+            "warnings": [],
+            "quran_source_selection": None,
+            "source_policy": None,
+            "orchestration": {"conversation": {"followup_ready": False, "anchors": []}},
+            "conversation": {"followup_ready": False, "anchors": []},
+            "debug": None,
+            "result": {"answer_mode": "quran_with_tafsir"},
+            "error": None,
+        }
+
+    monkeypatch.setattr(explain_route_module, "dispatch_ask_query", _fake_dispatch)
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/ask/explain",
+                json={
+                    "query": "Explain 2:255",
+                    "sources": {"tafsir": {"mode": "auto", "limit": 2}},
+                },
+            )
+
+    assert response.status_code == 200
+    assert captured["include_tafsir"] is True
+    assert captured["tafsir_limit"] == 2
+    assert captured["request_contract_version"] == "ask.vnext"

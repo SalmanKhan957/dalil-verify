@@ -18,6 +18,11 @@ def dispatch_ask_query(
     translation_work_source_id: str | None = None,
     quran_text_source_requested: bool = False,
     quran_translation_source_requested: bool = False,
+    hadith_source_id: str | None = None,
+    request_context: dict[str, object] | None = None,
+    request_preferences: dict[str, object] | None = None,
+    source_controls: dict[str, object] | None = None,
+    request_contract_version: str = 'ask.vnext',
     debug: bool = False,
 ) -> dict[str, object]:
     route = classify_ask_query(query)
@@ -32,6 +37,11 @@ def dispatch_ask_query(
         translation_work_source_id=translation_work_source_id,
         quran_text_source_requested=quran_text_source_requested,
         quran_translation_source_requested=quran_translation_source_requested,
+        hadith_source_id=hadith_source_id,
+        request_context=request_context,
+        request_preferences=request_preferences,
+        source_controls=source_controls,
+        request_contract_version=request_contract_version,
         debug=debug,
     )
     return build_ask_response_payload(

@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any
 
 from domains.ask.source_policy_types import AskSourcePolicyDecision
+from domains.hadith.contracts import HadithCitationReference
 
 
 class ResponseMode(str, Enum):
@@ -13,6 +14,8 @@ class ResponseMode(str, Enum):
     QURAN_WITH_TAFSIR = 'quran_with_tafsir'
     VERIFICATION_ONLY = 'verification_only'
     VERIFICATION_THEN_EXPLAIN = 'verification_then_explain'
+    HADITH_TEXT = 'hadith_text'
+    HADITH_EXPLANATION = 'hadith_explanation'
     ABSTAIN = 'abstain'
 
 
@@ -27,6 +30,7 @@ class EvidenceRequirement(str, Enum):
     QURAN_SPAN = 'quran_span'
     QURAN_VERIFICATION = 'quran_verification'
     TAFSIR_OVERLAP = 'tafsir_overlap'
+    HADITH_CITATION_LOOKUP = 'hadith_citation_lookup'
 
 
 class AbstentionReason(str, Enum):
@@ -66,10 +70,13 @@ class AskPlan:
     notes: list[str] = field(default_factory=list)
     quran_plan: DomainInvocation | None = None
     tafsir_plan: DomainInvocation | None = None
+    hadith_plan: DomainInvocation | None = None
+    resolved_hadith_citation: HadithCitationReference | None = None
     route: dict[str, Any] = field(default_factory=dict)
     debug: bool = False
     tafsir_requested: bool = False
     tafsir_explicit: bool = False
+    hadith_requested: bool = False
     repository_mode: str | None = None
     database_url: str | None = None
     quran_work_source_id: str | None = None
@@ -77,11 +84,17 @@ class AskPlan:
     source_resolution_strategy: str | None = None
     requested_quran_work_source_id: str | None = None
     requested_translation_work_source_id: str | None = None
+    requested_hadith_source_id: str | None = None
     quran_text_source_origin: str | None = None
     quran_translation_source_origin: str | None = None
     quran_text_source_requested: bool = False
     quran_translation_source_requested: bool = False
     source_policy: AskSourcePolicyDecision | None = None
+    request_context: dict[str, Any] = field(default_factory=dict)
+    request_preferences: dict[str, Any] = field(default_factory=dict)
+    source_controls: dict[str, Any] = field(default_factory=dict)
+    hadith_mode: str = 'auto'
+    request_contract_version: str = 'ask.vnext'
 
     @property
     def mode(self) -> ResponseMode:

@@ -10,6 +10,7 @@ from domains.ask.heuristics import (
     normalize_query_text,
 )
 from domains.ask.route_types import AskActionType, AskRouteType
+from domains.hadith.citations.parser import parse_hadith_citation
 
 
 def classify_ask_query(query: str) -> dict[str, Any]:
@@ -26,6 +27,7 @@ def classify_ask_query(query: str) -> dict[str, Any]:
 
     explicit = looks_like_explicit_quran_reference(text)
     arabic_quote = looks_like_arabic_quran_quote(text)
+    hadith_citation = parse_hadith_citation(text)
 
     # Strong Arabic quote payload dominates, because quote verification is more specific
     # than a loose sentence-level parse.
@@ -68,6 +70,33 @@ def classify_ask_query(query: str) -> dict[str, Any]:
             "parsed_reference": explicit["parsed"],
             "reference_text": explicit["reference_text"],
             "reference_match_type": explicit["match_type"],
+        }
+
+    if hadith_citation is not None:
+        action = detect_action_type(text, route_hint=AskRouteType.EXPLICIT_HADITH_REFERENCE.value)
+        action_type = action["action_type"]
+        if action_type == AskActionType.UNKNOWN.value:
+            action_type = AskActionType.FETCH_TEXT.value
+        secondary_intents: list[str] = ["hadith_citation_lookup"]
+        if action_type == AskActionType.EXPLAIN.value:
+            secondary_intents.append("hadith_explanation_request")
+        return {
+            "route_type": AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
+            "action_type": action_type,
+            "confidence": 0.95,
+            "signals": ["hadith_citation_parse"] + action["signals"],
+            "secondary_intents": secondary_intents,
+            "reason": "explicit_hadith_reference_detected",
+            "normalized_query": text,
+            "parsed_hadith_citation": {
+                "collection_source_id": hadith_citation.collection_source_id,
+                "collection_slug": hadith_citation.collection_slug,
+                "reference_type": hadith_citation.reference_type.value,
+                "canonical_ref": hadith_citation.canonical_ref,
+                "hadith_number": hadith_citation.hadith_number,
+                "book_number": hadith_citation.book_number,
+                "chapter_number": hadith_citation.chapter_number,
+            },
         }
 
     return {
