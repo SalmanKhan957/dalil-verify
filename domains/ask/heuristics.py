@@ -263,7 +263,8 @@ def extract_arabic_quote_payload(query: str) -> str | None:
         return None
 
     segments = [re.sub(r"\s+", " ", m.group(0)).strip() for m in ARABIC_SEGMENT_RE.finditer(text)]
-    segments = [s for s in segments if len(ARABIC_LETTER_RE.findall(s)) >= 8]
+    min_letters = 3 if not LATIN_LETTER_RE.search(text) else 8
+    segments = [s for s in segments if len(ARABIC_LETTER_RE.findall(s)) >= min_letters]
     if not segments:
         return None
 
@@ -310,12 +311,26 @@ def looks_like_arabic_quran_quote(query: str) -> dict[str, Any]:
     if payload and payload != text:
         signals.append("extracted_arabic_payload")
 
+    arabic_only_payload = (
+        latin_letter_count == 0
+        and bool(payload)
+        and ARABIC_SEGMENT_RE.fullmatch(text) is not None
+        and payload_letter_count >= 3
+        and payload_token_count >= 1
+    )
+
+    if arabic_only_payload:
+        signals.append("arabic_only_payload")
+    if arabic_only_payload and payload_letter_count < 16:
+        signals.append("short_arabic_quote_candidate")
+
     strong_quote = (
         verifier_route.get("route") == "UTHMANI_FIRST"
         or verifier_route.get("counts", {}).get("verse_ornaments", 0) > 0
         or verifier_route.get("counts", {}).get("special_marks", 0) > 0
-        or (payload_letter_count >= 16 and payload_token_count >= 3)
-        or (arabic_letter_count >= 30 and arabic_token_count >= 5)
+        or (payload_letter_count >= 10 and payload_token_count >= 2)
+        or (arabic_letter_count >= 20 and arabic_token_count >= 4)
+        or arabic_only_payload
     )
 
     return {

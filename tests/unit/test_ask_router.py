@@ -47,9 +47,35 @@ def test_unsupported_generic_topic_question() -> None:
     assert result["route_type"] == AskRouteType.UNSUPPORTED_FOR_NOW.value
 
 
+def test_routes_public_topical_hadith_query() -> None:
+    result = classify_ask_query("Give me hadith about patience")
+    assert result["route_type"] == AskRouteType.TOPICAL_HADITH_QUERY.value
+    assert result["action_type"] == AskActionType.EXPLAIN.value
+    assert result["topic_query"] == "patience"
+
+
+def test_routes_public_topical_tafsir_query() -> None:
+    result = classify_ask_query("What does the Quran say about patience?")
+    assert result["route_type"] == AskRouteType.TOPICAL_TAFSIR_QUERY.value
+    assert result["action_type"] == AskActionType.EXPLAIN.value
+    assert result["topic_query"] == "patience"
+
 
 def test_routes_explicit_hadith_reference() -> None:
     result = classify_ask_query("Bukhari 2")
     assert result["route_type"] == AskRouteType.EXPLICIT_HADITH_REFERENCE.value
     assert result["action_type"] == AskActionType.FETCH_TEXT.value
     assert result["parsed_hadith_citation"]["canonical_ref"] == "hadith:sahih-al-bukhari-en:2"
+
+
+
+def test_routes_short_arabic_quran_snippet() -> None:
+    result = classify_ask_query("وَوَجَدَكَ ضَالًّا فَهَدَى")
+    assert result["route_type"] == AskRouteType.ARABIC_QURAN_QUOTE.value
+    assert "وَوَجَدَكَ" in result["quote_payload"]
+
+
+def test_routes_very_short_quranic_opening_snippet() -> None:
+    result = classify_ask_query("الم")
+    assert result["route_type"] == AskRouteType.ARABIC_QURAN_QUOTE.value
+    assert result["quote_payload"] == "الم"

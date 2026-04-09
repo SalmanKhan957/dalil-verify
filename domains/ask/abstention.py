@@ -25,6 +25,8 @@ def infer_unsupported_abstention_reason(query: str, route: dict[str, Any] | None
     text = " ".join((query or "").lower().split())
     route = route or {}
 
+    if route.get('reason') == 'broad_hadith_topic_requires_clarification' or route.get('needs_clarification'):
+        return AbstentionReason.NEEDS_CLARIFICATION
     if HADITH_HINT_RE.search(text):
         return AbstentionReason.HADITH_NOT_SUPPORTED_YET
     if not text:

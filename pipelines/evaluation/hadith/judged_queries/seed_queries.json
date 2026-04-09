@@ -1,0 +1,34 @@
+[
+  {
+    "query_text": "give hadith about sleep",
+    "expected_topics": ["sleep"],
+    "expected_profile": "general_topic",
+    "acceptable_refs": [],
+    "bad_refs": [],
+    "notes": "Prefer bedtime or waking guidance, not incidental sleeping mentions."
+  },
+  {
+    "query_text": "what did Prophet SAW say about the punishment of hasad",
+    "expected_topics": ["hasad"],
+    "expected_profile": "warning",
+    "acceptable_refs": [],
+    "bad_refs": [],
+    "notes": "Prefer warning-oriented hadith, not casual envy mentions."
+  },
+  {
+    "query_text": "give hadith about rizq",
+    "expected_topics": ["rizq"],
+    "expected_profile": "general_topic",
+    "acceptable_refs": [],
+    "bad_refs": [],
+    "notes": "Prefer sustenance and livelihood guidance, not only travel-provision context."
+  },
+  {
+    "query_text": "ahadith about anger",
+    "expected_topics": ["anger"],
+    "expected_profile": "general_topic",
+    "acceptable_refs": [],
+    "bad_refs": [],
+    "notes": "Prefer direct anger-control guidance."
+  }
+]

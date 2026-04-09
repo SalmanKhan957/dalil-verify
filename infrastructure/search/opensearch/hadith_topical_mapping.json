@@ -1,0 +1,39 @@
+{
+  "mappings": {
+    "properties": {
+      "canonical_ref": { "type": "keyword" },
+      "collection_source_id": { "type": "keyword" },
+      "collection_slug": { "type": "keyword" },
+      "collection_hadith_number": { "type": "integer" },
+      "book_number": { "type": "integer" },
+      "chapter_number": { "type": "integer" },
+      "numbering_quality": { "type": "keyword" },
+
+      "english_text": { "type": "text" },
+      "arabic_text": { "type": "text" },
+      "english_narrator": { "type": "text" },
+      "book_title_en": { "type": "text" },
+      "chapter_title_en": { "type": "text" },
+      "baab_plus_matn_en": { "type": "text" },
+      "reference_url": { "type": "keyword", "ignore_above": 2048 },
+      "in_book_reference_text": { "type": "keyword" },
+
+      "normalized_english_text": { "type": "text" },
+      "contextual_summary": { "type": "text" },
+      "directive_labels_text": { "type": "text" },
+
+      "topic_tags": { "type": "keyword" },
+      "subtopic_tags": { "type": "keyword" },
+      "directive_labels": { "type": "keyword" },
+      "topic_family": { "type": "keyword" },
+      "guidance_role": { "type": "keyword" },
+      "central_topic_score": { "type": "float" },
+      "answerability_score": { "type": "float" },
+      "narrative_specificity_score": { "type": "float" },
+      "incidental_topic_flags": { "type": "keyword" },
+      "normalized_topic_terms": { "type": "keyword" },
+      "normalized_alias_terms": { "type": "keyword" },
+      "moral_concepts": { "type": "keyword" }
+    }
+  }
+}

@@ -3,7 +3,13 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
-__all__ = ['HadithCollectionIngestionService', 'HadithCollectionNormalizer', 'HadithJsonMirrorNormalizerConfig']
+__all__ = [
+    'HadithCollectionIngestionService',
+    'HadithCollectionNormalizer',
+    'HadithJsonMirrorNormalizerConfig',
+    'MeeAtifHadithCollectionNormalizer',
+    'MeeAtifHadithNormalizerConfig',
+]
 
 
 def __getattr__(name: str) -> Any:
@@ -11,5 +17,8 @@ def __getattr__(name: str) -> Any:
         return import_module('domains.hadith.ingestion.ingest_collection').HadithCollectionIngestionService
     if name in {'HadithCollectionNormalizer', 'HadithJsonMirrorNormalizerConfig'}:
         mod = import_module('domains.hadith.ingestion.normalizer')
+        return getattr(mod, name)
+    if name in {'MeeAtifHadithCollectionNormalizer', 'MeeAtifHadithNormalizerConfig'}:
+        mod = import_module('domains.hadith.ingestion.normalizer_meeatif')
         return getattr(mod, name)
     raise AttributeError(name)

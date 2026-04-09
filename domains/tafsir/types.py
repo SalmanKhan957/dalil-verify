@@ -181,3 +181,32 @@ class TafsirCitationBlock:
     citation_label: str
     quran_span_ref: str
     display_text: str
+
+
+@dataclass(frozen=True)
+class TafsirLexicalQuery:
+    topical_query: str
+    source_id: str | None = None
+    surah_no: int | None = None
+    limit: int = 5
+
+
+@dataclass(frozen=True)
+class TafsirLexicalHit:
+    section_id: int
+    canonical_section_id: str
+    work_id: int
+    source_id: str
+    display_name: str
+    citation_label: str
+    surah_no: int
+    ayah_start: int
+    ayah_end: int
+    anchor_verse_key: str
+    quran_span_ref: str
+    text_plain: str
+    text_html: str
+    score: float
+    matched_terms: tuple[str, ...]
+    snippet: str
+    retrieval_method: str

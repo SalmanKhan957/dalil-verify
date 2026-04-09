@@ -1,0 +1,27 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  },
+  "mappings": {
+    "properties": {
+      "guidance_unit_id": {"type": "keyword"},
+      "parent_hadith_ref": {"type": "keyword"},
+      "collection_source_id": {"type": "keyword"},
+      "span_text": {"type": "text"},
+      "summary_text": {"type": "text"},
+      "guidance_role": {"type": "keyword"},
+      "topic_family": {"type": "keyword"},
+      "central_concept_ids": {"type": "keyword"},
+      "secondary_concept_ids": {"type": "keyword"},
+      "directness_score": {"type": "float"},
+      "answerability_score": {"type": "float"},
+      "narrative_penalty": {"type": "float"},
+      "span_start": {"type": "integer"},
+      "span_end": {"type": "integer"},
+      "numbering_quality": {"type": "keyword"}
+    }
+  }
+}

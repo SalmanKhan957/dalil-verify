@@ -16,6 +16,10 @@ class ResponseMode(str, Enum):
     VERIFICATION_THEN_EXPLAIN = 'verification_then_explain'
     HADITH_TEXT = 'hadith_text'
     HADITH_EXPLANATION = 'hadith_explanation'
+    TOPICAL_TAFSIR = 'topical_tafsir'
+    TOPICAL_HADITH = 'topical_hadith'
+    TOPICAL_MULTI_SOURCE = 'topical_multi_source'
+    CLARIFY = 'clarify'
     ABSTAIN = 'abstain'
 
 
@@ -30,7 +34,10 @@ class EvidenceRequirement(str, Enum):
     QURAN_SPAN = 'quran_span'
     QURAN_VERIFICATION = 'quran_verification'
     TAFSIR_OVERLAP = 'tafsir_overlap'
+    TAFSIR_LEXICAL_RETRIEVAL = 'tafsir_lexical_retrieval'
     HADITH_CITATION_LOOKUP = 'hadith_citation_lookup'
+    HADITH_LEXICAL_RETRIEVAL = 'hadith_lexical_retrieval'
+    HADITH_TOPICAL_V2_CANDIDATE_GENERATION = 'hadith_topical_v2_candidate_generation'
 
 
 class AbstentionReason(str, Enum):
@@ -93,8 +100,10 @@ class AskPlan:
     request_context: dict[str, Any] = field(default_factory=dict)
     request_preferences: dict[str, Any] = field(default_factory=dict)
     source_controls: dict[str, Any] = field(default_factory=dict)
-    hadith_mode: str = 'auto'
     request_contract_version: str = 'ask.vnext'
+    topical_query: str | None = None
+    clarify_prompt: str | None = None
+    clarify_topics: list[str] = field(default_factory=list)
 
     @property
     def mode(self) -> ResponseMode:
@@ -105,7 +114,6 @@ class AskPlan:
         return self.quran_plan is not None and self.tafsir_plan is not None and self.use_tafsir
 
 
-# Backwards-compatible aliases for older imports while Phase 2 lands.
 AnswerPlan = AskPlan
 AnswerMode = ResponseMode
 SourceInvocationPlan = DomainInvocation

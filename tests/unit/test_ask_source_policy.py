@@ -164,3 +164,49 @@ def test_evaluate_ask_source_policy_selects_hadith_explain_capability() -> None:
     assert 'explain_from_source' in policy.hadith.available_capabilities
     assert policy.hadith.answer_capability == 'explicit_lookup_and_explain'
     assert policy.hadith.policy_reason == 'explicit_hadith_explain_selected'
+
+
+
+def test_evaluate_ask_source_policy_surfaces_bounded_public_scope_for_hadith() -> None:
+    policy = evaluate_ask_source_policy(
+        route_type=AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
+        action_type='fetch_text',
+        include_tafsir=None,
+        tafsir_intent_detected=False,
+        requested_tafsir_source_id=None,
+        quran_source=None,
+        requested_quran_text_source_id=None,
+        requested_quran_translation_source_id=None,
+        selected_quran_text_source_id=None,
+        selected_quran_translation_source_id=None,
+        quran_text_source_origin=None,
+        quran_translation_source_origin=None,
+        requested_hadith_source_id='hadith:sahih-al-bukhari-en',
+    )
+    assert policy.hadith is not None
+    assert policy.hadith.public_response_scope == 'bounded_public_explicit_and_topical'
+
+
+def test_evaluate_ask_source_policy_allows_explicit_lookup_only_for_explicit_hadith_lookup() -> None:
+    policy = evaluate_ask_source_policy(
+        route_type=AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
+        action_type='fetch_text',
+        include_tafsir=None,
+        tafsir_intent_detected=False,
+        requested_tafsir_source_id=None,
+        quran_source=None,
+        requested_quran_text_source_id=None,
+        requested_quran_translation_source_id=None,
+        selected_quran_text_source_id=None,
+        selected_quran_translation_source_id=None,
+        quran_text_source_origin=None,
+        quran_translation_source_origin=None,
+        requested_hadith_source_id='hadith:sahih-al-bukhari-en',
+        requested_hadith_mode='explicit_lookup_only',
+    )
+
+    assert policy.hadith is not None
+    assert policy.hadith.allowed is True
+    assert policy.hadith.included is True
+    assert policy.hadith.selected_capability == 'explicit_lookup'
+    assert policy.hadith.policy_reason == 'explicit_citation_lookup_selected'

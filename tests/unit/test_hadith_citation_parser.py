@@ -25,3 +25,14 @@ def test_parse_book_and_hadith_citation_for_bukhari() -> None:
     assert reference.hadith_number == '45'
     assert reference.canonical_ref == 'hadith:sahih-al-bukhari-en:book:3:hadith:45'
     assert render_hadith_citation(reference) == 'Sahih al-Bukhari, Book 3, Hadith 45'
+
+
+
+def test_parse_collection_number_citation_for_common_bukhari_shorthand_variants() -> None:
+    for query in ('bukari 20', 'sahih bukhari 20', 'Explain Bukari 20'):
+        reference = parse_hadith_citation(query)
+        assert reference is not None
+        assert reference.collection_slug == 'sahih-al-bukhari-en'
+        assert reference.reference_type == HadithReferenceType.COLLECTION_NUMBER
+        assert reference.hadith_number == '20'
+        assert reference.canonical_ref == 'hadith:sahih-al-bukhari-en:20'

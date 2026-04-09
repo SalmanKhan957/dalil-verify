@@ -6,7 +6,28 @@ from typing import Any
 from domains.hadith.contracts import HadithCitationReference
 from domains.hadith.citations.renderer import render_hadith_citation
 from domains.hadith.types import HadithEntryRecord
-from domains.tafsir.types import TafsirOverlapHit
+
+
+def _clean_hadith_book_title(value: Any, *, language: str) -> str | None:
+    text = ' '.join(str(value or '').split()).strip()
+    if not text:
+        return None
+    if language == 'en':
+        lower = text.lower()
+        if lower in {'chapter', 'chapter:'}:
+            return None
+        if lower.startswith('chapter:'):
+            stripped = text.split(':', 1)[1].strip()
+            return stripped or None
+        return text
+    if language == 'ar':
+        if text in {'باب', 'باب:'}:
+            return None
+        if text.startswith('باب'):
+            stripped = text[3:].strip(' :،-ـ')
+            return stripped or None
+        return text
+    return text
 
 
 @dataclass(slots=True)
@@ -27,7 +48,7 @@ class QuranEvidence:
 
 @dataclass(slots=True)
 class TafsirEvidence:
-    hit: TafsirOverlapHit
+    hit: Any
 
 
 @dataclass(slots=True)
@@ -48,7 +69,13 @@ class HadithEvidence:
     matn_text: str | None
     grading_label: str | None
     grading_text: str | None
-    raw: dict[str, Any]
+    snippet: str | None = None
+    retrieval_method: str | None = None
+    matched_terms: tuple[str, ...] = ()
+    guidance_unit_id: str | None = None
+    guidance_summary: str | None = None
+    source_excerpt: str | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -66,6 +93,7 @@ class EvidencePack:
     response_mode: str | None = None
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 def build_quran_evidence(quran_span: dict[str, Any] | None) -> QuranEvidence | None:
@@ -89,14 +117,15 @@ def build_quran_evidence(quran_span: dict[str, Any] | None) -> QuranEvidence | N
     )
 
 
-def build_tafsir_evidence(hits: list[TafsirOverlapHit] | None) -> list[TafsirEvidence]:
+def build_tafsir_evidence(hits: list[Any] | None) -> list[TafsirEvidence]:
     return [TafsirEvidence(hit=hit) for hit in (hits or [])]
 
 
-def build_hadith_evidence(entry: HadithEntryRecord | None, *, citation: HadithCitationReference | None = None) -> HadithEvidence | None:
+def build_hadith_evidence(entry: HadithEntryRecord | None, *, citation: HadithCitationReference | None = None, snippet: str | None = None, retrieval_method: str | None = None, matched_terms: tuple[str, ...] = (), authority_source: str | None = None, retrieval_origin: str | None = None, matched_topics: tuple[str, ...] = (), central_topic_score: float | None = None, answerability_score: float | None = None, guidance_role: str | None = None, topic_family: str | None = None, fusion_score: float | None = None, rerank_score: float | None = None, lexical_score: float | None = None, vector_score: float | None = None, guidance_unit_id: str | None = None, guidance_summary: str | None = None, source_excerpt: str | None = None) -> HadithEvidence | None:
     if entry is None:
         return None
     citation_string = render_hadith_citation(citation) if citation is not None else entry.canonical_ref_collection
+    metadata = dict(entry.metadata_json or {})
     return HadithEvidence(
         citation_string=citation_string,
         canonical_ref=entry.canonical_ref_collection,
@@ -114,6 +143,12 @@ def build_hadith_evidence(entry: HadithEntryRecord | None, *, citation: HadithCi
         matn_text=entry.matn_text,
         grading_label=(entry.grading.grade_label.value if entry.grading else None),
         grading_text=(entry.grading.grade_text if entry.grading else None),
+        snippet=snippet,
+        retrieval_method=retrieval_method,
+        matched_terms=matched_terms,
+        guidance_unit_id=guidance_unit_id,
+        guidance_summary=guidance_summary,
+        source_excerpt=source_excerpt,
         raw={
             'canonical_ref_collection': entry.canonical_ref_collection,
             'canonical_ref_book_hadith': entry.canonical_ref_book_hadith,
@@ -127,5 +162,28 @@ def build_hadith_evidence(entry: HadithEntryRecord | None, *, citation: HadithCi
             'arabic_text': entry.arabic_text,
             'grading_label': (entry.grading.grade_label.value if entry.grading else None),
             'grading_text': (entry.grading.grade_text if entry.grading else None),
+            'snippet': snippet,
+            'retrieval_method': retrieval_method,
+            'matched_terms': list(matched_terms),
+            'authority_source': authority_source,
+            'retrieval_origin': retrieval_origin,
+            'matched_topics': list(matched_topics),
+            'central_topic_score': central_topic_score,
+            'answerability_score': answerability_score,
+            'guidance_role': guidance_role,
+            'topic_family': topic_family,
+            'fusion_score': fusion_score,
+            'rerank_score': rerank_score,
+            'lexical_score': lexical_score,
+            'vector_score': vector_score,
+            'guidance_unit_id': guidance_unit_id,
+            'guidance_summary': guidance_summary,
+            'source_excerpt': source_excerpt,
+            'reference_url': metadata.get('reference_url'),
+            'in_book_reference_text': metadata.get('in_book_reference_text'),
+            'public_collection_number': metadata.get('public_collection_number'),
+            'book_title_en': _clean_hadith_book_title(metadata.get('book_title_en'), language='en'),
+            'book_title_ar': _clean_hadith_book_title(metadata.get('book_title_ar'), language='ar'),
+            'numbering_quality': metadata.get('numbering_quality'),
         },
     )

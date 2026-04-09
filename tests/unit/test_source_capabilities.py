@@ -10,6 +10,7 @@ def test_bootstrap_registry_exposes_capability_matrix() -> None:
     assert quran is not None and tafsir is not None and hadith is not None
     assert source_supports_capability(quran, 'quote_verification') is True
     assert source_supports_capability(tafsir, 'composition_allowed') is True
+    assert source_supports_capability(tafsir, 'topical_retrieval') is True
     assert source_supports_capability(hadith, 'explicit_lookup') is True
-    assert source_supports_capability(hadith, 'topical_retrieval') is False
+    assert source_supports_capability(hadith, 'topical_retrieval') is True
     assert 'conversation_followup_anchor' in list_enabled_capabilities(hadith)

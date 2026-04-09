@@ -63,6 +63,7 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
             SourceCapability.EXPLICIT_LOOKUP.value: True,
             SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
             SourceCapability.COMPOSITION_ALLOWED.value: True,
+            SourceCapability.TOPICAL_RETRIEVAL.value: True,
             SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
         },
     ),
@@ -82,6 +83,7 @@ SOURCE_REGISTRY_BOOTSTRAP: dict[str, SourceRecord] = {
         answer_capabilities={
             SourceCapability.EXPLICIT_LOOKUP.value: True,
             SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
+            SourceCapability.TOPICAL_RETRIEVAL.value: True,
             SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
         },
     ),

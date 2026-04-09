@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from domains.hadith.citations.parser import parse_hadith_citation
 from domains.hadith.citations.renderer import render_hadith_citation
+from domains.hadith.contracts import HadithLexicalHit, HadithLexicalQuery
 from domains.hadith.retrieval.citation_lookup import HadithCitationLookupService
+from domains.hadith.retrieval.lexical_search import HadithLexicalSearchService
 
 
 class HadithService:
     """Façade for deterministic Hadith citation handling over canonical DALIL storage."""
 
-    def __init__(self, *, database_url: str | None = None, citation_lookup_service: HadithCitationLookupService | None = None) -> None:
+    def __init__(self, *, database_url: str | None = None, citation_lookup_service: HadithCitationLookupService | None = None, lexical_search_service: HadithLexicalSearchService | None = None) -> None:
         self.database_url = database_url
         self.citation_lookup_service = citation_lookup_service or HadithCitationLookupService(database_url=database_url)
+        self.lexical_search_service = lexical_search_service or HadithLexicalSearchService(database_url=database_url)
 
     def parse_citation(self, query: str):
         return parse_hadith_citation(query)
@@ -23,3 +26,7 @@ class HadithService:
         if citation is None:
             return None
         return self.citation_lookup_service.lookup(citation)
+
+
+    def search_topically(self, *, query_text: str, collection_source_id: str | None = None, limit: int = 5) -> list[HadithLexicalHit]:
+        return self.lexical_search_service.search(HadithLexicalQuery(topical_query=query_text, collection_source_id=collection_source_id, limit=limit))

@@ -1,0 +1,97 @@
+{
+  "families": [
+    {
+      "family_id": "moral_guidance",
+      "retrieval_strategy": "guidance_units",
+      "allow_generic_fallback": true,
+      "description": "Virtues, vices, speech ethics, and direct prophetic guidance topics.",
+      "aliases": [
+        "anger",
+        "patience",
+        "jealousy",
+        "hasad",
+        "lying",
+        "truthfulness",
+        "backbiting",
+        "arrogance",
+        "mercy",
+        "forgiveness",
+        "sincerity",
+        "speech",
+        "family conduct"
+      ]
+    },
+    {
+      "family_id": "ritual_practice",
+      "retrieval_strategy": "thematic_passages",
+      "allow_generic_fallback": false,
+      "description": "Prayer, fasting, wudu, zakat, illness, and practical worship questions.",
+      "aliases": [
+        "prayer",
+        "salah",
+        "fasting",
+        "sawm",
+        "wudu",
+        "ablution",
+        "zakat",
+        "hajj",
+        "umrah",
+        "tayammum",
+        "sick",
+        "illness",
+        "traveller",
+        "travel"
+      ]
+    },
+    {
+      "family_id": "entity_eschatology",
+      "retrieval_strategy": "thematic_passages",
+      "allow_generic_fallback": false,
+      "description": "Dajjal, signs of the Hour, tribulations, end-times entities, and warning topics.",
+      "aliases": [
+        "dajjal",
+        "masih al dajjal",
+        "masih ad dajjal",
+        "antichrist",
+        "hour",
+        "last hour",
+        "the hour",
+        "signs of the hour",
+        "signs before the hour",
+        "major signs",
+        "minor signs",
+        "end times",
+        "day of judgement",
+        "day of judgment",
+        "fitan",
+        "tribulations",
+        "mahdi",
+        "yajuj",
+        "majuj",
+        "gog",
+        "magog"
+      ]
+    },
+    {
+      "family_id": "narrative_event",
+      "retrieval_strategy": "thematic_passages",
+      "allow_generic_fallback": false,
+      "description": "Events, incidents, and what the Prophet said in a story or historical situation.",
+      "aliases": [
+        "story",
+        "incident",
+        "event",
+        "happened",
+        "battle",
+        "visit",
+        "sick bedouin",
+        "musa",
+        "moses",
+        "isa",
+        "jesus",
+        "yusuf",
+        "joseph"
+      ]
+    }
+  ]
+}

@@ -36,7 +36,7 @@ async def test_ask_route_surfaces_abstention_metadata_at_top_level() -> None:
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post("/ask", json={"query": "Give me hadith about patience"})
+            response = await client.post("/ask", json={"query": "What does Islam say about anxiety?"})
 
     assert response.status_code == 200
     payload = response.json()

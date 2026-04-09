@@ -1,6 +1,5 @@
-from domains.ask.planner_types import AbstentionReason, EvidenceDomain, EvidenceRequirement, ResponseMode
+from domains.ask.planner_types import EvidenceDomain, EvidenceRequirement, ResponseMode
 from domains.ask.planner_lite import build_answer_plan
-
 
 
 def test_build_answer_plan_adds_tafsir_for_tafsir_intent() -> None:
@@ -15,7 +14,6 @@ def test_build_answer_plan_adds_tafsir_for_tafsir_intent() -> None:
     assert EvidenceRequirement.TAFSIR_OVERLAP in plan.evidence_requirements
 
 
-
 def test_build_answer_plan_keeps_plain_reference_quran_only() -> None:
     plan = build_answer_plan("What does 112:1-4 say?")
 
@@ -25,10 +23,11 @@ def test_build_answer_plan_keeps_plain_reference_quran_only() -> None:
     assert plan.response_mode == ResponseMode.QURAN_EXPLANATION
 
 
-
-def test_build_answer_plan_abstains_on_hadith_requests() -> None:
+def test_build_answer_plan_supports_topical_hadith_requests() -> None:
     plan = build_answer_plan("Give me hadith about patience")
 
-    assert plan.should_abstain is True
-    assert plan.response_mode == ResponseMode.ABSTAIN
-    assert plan.abstain_reason == AbstentionReason.HADITH_NOT_SUPPORTED_YET
+    assert plan.should_abstain is False
+    assert plan.response_mode == ResponseMode.TOPICAL_HADITH
+    assert plan.hadith_plan is not None
+    assert plan.hadith_plan.domain == EvidenceDomain.HADITH
+    assert EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL in plan.evidence_requirements

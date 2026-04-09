@@ -1,0 +1,21 @@
+{
+  "version": "v1",
+  "policies": [
+    {
+      "reason": "broad_hadith_topic_requires_clarification",
+      "domain": "hadith",
+      "answer_mode": "clarify",
+      "prompt": "I can help with hadith guidance, but this request is too broad. Do you mean anger, jealousy, lying, patience, sincerity, speech, family conduct, or worship?",
+      "suggested_topics": [
+        "anger",
+        "jealousy",
+        "lying",
+        "patience",
+        "sincerity",
+        "speech",
+        "family conduct",
+        "worship"
+      ]
+    }
+  ]
+}

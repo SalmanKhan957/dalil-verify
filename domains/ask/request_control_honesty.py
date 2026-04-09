@@ -68,7 +68,7 @@ def build_request_control_honesty(plan: AskPlan) -> dict[str, Any]:
             "hadith": {
                 "mode": _status(
                     status=_CONTROL_STATUS_ENFORCED,
-                    notes="Current public contract only supports explicit Hadith citation lookup/explain lanes; this mode is enforced against that bounded scope.",
+                    notes="Current public contract supports bounded explicit Hadith lookup/explain lanes and bounded topical Hadith retrieval. This mode is enforced within that public bounded scope; unrestricted multi-source Hadith answering remains unsupported.",
                 ),
                 "collection_ids": _status(
                     status=_CONTROL_STATUS_ENFORCED,

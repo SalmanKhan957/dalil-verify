@@ -50,6 +50,7 @@ class HadithSourcePolicyDecision:
     included: bool = False
     approved_for_answering: bool = False
     answer_capability: str | None = None
+    public_response_scope: str | None = None
     policy_reason: str | None = None
 
 

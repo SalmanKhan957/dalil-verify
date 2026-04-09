@@ -45,4 +45,6 @@ def execute_plan(plan: AskPlan, *, request: Request | None = None, database_url:
     evidence.hadith = hadith_evidence.hadith
     evidence.warnings.extend(hadith_evidence.warnings)
     evidence.errors.extend(hadith_evidence.errors)
+    if hadith_evidence.diagnostics:
+        evidence.diagnostics['hadith'] = hadith_evidence.diagnostics
     return evidence

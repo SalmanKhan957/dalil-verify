@@ -14,10 +14,17 @@ from domains.ask.planner_types import (
     ResponseMode,
 )
 from domains.ask.route_types import AskActionType, AskRouteType
+from domains.ask.source_policy_types import AskSourcePolicyDecision, HadithSourcePolicyDecision, TafsirSourcePolicyDecision
+from domains.ask.topical_query import detect_topical_query_intent
 from domains.hadith.citations.parser import parse_hadith_citation
 from domains.hadith.contracts import HadithCitationReference
 from domains.hadith.types import HadithReferenceType
-from domains.policies.ask_source_policy import evaluate_ask_source_policy
+from domains.policies.ask_source_policy import (
+    build_not_requested_quran_policy,
+    evaluate_ask_source_policy,
+    evaluate_topical_hadith_source_policy,
+    evaluate_topical_tafsir_source_policy,
+)
 from domains.quran.citations.resolver import resolve_quran_reference
 from domains.quran.repositories.context import (
     resolve_quran_repository_context,
@@ -38,6 +45,12 @@ def _response_mode_for_plan(*, route_type: str, action_type: str, use_tafsir: bo
         if action_type == AskActionType.EXPLAIN.value:
             return ResponseMode.HADITH_EXPLANATION
         return ResponseMode.HADITH_TEXT
+    if route_type == AskRouteType.TOPICAL_TAFSIR_QUERY.value:
+        return ResponseMode.TOPICAL_TAFSIR
+    if route_type == AskRouteType.TOPICAL_HADITH_QUERY.value:
+        return ResponseMode.TOPICAL_HADITH
+    if route_type == AskRouteType.TOPICAL_MULTI_SOURCE_QUERY.value:
+        return ResponseMode.TOPICAL_MULTI_SOURCE
     if route_type == AskRouteType.ARABIC_QURAN_QUOTE.value:
         if action_type == AskActionType.VERIFY_SOURCE.value:
             return ResponseMode.VERIFICATION_ONLY
@@ -52,9 +65,6 @@ def _response_mode_for_plan(*, route_type: str, action_type: str, use_tafsir: bo
 def _base_plan(*, query: str, route: dict[str, object], debug: bool, request_context: dict[str, object] | None = None, request_preferences: dict[str, object] | None = None, source_controls: dict[str, object] | None = None, request_contract_version: str = 'ask.vnext') -> AskPlan:
     route_type = str(route['route_type'])
     action_type = str(route.get('action_type', AskActionType.UNKNOWN.value))
-    normalized_source_controls = dict(source_controls or {})
-    hadith_controls = normalized_source_controls.get('hadith') if isinstance(normalized_source_controls.get('hadith'), dict) else {}
-    hadith_mode = str(hadith_controls.get('mode') or 'auto')
     return AskPlan(
         query=query,
         route_type=route_type,
@@ -64,10 +74,26 @@ def _base_plan(*, query: str, route: dict[str, object], debug: bool, request_con
         debug=debug,
         request_context=dict(request_context or {}),
         request_preferences=dict(request_preferences or {}),
-        source_controls=normalized_source_controls,
-        hadith_mode=hadith_mode,
+        source_controls=dict(source_controls or {}),
         request_contract_version=request_contract_version,
     )
+
+
+def _build_topical_source_policy(*, hadith_policy: HadithSourcePolicyDecision | None = None, tafsir_policy: TafsirSourcePolicyDecision | None = None) -> AskSourcePolicyDecision:
+    return AskSourcePolicyDecision(
+        quran=build_not_requested_quran_policy(),
+        tafsir=tafsir_policy or TafsirSourcePolicyDecision(policy_reason='not_requested_for_route', selected_capability=None, available_capabilities=[]),
+        hadith=hadith_policy or HadithSourcePolicyDecision(policy_reason='not_requested_for_route', available_capabilities=[]),
+    )
+
+def _requested_hadith_mode(source_controls: dict[str, object] | None) -> str:
+    hadith_controls = source_controls.get('hadith') if isinstance(source_controls, dict) else None
+    if isinstance(hadith_controls, dict):
+        mode = hadith_controls.get('mode')
+        if isinstance(mode, str) and mode.strip():
+            return mode.strip()
+    return 'auto'
+
 
 
 def _configure_hadith_plan(
@@ -76,7 +102,6 @@ def _configure_hadith_plan(
     query: str,
     route: dict[str, object],
     action_type: str,
-    hadith_mode: str,
     database_url: str | None,
 ) -> AskPlan:
     parsed_citation = route.get('parsed_hadith_citation') if isinstance(route, dict) else None
@@ -113,7 +138,7 @@ def _configure_hadith_plan(
             quran_text_source_origin=None,
             quran_translation_source_origin=None,
             requested_hadith_source_id=None,
-            hadith_mode=hadith_mode,
+            requested_hadith_mode=_requested_hadith_mode(plan.source_controls),
             database_url=database_url,
         )
         return plan
@@ -137,7 +162,7 @@ def _configure_hadith_plan(
         quran_text_source_origin=None,
         quran_translation_source_origin=None,
         requested_hadith_source_id=citation.collection_source_id,
-        hadith_mode=hadith_mode,
+        requested_hadith_mode=_requested_hadith_mode(plan.source_controls),
         database_url=database_url,
     )
     hadith_policy = plan.source_policy.hadith
@@ -157,11 +182,145 @@ def _configure_hadith_plan(
             'source_id': hadith_policy.selected_source_id,
             'citation': citation,
             'answer_capability': hadith_policy.answer_capability,
+            'retrieval_mode': 'citation',
         },
     )
     plan.notes.append(f'hadith_source:{hadith_policy.selected_source_id}')
-    plan.notes.append(f'hadith_mode:{hadith_mode}')
     plan.response_mode = _response_mode_for_plan(route_type=plan.route_type, action_type=action_type, use_tafsir=False)
+    return plan
+
+
+def _configure_topical_tafsir_plan(
+    plan: AskPlan,
+    *,
+    route: dict[str, object],
+    tafsir_source_id: str | None,
+    tafsir_limit: int,
+    database_url: str | None,
+) -> AskPlan:
+    topic_query = str(route.get('topic_query') or plan.query).strip()
+    plan.topical_query = topic_query
+    tafsir_policy = evaluate_topical_tafsir_source_policy(requested_tafsir_source_id=tafsir_source_id, database_url=database_url)
+    plan.source_policy = _build_topical_source_policy(tafsir_policy=tafsir_policy)
+    plan.tafsir_requested = True
+    if tafsir_policy.included and tafsir_policy.selected_source_id:
+        plan.eligible_domains.append(EvidenceDomain.TAFSIR)
+        plan.selected_domains.append(EvidenceDomain.TAFSIR)
+        plan.evidence_requirements.append(EvidenceRequirement.TAFSIR_LEXICAL_RETRIEVAL)
+        plan.tafsir_plan = DomainInvocation(
+            domain=EvidenceDomain.TAFSIR,
+            source_id=tafsir_policy.selected_source_id,
+            params={'source_id': tafsir_policy.selected_source_id, 'limit': int(tafsir_limit), 'query_text': topic_query, 'retrieval_mode': 'lexical', 'minimum_score': 0.6},
+        )
+        plan.response_mode = ResponseMode.TOPICAL_TAFSIR
+        plan.notes.append(f'tafsir_topic_source:{tafsir_policy.selected_source_id}')
+        return plan
+    plan.should_abstain = True
+    plan.abstain_reason = AbstentionReason.SOURCE_NOT_ENABLED if tafsir_policy.policy_reason == 'tafsir_source_not_enabled' else AbstentionReason.POLICY_RESTRICTED
+    plan.response_mode = ResponseMode.ABSTAIN
+    plan.notes.append(str(tafsir_policy.policy_reason or 'topical_tafsir_not_available'))
+    return plan
+
+
+def _configure_topical_hadith_plan(
+    plan: AskPlan,
+    *,
+    route: dict[str, object],
+    hadith_source_id: str | None,
+    tafsir_limit: int,
+    database_url: str | None,
+) -> AskPlan:
+    topic_query = str(route.get('topic_query') or plan.query).strip()
+    plan.topical_query = topic_query
+    requested_hadith_mode = _requested_hadith_mode(plan.source_controls)
+    hadith_policy = evaluate_topical_hadith_source_policy(requested_hadith_source_id=hadith_source_id, requested_hadith_mode=requested_hadith_mode, database_url=database_url)
+    plan.source_policy = _build_topical_source_policy(hadith_policy=hadith_policy)
+    plan.hadith_requested = True
+    if hadith_policy.included and hadith_policy.selected_source_id:
+        plan.eligible_domains.append(EvidenceDomain.HADITH)
+        plan.selected_domains.append(EvidenceDomain.HADITH)
+        plan.evidence_requirements.append(EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL)
+        plan.evidence_requirements.append(EvidenceRequirement.HADITH_TOPICAL_V2_CANDIDATE_GENERATION)
+        plan.hadith_plan = DomainInvocation(
+            domain=EvidenceDomain.HADITH,
+            source_id=hadith_policy.selected_source_id,
+            params={
+                'source_id': hadith_policy.selected_source_id,
+                'limit': max(5, int(tafsir_limit)),
+                'query_text': topic_query,
+                'retrieval_mode': 'topical_v2_shadow',
+                'minimum_score': 0.6,
+            },
+        )
+        plan.response_mode = ResponseMode.TOPICAL_HADITH
+        plan.notes.append(f'hadith_topic_source:{hadith_policy.selected_source_id}')
+        plan.notes.append('hadith_topical_v2:shadow_runtime_enabled')
+        return plan
+    plan.should_abstain = True
+    plan.abstain_reason = AbstentionReason.POLICY_RESTRICTED
+    plan.response_mode = ResponseMode.ABSTAIN
+    plan.notes.append(str(hadith_policy.policy_reason or 'topical_hadith_not_available'))
+    return plan
+
+
+def _configure_topical_multisource_plan(
+    plan: AskPlan,
+    *,
+    route: dict[str, object],
+    tafsir_source_id: str | None,
+    tafsir_limit: int,
+    hadith_source_id: str | None,
+    database_url: str | None,
+) -> AskPlan:
+    topic_query = str(route.get('topic_query') or plan.query).strip()
+    plan.topical_query = topic_query
+    tafsir_policy = evaluate_topical_tafsir_source_policy(requested_tafsir_source_id=tafsir_source_id, database_url=database_url)
+    requested_hadith_mode = _requested_hadith_mode(plan.source_controls)
+    hadith_policy = evaluate_topical_hadith_source_policy(requested_hadith_source_id=hadith_source_id, requested_hadith_mode=requested_hadith_mode, database_url=database_url)
+    plan.source_policy = _build_topical_source_policy(hadith_policy=hadith_policy, tafsir_policy=tafsir_policy)
+
+    if tafsir_policy.included and tafsir_policy.selected_source_id:
+        plan.tafsir_requested = True
+        plan.eligible_domains.append(EvidenceDomain.TAFSIR)
+        plan.selected_domains.append(EvidenceDomain.TAFSIR)
+        plan.evidence_requirements.append(EvidenceRequirement.TAFSIR_LEXICAL_RETRIEVAL)
+        plan.tafsir_plan = DomainInvocation(
+            domain=EvidenceDomain.TAFSIR,
+            source_id=tafsir_policy.selected_source_id,
+            params={'source_id': tafsir_policy.selected_source_id, 'limit': int(tafsir_limit), 'query_text': topic_query, 'retrieval_mode': 'lexical', 'minimum_score': 0.6},
+        )
+        plan.notes.append(f'tafsir_topic_source:{tafsir_policy.selected_source_id}')
+
+    if hadith_policy.included and hadith_policy.selected_source_id:
+        plan.hadith_requested = True
+        plan.eligible_domains.append(EvidenceDomain.HADITH)
+        plan.selected_domains.append(EvidenceDomain.HADITH)
+        plan.evidence_requirements.append(EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL)
+        plan.hadith_plan = DomainInvocation(
+            domain=EvidenceDomain.HADITH,
+            source_id=hadith_policy.selected_source_id,
+            params={'source_id': hadith_policy.selected_source_id, 'limit': int(tafsir_limit), 'query_text': topic_query, 'retrieval_mode': 'lexical', 'minimum_score': 0.6},
+        )
+        plan.notes.append(f'hadith_topic_source:{hadith_policy.selected_source_id}')
+
+    if not plan.selected_domains:
+        plan.should_abstain = True
+        plan.abstain_reason = AbstentionReason.POLICY_RESTRICTED
+        plan.response_mode = ResponseMode.ABSTAIN
+        plan.notes.append('no_topical_domains_selected')
+        return plan
+
+    if plan.tafsir_plan is None:
+        plan.notes.append(str(tafsir_policy.policy_reason or 'topical_tafsir_not_available'))
+    if plan.hadith_plan is None:
+        plan.notes.append(str(hadith_policy.policy_reason or 'topical_hadith_not_available'))
+
+    if plan.tafsir_plan is not None and plan.hadith_plan is not None:
+        plan.response_mode = ResponseMode.TOPICAL_MULTI_SOURCE
+    elif plan.tafsir_plan is not None:
+        plan.response_mode = ResponseMode.TOPICAL_TAFSIR
+    else:
+        plan.response_mode = ResponseMode.TOPICAL_HADITH
     return plan
 
 
@@ -187,12 +346,24 @@ def build_ask_plan(
     debug: bool = False,
 ) -> AskPlan:
     del request
+    route_was_supplied = route is not None
     route = route or classify_ask_query(query)
+    if not route_was_supplied and str(route.get('route_type')) == AskRouteType.UNSUPPORTED_FOR_NOW.value:
+        topical_route = detect_topical_query_intent(query, allow_multi_source=True)
+        if topical_route.get('matched'):
+            route = topical_route
     plan = _base_plan(query=query, route=route, debug=debug, request_context=request_context, request_preferences=request_preferences, source_controls=source_controls, request_contract_version=request_contract_version)
     route_type = plan.route_type
     action_type = plan.action_type
 
     if route_type == AskRouteType.UNSUPPORTED_FOR_NOW.value:
+        if bool(route.get('needs_clarification')):
+            clarify = route.get('clarify') if isinstance(route.get('clarify'), dict) else {}
+            plan.response_mode = ResponseMode.CLARIFY
+            plan.clarify_prompt = str(clarify.get('prompt') or 'This request is too broad and needs clarification.').strip()
+            plan.clarify_topics = [str(value) for value in list(clarify.get('suggested_topics') or []) if str(value).strip()]
+            plan.notes.append(str(route.get('reason') or 'needs_clarification'))
+            return plan
         plan.should_abstain = True
         plan.abstain_reason = infer_unsupported_abstention_reason(query, route)
         plan.response_mode = ResponseMode.ABSTAIN
@@ -200,9 +371,18 @@ def build_ask_plan(
         return plan
 
     if route_type == AskRouteType.EXPLICIT_HADITH_REFERENCE.value:
-        if hadith_source_id and isinstance(plan.route.get("parsed_hadith_citation"), dict):
-            plan.route["parsed_hadith_citation"]["collection_source_id"] = hadith_source_id
-        return _configure_hadith_plan(plan, query=query, route=route, action_type=action_type, hadith_mode=plan.hadith_mode, database_url=database_url)
+        if hadith_source_id and isinstance(plan.route.get('parsed_hadith_citation'), dict):
+            plan.route['parsed_hadith_citation']['collection_source_id'] = hadith_source_id
+        return _configure_hadith_plan(plan, query=query, route=route, action_type=action_type, database_url=database_url)
+
+    if route_type == AskRouteType.TOPICAL_TAFSIR_QUERY.value:
+        return _configure_topical_tafsir_plan(plan, route=route, tafsir_source_id=tafsir_source_id, tafsir_limit=tafsir_limit, database_url=database_url)
+
+    if route_type == AskRouteType.TOPICAL_HADITH_QUERY.value:
+        return _configure_topical_hadith_plan(plan, route=route, hadith_source_id=hadith_source_id, tafsir_limit=tafsir_limit, database_url=database_url)
+
+    if route_type == AskRouteType.TOPICAL_MULTI_SOURCE_QUERY.value:
+        return _configure_topical_multisource_plan(plan, route=route, tafsir_source_id=tafsir_source_id, tafsir_limit=tafsir_limit, hadith_source_id=hadith_source_id, database_url=database_url)
 
     requested_quran_source_id, requested_translation_source_id = resolve_requested_quran_repository_source_inputs(
         quran_work_source_id=quran_work_source_id,
@@ -271,7 +451,6 @@ def build_ask_plan(
                 selected_quran_translation_source_id=repository_context.translation_work_source_id,
                 quran_text_source_origin=plan.quran_text_source_origin,
                 quran_translation_source_origin=plan.quran_translation_source_origin,
-                hadith_mode=plan.hadith_mode,
                 database_url=repository_context.database_url,
             )
             return plan
@@ -290,7 +469,6 @@ def build_ask_plan(
             selected_quran_translation_source_id=repository_context.translation_work_source_id,
             quran_text_source_origin=plan.quran_text_source_origin,
             quran_translation_source_origin=plan.quran_translation_source_origin,
-            hadith_mode=plan.hadith_mode,
             database_url=repository_context.database_url,
         )
 
@@ -310,7 +488,7 @@ def build_ask_plan(
             plan.tafsir_plan = DomainInvocation(
                 domain=EvidenceDomain.TAFSIR,
                 source_id=plan.source_policy.tafsir.selected_source_id,
-                params={'source_id': plan.source_policy.tafsir.selected_source_id, 'limit': int(tafsir_limit)},
+                params={'source_id': plan.source_policy.tafsir.selected_source_id, 'limit': int(tafsir_limit), 'retrieval_mode': 'overlap'},
             )
             plan.notes.append(f"tafsir_source:{plan.source_policy.tafsir.selected_source_id}")
         elif plan.tafsir_requested:
@@ -347,7 +525,6 @@ def build_ask_plan(
             selected_quran_translation_source_id=repository_context.translation_work_source_id,
             quran_text_source_origin=plan.quran_text_source_origin,
             quran_translation_source_origin=plan.quran_translation_source_origin,
-            hadith_mode=plan.hadith_mode,
             database_url=repository_context.database_url,
         )
         plan.use_tafsir = bool(plan.source_policy.tafsir.included)
@@ -360,7 +537,7 @@ def build_ask_plan(
             plan.tafsir_plan = DomainInvocation(
                 domain=EvidenceDomain.TAFSIR,
                 source_id=plan.source_policy.tafsir.selected_source_id,
-                params={'source_id': plan.source_policy.tafsir.selected_source_id, 'limit': int(tafsir_limit)},
+                params={'source_id': plan.source_policy.tafsir.selected_source_id, 'limit': int(tafsir_limit), 'retrieval_mode': 'overlap'},
             )
             plan.notes.append(f"tafsir_source:{plan.source_policy.tafsir.selected_source_id}")
         elif plan.source_policy.tafsir.policy_reason == 'suppressed_by_request':
@@ -379,7 +556,6 @@ def build_ask_plan(
             selected_quran_translation_source_id=repository_context.translation_work_source_id,
             quran_text_source_origin=plan.quran_text_source_origin,
             quran_translation_source_origin=plan.quran_translation_source_origin,
-            hadith_mode=plan.hadith_mode,
             database_url=repository_context.database_url,
         )
 

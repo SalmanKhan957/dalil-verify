@@ -78,7 +78,7 @@ async def test_ask_api_supports_explicit_reference_and_arabic_quote_lanes():
 @pytest.mark.anyio
 async def test_ask_api_abstains_cleanly_on_unsupported_query():
     async with ask_app.router.lifespan_context(ask_app):
-        response = await _request_json(ask_app, "POST", "/ask", json={"query": "Give me hadith about patience"})
+        response = await _request_json(ask_app, "POST", "/ask", json={"query": "What does Islam say about anxiety?"})
 
     assert response.status_code == 200
     payload = response.json()

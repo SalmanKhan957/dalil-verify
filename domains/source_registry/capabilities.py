@@ -44,7 +44,7 @@ DEFAULT_SOURCE_CAPABILITIES: dict[tuple[str, str], dict[str, bool]] = {
     ('tafsir', 'commentary'): {
         SourceCapability.EXPLICIT_LOOKUP.value: True,
         SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
-        SourceCapability.TOPICAL_RETRIEVAL.value: False,
+        SourceCapability.TOPICAL_RETRIEVAL.value: True,
         SourceCapability.COMPOSITION_ALLOWED.value: True,
         SourceCapability.QUOTE_VERIFICATION.value: False,
         SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
@@ -52,7 +52,7 @@ DEFAULT_SOURCE_CAPABILITIES: dict[tuple[str, str], dict[str, bool]] = {
     ('hadith', 'hadith_collection'): {
         SourceCapability.EXPLICIT_LOOKUP.value: True,
         SourceCapability.EXPLAIN_FROM_SOURCE.value: True,
-        SourceCapability.TOPICAL_RETRIEVAL.value: False,
+        SourceCapability.TOPICAL_RETRIEVAL.value: True,
         SourceCapability.COMPOSITION_ALLOWED.value: False,
         SourceCapability.QUOTE_VERIFICATION.value: False,
         SourceCapability.CONVERSATION_FOLLOWUP_ANCHOR.value: True,
@@ -65,8 +65,6 @@ def _base_capabilities(record: SourceRecord) -> dict[str, bool]:
     if record.source_domain == 'tafsir':
         base[SourceCapability.COMPOSITION_ALLOWED.value] = bool(record.supports_quran_composition and record.approved_for_answering)
     if record.source_domain == 'hadith':
-        # Hadith stays bounded for now: explicit lookup + bounded explanation are allowed,
-        # topical retrieval and broader composition remain off until later tranches.
         base[SourceCapability.COMPOSITION_ALLOWED.value] = False
     return base
 
@@ -109,4 +107,24 @@ def describe_hadith_answer_capability(record: SourceRecord | None) -> str | None
         return 'explicit_lookup_and_explain'
     if capabilities.get(SourceCapability.EXPLICIT_LOOKUP.value):
         return 'explicit_lookup_only'
+    return None
+
+
+def describe_hadith_public_response_scope(record: SourceRecord | None) -> str | None:
+    if record is None:
+        return None
+    if record.approved_for_answering:
+        return 'full_answering'
+    capabilities = resolve_source_capabilities(record)
+    has_explicit = bool(capabilities.get(SourceCapability.EXPLICIT_LOOKUP.value))
+    has_explain = bool(capabilities.get(SourceCapability.EXPLAIN_FROM_SOURCE.value))
+    has_topical = bool(capabilities.get(SourceCapability.TOPICAL_RETRIEVAL.value))
+    if has_topical and (has_explicit or has_explain):
+        return 'bounded_public_explicit_and_topical'
+    if has_topical:
+        return 'bounded_public_topical_only'
+    if has_explain:
+        return 'bounded_public_explicit_and_explain'
+    if has_explicit:
+        return 'bounded_public_explicit_only'
     return None

@@ -42,3 +42,25 @@ class HadithGradingContract:
     grader_name: str | None = None
     provenance_note: str | None = None
     metadata_json: dict[str, Any] = field(default_factory=dict)
+
+
+
+@dataclass(slots=True)
+class HadithLexicalQuery:
+    topical_query: str
+    collection_source_id: str | None = None
+    limit: int = 5
+
+
+@dataclass(slots=True)
+class HadithLexicalHit:
+    entry: HadithEntryRecord
+    display_name: str
+    citation_label: str
+    book_title: str | None
+    chapter_title: str | None
+    score: float
+    matched_terms: tuple[str, ...] = ()
+    snippet: str = ''
+    retrieval_method: str = 'python_fallback'
+    rank_score: float | None = None

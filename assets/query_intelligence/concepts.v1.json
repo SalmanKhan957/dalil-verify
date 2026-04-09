@@ -1,0 +1,251 @@
+{
+  "version": "v1",
+  "concepts": [
+    {
+      "concept_id": "hadith.ethics.anger",
+      "slug": "anger",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "anger",
+      "surface_forms": [
+        "anger",
+        "angry",
+        "do not get angry",
+        "do not become angry",
+        "restrain anger",
+        "control anger"
+      ],
+      "directive_biases": [
+        "warning",
+        "prohibition",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "warning",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "anger",
+        "angry",
+        "do not get angry",
+        "do not become angry",
+        "restrain anger",
+        "control anger"
+      ]
+    },
+    {
+      "concept_id": "hadith.ethics.hasad",
+      "slug": "hasad",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "jealousy",
+      "surface_forms": [
+        "hasad",
+        "jealousy",
+        "envy",
+        "envier",
+        "malicious envy"
+      ],
+      "directive_biases": [
+        "warning",
+        "prohibition"
+      ],
+      "guidance_roles": [
+        "warning",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "hasad",
+        "jealousy",
+        "envy",
+        "malicious envy"
+      ]
+    },
+    {
+      "concept_id": "hadith.ethics.lying",
+      "slug": "lying",
+      "domain": "hadith",
+      "family": "speech",
+      "label_en": "lying",
+      "surface_forms": [
+        "lying",
+        "lie",
+        "lies",
+        "falsehood",
+        "liar"
+      ],
+      "directive_biases": [
+        "warning",
+        "prohibition"
+      ],
+      "guidance_roles": [
+        "warning",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "lying",
+        "lie",
+        "lies",
+        "falsehood",
+        "liar"
+      ]
+    },
+    {
+      "concept_id": "hadith.ethics.patience",
+      "slug": "patience",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "patience",
+      "surface_forms": [
+        "patience",
+        "sabr",
+        "steadfastness",
+        "patient",
+        "be patient",
+        "being patient"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "virtue_statement",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "patience",
+        "sabr",
+        "steadfastness",
+        "patient"
+      ]
+    },
+    {
+      "concept_id": "hadith.ethics.arrogance",
+      "slug": "arrogance",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "arrogance",
+      "surface_forms": [
+        "arrogance",
+        "pride",
+        "proud",
+        "kibr",
+        "boastful"
+      ],
+      "directive_biases": [
+        "warning",
+        "prohibition"
+      ],
+      "guidance_roles": [
+        "warning",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "arrogance",
+        "pride",
+        "proud",
+        "kibr",
+        "boastful"
+      ]
+    },
+    {
+      "concept_id": "hadith.ethics.sincerity",
+      "slug": "sincerity",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "sincerity",
+      "surface_forms": [
+        "sincerity",
+        "ikhlas",
+        "intention",
+        "intentions",
+        "niyyah"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "virtue_statement",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "sincerity",
+        "ikhlas",
+        "intention",
+        "intentions",
+        "niyyah"
+      ]
+    },
+    {
+      "concept_id": "hadith.virtue.self_improvement",
+      "slug": "self_improvement",
+      "domain": "hadith",
+      "family": "virtue",
+      "label_en": "self improvement",
+      "surface_forms": [
+        "improve myself",
+        "be better",
+        "being better",
+        "better person",
+        "good muslim",
+        "good Muslim"
+      ],
+      "directive_biases": [
+        "guidance"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ]
+    },
+    {
+      "concept_id": "quran.named_anchor.ayat_al_kursi",
+      "slug": "ayat_al_kursi",
+      "domain": "quran_anchor",
+      "family": "named_anchor",
+      "label_en": "Ayat al-Kursi",
+      "surface_forms": [
+        "ayat al kursi",
+        "ayat al-kursi",
+        "ayatul kursi",
+        "ayatul-kursi",
+        "ayatul kursi",
+        "ayat ul kursi"
+      ],
+      "directive_biases": [],
+      "guidance_roles": [],
+      "canonical_ref": "quran:2:255"
+    },
+    {
+      "concept_id": "hadith.ethics.rizq",
+      "slug": "rizq",
+      "domain": "hadith",
+      "family": "wealth",
+      "label_en": "rizq",
+      "surface_forms": [
+        "rizq",
+        "rizk",
+        "provision",
+        "sustenance",
+        "livelihood"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "virtue_statement",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "rizq",
+        "rizk",
+        "provision",
+        "sustenance",
+        "livelihood"
+      ]
+    }
+  ]
+}
