@@ -106,7 +106,7 @@ async def test_ask_route_returns_explicit_hadith_reference_answer(monkeypatch: p
     assert payload['hadith_support']['canonical_ref'] == 'hadith:sahih-al-bukhari-en:2'
     assert payload['hadith_support']['numbering_quality'] == 'collection_number_stable'
     assert payload['source_policy']['hadith']['answer_capability'] == 'explicit_lookup_and_explain'
-    assert payload['source_policy']['hadith']['public_response_scope'] == 'bounded_public_explicit_and_topical'
+    assert payload['source_policy']['hadith']['public_response_scope'] == 'bounded_public_explicit_and_explain'
     assert payload['source_policy']['hadith']['selected_capability'] == 'explicit_lookup'
     assert payload['source_policy']['hadith']['request_mode'] == 'auto'
     assert payload['source_policy']['hadith']['mode_enforced'] is True

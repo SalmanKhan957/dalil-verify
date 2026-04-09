@@ -273,9 +273,19 @@ def _build_topical_multi_source_answer(evidence: EvidencePack) -> str | None:
     return None
 
 
+def _build_abstain_answer(plan: AskPlan) -> str | None:
+    hadith_policy = plan.source_policy.hadith if plan.source_policy is not None else None
+    policy_reason = str(hadith_policy.policy_reason or '').strip() if hadith_policy is not None else ''
+    if plan.route_type == 'topical_hadith_query' and policy_reason == 'topical_hadith_temporarily_disabled':
+        return 'Topical Hadith answers are temporarily disabled in this release. Direct Hadith references such as “Bukhari 20” are still supported.'
+    if plan.route_type == 'topical_hadith_query' and policy_reason == 'hadith_mode_blocks_topical_retrieval':
+        return 'Topical Hadith retrieval is disabled for this request because hadith.mode is set to explicit_lookup_only. Direct Hadith references are still supported.'
+    return None
+
+
 def _build_answer_text(plan: AskPlan, evidence: EvidencePack) -> str | None:
     if plan.response_mode == ResponseMode.ABSTAIN:
-        return None
+        return _build_abstain_answer(plan)
     if plan.response_mode == ResponseMode.CLARIFY:
         return _build_clarify_answer(plan)
     if plan.response_mode == ResponseMode.TOPICAL_TAFSIR:

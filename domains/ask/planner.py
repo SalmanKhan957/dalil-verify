@@ -256,6 +256,23 @@ def _configure_topical_hadith_plan(
         plan.notes.append(f'hadith_topic_source:{hadith_policy.selected_source_id}')
         plan.notes.append('hadith_topical_v2:shadow_runtime_enabled')
         return plan
+    if plan.debug and hadith_policy.policy_reason == 'topical_hadith_temporarily_disabled' and hadith_policy.selected_source_id:
+        plan.hadith_plan = DomainInvocation(
+            domain=EvidenceDomain.HADITH,
+            source_id=hadith_policy.selected_source_id,
+            params={
+                'source_id': hadith_policy.selected_source_id,
+                'limit': max(5, int(tafsir_limit)),
+                'query_text': topic_query,
+                'retrieval_mode': 'topical_v2_shadow',
+                'minimum_score': 0.6,
+                'shadow_only': True,
+            },
+        )
+        plan.evidence_requirements.append(EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL)
+        plan.evidence_requirements.append(EvidenceRequirement.HADITH_TOPICAL_V2_CANDIDATE_GENERATION)
+        plan.notes.append(f'hadith_topic_shadow_source:{hadith_policy.selected_source_id}')
+        plan.notes.append('hadith_topical_v2:debug_shadow_only')
     plan.should_abstain = True
     plan.abstain_reason = AbstentionReason.POLICY_RESTRICTED
     plan.response_mode = ResponseMode.ABSTAIN

@@ -267,9 +267,6 @@ def _normalize_meeatif_title_en(value: str | None) -> str | None:
     lower = normalized.lower()
     if lower in {'chapter', 'chapter:'}:
         return None
-    if lower.startswith('chapter:'):
-        stripped = normalized.split(':', 1)[1].strip()
-        return stripped or None
     return normalized
 
 
@@ -280,7 +277,4 @@ def _normalize_meeatif_title_ar(value: str | None) -> str | None:
     normalized = ' '.join(text.split()).strip()
     if normalized in {'باب', 'باب:'}:
         return None
-    if normalized.startswith('باب'):
-        stripped = normalized[3:].strip(' :،-ـ')
-        return stripped or None
     return normalized

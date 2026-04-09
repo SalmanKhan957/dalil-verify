@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from domains.ask.route_types import AskActionType, AskRouteType
 from domains.ask.source_policy_types import (
     AskSourcePolicyDecision,
@@ -19,6 +21,25 @@ from domains.source_registry.registry import get_source_record, resolve_hadith_c
 from shared.schemas.source_record import SourceRecord
 
 _TAFSIR_ELIGIBLE_ROUTE_TYPES = {AskRouteType.EXPLICIT_QURAN_REFERENCE.value, AskRouteType.ARABIC_QURAN_QUOTE.value}
+
+
+def _public_topical_hadith_enabled() -> bool:
+    raw = (os.getenv('DALIL_ENABLE_PUBLIC_TOPICAL_HADITH', 'false') or '').strip().lower()
+    return raw in {'1', 'true', 'yes', 'on'}
+
+
+def _effective_hadith_public_response_scope(source: SourceRecord | None) -> str | None:
+    scope = describe_hadith_public_response_scope(source)
+    if _public_topical_hadith_enabled() or source is None:
+        return scope
+    capabilities = list_enabled_capabilities(source)
+    has_explicit = SourceCapability.EXPLICIT_LOOKUP.value in capabilities
+    has_explain = SourceCapability.EXPLAIN_FROM_SOURCE.value in capabilities
+    if has_explain:
+        return 'bounded_public_explicit_and_explain'
+    if has_explicit:
+        return 'bounded_public_explicit_only'
+    return scope
 
 
 def _quran_selected_capability(*, route_type: str, action_type: str) -> str:
@@ -93,7 +114,7 @@ def _evaluate_hadith_source_policy(*, requested_hadith_source_id: str | None, re
     policy.available_capabilities = list_enabled_capabilities(source)
     policy.approved_for_answering = bool(source.approved_for_answering)
     policy.answer_capability = describe_hadith_answer_capability(source)
-    policy.public_response_scope = describe_hadith_public_response_scope(source)
+    policy.public_response_scope = _effective_hadith_public_response_scope(source)
     if not source_supports_capability(source, selected_capability):
         policy.policy_reason = 'requested_hadith_capability_not_allowed'
         return policy
@@ -148,11 +169,15 @@ def evaluate_topical_hadith_source_policy(*, requested_hadith_source_id: str | N
     policy.selected_source_id = source.source_id
     policy.available_capabilities = list_enabled_capabilities(source)
     policy.approved_for_answering = bool(source.approved_for_answering)
-    policy.answer_capability = 'topical_retrieval_bounded' if source_supports_capability(source, SourceCapability.TOPICAL_RETRIEVAL.value) else describe_hadith_answer_capability(source)
-    policy.public_response_scope = describe_hadith_public_response_scope(source)
+    policy.answer_capability = describe_hadith_answer_capability(source)
+    policy.public_response_scope = _effective_hadith_public_response_scope(source)
+    if not _public_topical_hadith_enabled():
+        policy.policy_reason = 'topical_hadith_temporarily_disabled'
+        return policy
     if not source_supports_capability(source, SourceCapability.TOPICAL_RETRIEVAL.value):
         policy.policy_reason = 'requested_hadith_capability_not_allowed'
         return policy
+    policy.answer_capability = 'topical_retrieval_bounded'
     policy.allowed = True
     policy.included = True
     policy.policy_reason = 'topical_hadith_selected'

@@ -1,27 +1,29 @@
 from domains.ask.planner import build_ask_plan
-from domains.ask.planner_types import EvidenceDomain, EvidenceRequirement, ResponseMode
+from domains.ask.planner_types import AbstentionReason, EvidenceDomain, EvidenceRequirement, ResponseMode
 
 
-def test_planner_builds_topical_hadith_plan() -> None:
+def test_planner_abstains_for_topical_hadith_plan_when_public_lane_is_disabled() -> None:
     plan = build_ask_plan('Any hadith about intention?')
-    assert plan.response_mode == ResponseMode.TOPICAL_HADITH
-    assert plan.selected_domains == [EvidenceDomain.HADITH]
-    assert plan.hadith_plan is not None
-    assert plan.hadith_plan.params['retrieval_mode'] == 'topical_v2_shadow'
+    assert plan.response_mode == ResponseMode.ABSTAIN
+    assert plan.should_abstain is True
+    assert plan.abstain_reason == AbstentionReason.POLICY_RESTRICTED
+    assert plan.selected_domains == []
+    assert plan.hadith_plan is None
     assert plan.topical_query == 'intention'
-    assert EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL in plan.evidence_requirements
-    assert EvidenceRequirement.HADITH_TOPICAL_V2_CANDIDATE_GENERATION in plan.evidence_requirements
+    assert plan.source_policy.hadith is not None
+    assert plan.source_policy.hadith.policy_reason == 'topical_hadith_temporarily_disabled'
 
 
-def test_planner_builds_topical_multi_source_plan() -> None:
+def test_planner_builds_topical_multi_source_plan_with_tafsir_only_when_hadith_lane_is_disabled() -> None:
     plan = build_ask_plan('What does Islam say about patience?')
-    assert plan.response_mode == ResponseMode.TOPICAL_MULTI_SOURCE
+    assert plan.response_mode == ResponseMode.TOPICAL_TAFSIR
     assert plan.tafsir_plan is not None
-    assert plan.hadith_plan is not None
-    assert plan.selected_domains == [EvidenceDomain.TAFSIR, EvidenceDomain.HADITH]
+    assert plan.hadith_plan is None
+    assert plan.selected_domains == [EvidenceDomain.TAFSIR]
     assert plan.topical_query == 'patience'
     assert EvidenceRequirement.TAFSIR_LEXICAL_RETRIEVAL in plan.evidence_requirements
-    assert EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL in plan.evidence_requirements
+    assert plan.source_policy.hadith is not None
+    assert plan.source_policy.hadith.policy_reason == 'topical_hadith_temporarily_disabled'
 
 
 def test_planner_keeps_explicit_quran_precedence_over_topical() -> None:
@@ -29,7 +31,6 @@ def test_planner_keeps_explicit_quran_precedence_over_topical() -> None:
     assert plan.response_mode in {ResponseMode.QURAN_EXPLANATION, ResponseMode.QURAN_WITH_TAFSIR}
     assert plan.quran_plan is not None
     assert plan.hadith_plan is None
-
 
 
 def test_planner_blocks_topical_hadith_when_request_mode_is_explicit_lookup_only() -> None:
@@ -43,3 +44,14 @@ def test_planner_blocks_topical_hadith_when_request_mode_is_explicit_lookup_only
     assert plan.source_policy.hadith.request_mode == 'explicit_lookup_only'
     assert plan.source_policy.hadith.mode_enforced is True
     assert plan.source_policy.hadith.policy_reason == 'hadith_mode_blocks_topical_retrieval'
+
+
+def test_planner_keeps_debug_shadow_plan_for_disabled_topical_hadith() -> None:
+    plan = build_ask_plan('Any hadith about intention?', debug=True)
+    assert plan.response_mode == ResponseMode.ABSTAIN
+    assert plan.should_abstain is True
+    assert plan.hadith_plan is not None
+    assert plan.hadith_plan.params['retrieval_mode'] == 'topical_v2_shadow'
+    assert plan.hadith_plan.params['shadow_only'] is True
+    assert EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL in plan.evidence_requirements
+    assert EvidenceRequirement.HADITH_TOPICAL_V2_CANDIDATE_GENERATION in plan.evidence_requirements

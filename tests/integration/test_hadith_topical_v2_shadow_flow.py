@@ -69,5 +69,8 @@ async def test_ask_route_surfaces_hadith_topical_v2_shadow_diagnostics_when_debu
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload['ok'] is True
+    assert payload['ok'] is False
+    assert payload['answer_mode'] == 'abstain'
+    assert payload['error'] == 'policy_restricted'
+    assert payload['hadith_support'] is None
     assert payload['debug']['runtime_diagnostics']['hadith']['topical_v2_shadow']['selected_refs'] == ['hadith:sahih-al-bukhari-en:10']

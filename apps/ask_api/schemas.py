@@ -117,7 +117,7 @@ class TafsirSourceControlsRequest(BaseModel):
 
 
 class HadithSourceControlsRequest(BaseModel):
-    mode: Literal['auto', 'explicit_lookup_only'] | None = Field(default=None, description='Hadith source selection mode for bounded public Hadith lanes. Current runtime supports explicit citation lookup/explain and bounded single-domain topical Hadith retrieval. Broader unrestricted or mixed-source Hadith answering remains deferred.')
+    mode: Literal['auto', 'explicit_lookup_only'] | None = Field(default=None, description='Hadith source selection mode for bounded public Hadith lanes. Current runtime supports explicit citation lookup/explain. Public topical Hadith answering is currently disabled by default while corpus-native retrieval is deferred; broader unrestricted or mixed-source Hadith answering remains deferred.')
     collection_ids: list[str] = Field(default_factory=list, description='At most one Hadith collection source id is currently supported on the public surface.')
 
     @field_validator('collection_ids', mode='before')
@@ -461,6 +461,11 @@ class HadithSupport(BaseModel):
     book_number: int
     chapter_number: int | None = None
     in_book_hadith_number: int | None = None
+    reference_url: str | None = None
+    in_book_reference_text: str | None = None
+    public_collection_number: int | None = None
+    book_title_en: str | None = None
+    book_title_ar: str | None = None
     english_narrator: str | None = None
     english_text: str | None = None
     arabic_text: str | None = None

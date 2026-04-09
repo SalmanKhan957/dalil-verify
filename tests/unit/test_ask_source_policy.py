@@ -1,5 +1,5 @@
 from domains.ask.route_types import AskRouteType
-from domains.policies.ask_source_policy import evaluate_ask_source_policy
+from domains.policies.ask_source_policy import evaluate_ask_source_policy, evaluate_topical_hadith_source_policy
 from domains.source_registry.registry import get_source_record
 
 
@@ -166,8 +166,7 @@ def test_evaluate_ask_source_policy_selects_hadith_explain_capability() -> None:
     assert policy.hadith.policy_reason == 'explicit_hadith_explain_selected'
 
 
-
-def test_evaluate_ask_source_policy_surfaces_bounded_public_scope_for_hadith() -> None:
+def test_evaluate_ask_source_policy_surfaces_effective_public_scope_for_hadith() -> None:
     policy = evaluate_ask_source_policy(
         route_type=AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
         action_type='fetch_text',
@@ -184,7 +183,7 @@ def test_evaluate_ask_source_policy_surfaces_bounded_public_scope_for_hadith() -
         requested_hadith_source_id='hadith:sahih-al-bukhari-en',
     )
     assert policy.hadith is not None
-    assert policy.hadith.public_response_scope == 'bounded_public_explicit_and_topical'
+    assert policy.hadith.public_response_scope == 'bounded_public_explicit_and_explain'
 
 
 def test_evaluate_ask_source_policy_allows_explicit_lookup_only_for_explicit_hadith_lookup() -> None:
@@ -210,3 +209,16 @@ def test_evaluate_ask_source_policy_allows_explicit_lookup_only_for_explicit_had
     assert policy.hadith.included is True
     assert policy.hadith.selected_capability == 'explicit_lookup'
     assert policy.hadith.policy_reason == 'explicit_citation_lookup_selected'
+
+
+def test_evaluate_topical_hadith_source_policy_blocks_public_topical_lane_when_temporarily_disabled() -> None:
+    policy = evaluate_topical_hadith_source_policy(
+        requested_hadith_source_id='hadith:sahih-al-bukhari-en',
+        requested_hadith_mode='auto',
+    )
+
+    assert policy.allowed is False
+    assert policy.included is False
+    assert policy.selected_source_id == 'hadith:sahih-al-bukhari-en'
+    assert policy.policy_reason == 'topical_hadith_temporarily_disabled'
+    assert policy.public_response_scope == 'bounded_public_explicit_and_explain'

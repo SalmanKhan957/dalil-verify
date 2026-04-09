@@ -65,4 +65,4 @@ async def test_ask_route_resolves_collection_number_from_meeatif_reference_url(m
     assert payload['hadith_support']['in_book_reference_text'] == 'Book 64, Hadith 188'
     assert payload['hadith_support']['book_number'] == 64
     assert payload['hadith_support']['chapter_number'] is None
-    assert payload['hadith_support']['numbering_quality'] == 'collection_number_stable'
+    assert payload['hadith_support']['numbering_quality'] == 'reference_url_linked'

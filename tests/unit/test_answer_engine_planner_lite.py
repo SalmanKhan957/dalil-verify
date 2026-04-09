@@ -1,4 +1,4 @@
-from domains.ask.planner_types import EvidenceDomain, EvidenceRequirement, ResponseMode
+from domains.ask.planner_types import AbstentionReason, EvidenceDomain, EvidenceRequirement, ResponseMode
 from domains.ask.planner_lite import build_answer_plan
 
 
@@ -23,11 +23,20 @@ def test_build_answer_plan_keeps_plain_reference_quran_only() -> None:
     assert plan.response_mode == ResponseMode.QURAN_EXPLANATION
 
 
-def test_build_answer_plan_supports_topical_hadith_requests() -> None:
+def test_build_answer_plan_abstains_for_topical_hadith_requests_when_public_lane_is_disabled() -> None:
     plan = build_answer_plan("Give me hadith about patience")
 
-    assert plan.should_abstain is False
-    assert plan.response_mode == ResponseMode.TOPICAL_HADITH
+    assert plan.should_abstain is True
+    assert plan.abstain_reason == AbstentionReason.POLICY_RESTRICTED
+    assert plan.response_mode == ResponseMode.ABSTAIN
+    assert plan.hadith_plan is None
+
+
+def test_build_answer_plan_keeps_debug_shadow_plan_for_disabled_topical_hadith() -> None:
+    plan = build_answer_plan('Give me hadith about patience', debug=True)
+
+    assert plan.should_abstain is True
+    assert plan.abstain_reason == AbstentionReason.POLICY_RESTRICTED
+    assert plan.response_mode == ResponseMode.ABSTAIN
     assert plan.hadith_plan is not None
-    assert plan.hadith_plan.domain == EvidenceDomain.HADITH
-    assert EvidenceRequirement.HADITH_LEXICAL_RETRIEVAL in plan.evidence_requirements
+    assert plan.hadith_plan.params['shadow_only'] is True

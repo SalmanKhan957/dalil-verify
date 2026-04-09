@@ -17,6 +17,11 @@ def execute_plan(plan: AskPlan, *, request: Request | None = None, database_url:
     )
 
     if plan.should_abstain:
+        effective_database_url = database_url or plan.database_url
+        if plan.debug and plan.hadith_plan is not None and bool(plan.hadith_plan.params.get('shadow_only')):
+            hadith_evidence = invoke_hadith_domain(plan, database_url=effective_database_url)
+            if hadith_evidence.diagnostics:
+                evidence.diagnostics['hadith'] = hadith_evidence.diagnostics
         if plan.abstain_reason is not None:
             evidence.errors.append(plan.abstain_reason.value)
         return evidence
