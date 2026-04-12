@@ -35,7 +35,7 @@ def test_classifier_resolves_named_quran_anchor_to_explicit_reference() -> None:
 
 def test_classifier_marks_broad_hadith_self_improvement_query_as_needing_clarification() -> None:
     route = classify_ask_query('How can I improve myself according to hadith?')
-    assert route['route_type'] == 'unsupported_for_now'
+    assert route['route_type'] == 'broad_source_grounded_query'
     assert route['reason'] == 'broad_hadith_topic_requires_clarification'
 
 

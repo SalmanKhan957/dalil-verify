@@ -15,8 +15,9 @@ async def test_ask_route_returns_clarify_for_broad_hadith_self_improvement_query
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload['route_type'] == 'unsupported_for_now'
+    assert payload['route_type'] == 'broad_source_grounded_query'
     assert payload['answer_mode'] == 'clarify'
+    assert payload['terminal_state'] == 'clarify'
     assert payload['ok'] is True
     assert payload['error'] is None
     assert 'clarification_required' in payload['warnings']

@@ -25,6 +25,20 @@ def _first_or_none(values: list[str]) -> str | None:
     return values[0] if values else None
 
 
+def _infer_terminal_state_value(values: dict[str, Any]) -> str:
+    terminal_state = values.get('terminal_state')
+    if isinstance(terminal_state, str) and terminal_state.strip():
+        return terminal_state.strip()
+    answer_mode = str(values.get('answer_mode') or '').strip()
+    error = values.get('error')
+    ok = values.get('ok')
+    if answer_mode == 'clarify':
+        return 'clarify'
+    if answer_mode == 'abstain' or error is not None or ok is False:
+        return 'abstain'
+    return 'answered'
+
+
 def _ensure_matching_alias(*, nested_value: object, flat_value: object, nested_field: str, flat_field: str) -> None:
     if nested_value is None or flat_value is None:
         return
@@ -33,9 +47,9 @@ def _ensure_matching_alias(*, nested_value: object, flat_value: object, nested_f
 
 
 class AskContextRequest(BaseModel):
-    conversation_id: str | None = Field(default=None, description='Opaque conversation/thread identifier accepted and surfaced for future follow-up-aware clients. Currently advisory only; runtime follow-up state is not yet implemented.')
-    parent_turn_id: str | None = Field(default=None, description='Opaque parent turn identifier accepted and surfaced for future follow-up anchoring. Currently advisory only; runtime parent-turn resolution is not yet implemented.')
-    anchor_refs: list[str] = Field(default_factory=list, description='Canonical refs the caller wants to carry forward as explicit anchors. Currently advisory only; runtime anchor-aware follow-up resolution is not yet implemented.')
+    conversation_id: str | None = Field(default=None, description='Opaque conversation/thread identifier accepted and surfaced for follow-up-aware clients. Narrow anchored follow-up can hydrate the latest follow-up-eligible anchors from this conversation when explicit anchor refs are not supplied.')
+    parent_turn_id: str | None = Field(default=None, description='Opaque parent turn identifier accepted and surfaced for follow-up anchoring. Narrow anchored follow-up can hydrate anchors from this prior response when supplied.')
+    anchor_refs: list[str] = Field(default_factory=list, description='Canonical refs the caller wants to carry forward as explicit anchors. Narrow anchored follow-up resolution over Quran, Tafsir, and explicit Hadith is supported when these refs are supplied.')
 
     @field_validator('conversation_id', 'parent_turn_id', mode='before')
     @classmethod
@@ -95,7 +109,10 @@ class QuranSourceControlsRequest(BaseModel):
 class TafsirSourceControlsRequest(BaseModel):
     mode: Literal['off', 'auto', 'required'] | None = Field(default=None, description='Whether Tafsir is disabled, planner-driven, or explicitly required.')
     limit: int | None = Field(default=None, ge=1, le=5)
-    source_ids: list[str] = Field(default_factory=list, description='At most one Tafsir source id is currently supported on the public surface.')
+    source_ids: list[str] = Field(
+        default_factory=list,
+        description='Up to three Tafsir source ids are supported on the public surface for source-separated comparative Quran commentary selection.'
+    )
 
     @field_validator('source_ids', mode='before')
     @classmethod
@@ -111,8 +128,10 @@ class TafsirSourceControlsRequest(BaseModel):
             normalized = _reject_placeholder_source_id(item, field_name='source_ids')
             if normalized:
                 normalized_ids.append(normalized)
-        if len(normalized_ids) > 1:
-            raise ValueError('sources.tafsir.source_ids currently supports at most one source id on the public surface')
+        if len(normalized_ids) > 3:
+            raise ValueError(
+                'sources.tafsir.source_ids currently supports up to three Tafsir source ids for source-separated comparative Quran commentary selection.'
+            )
         return normalized_ids
 
 
@@ -338,6 +357,13 @@ class AskSurfaceRequestBase(BaseModel):
         if self.sources and self.sources.tafsir and self.sources.tafsir.source_ids:
             nested = self.sources.tafsir.source_ids[0]
         return nested or self.tafsir_source_id
+    
+    @property
+    def effective_tafsir_source_ids(self) -> list[str]:
+        nested = list(self.sources.tafsir.source_ids) if self.sources and self.sources.tafsir else []
+        if nested:
+            return nested
+        return [self.tafsir_source_id] if self.tafsir_source_id else []
 
     @property
     def effective_tafsir_limit(self) -> int:
@@ -389,7 +415,7 @@ class AskSurfaceRequestBase(BaseModel):
             'tafsir': {
                 'mode': (self.sources.tafsir.mode if self.sources and self.sources.tafsir else None) or ('required' if self.include_tafsir is True else 'off' if self.include_tafsir is False else 'auto'),
                 'limit': self.effective_tafsir_limit,
-                'source_ids': [self.effective_tafsir_source_id] if self.effective_tafsir_source_id else [],
+                'source_ids': self.effective_tafsir_source_ids,
             },
             'hadith': {
                 'mode': (self.sources.hadith.mode if self.sources and self.sources.hadith else None) or 'auto',
@@ -512,7 +538,9 @@ class TafsirDomainPolicyView(BaseModel):
     requested: bool
     request_origin: str | None = None
     requested_source_id: str | None = None
+    requested_source_ids: list[str] = Field(default_factory=list)
     selected_source_id: str | None = None
+    selected_source_ids: list[str] = Field(default_factory=list)
     request_mode: str | None = None
     mode_enforced: bool = False
     allowed: bool
@@ -546,6 +574,7 @@ class SourcePolicyView(BaseModel):
 
 class ConversationView(BaseModel):
     followup_ready: bool = False
+    turn_id: str | None = None
     anchors: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -553,6 +582,16 @@ class ExplainAnswerResponse(BaseModel):
     ok: bool
     query: str
     answer_mode: str
+    terminal_state: str | None = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def ensure_terminal_state(cls, value: object) -> object:
+        if isinstance(value, dict):
+            data = dict(value)
+            data['terminal_state'] = _infer_terminal_state_value(data)
+            return data
+        return value
     route_type: str
     action_type: str
     answer_text: str | None = None
@@ -567,6 +606,7 @@ class ExplainAnswerResponse(BaseModel):
     source_policy: SourcePolicyView | None = None
     orchestration: dict[str, Any] | None = Field(default=None, description='Internal canonical orchestration contract for planner/evidence introspection.')
     conversation: ConversationView | None = Field(default=None, description='Conversation anchors surfaced for follow-up capable clients.')
+    composition: dict[str, Any] | None = Field(default=None, description='Canonical LLM-facing composition packet for bounded source-grounded answer rendering.')
     debug: dict[str, Any] | None = None
     error: str | None = None
 
@@ -582,6 +622,16 @@ class AskResponse(BaseModel):
     action_type: str
     route: dict[str, Any]
     answer_mode: str | None = None
+    terminal_state: str | None = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def populate_terminal_state(cls, value: object) -> object:
+        if isinstance(value, dict):
+            data = dict(value)
+            data['terminal_state'] = _infer_terminal_state_value(data)
+            return data
+        return value
     answer_text: str | None = None
     citations: list[SourceCitationView] = Field(default_factory=list)
     quran_support: QuranSupport | None = None
@@ -594,6 +644,7 @@ class AskResponse(BaseModel):
     source_policy: SourcePolicyView | None = None
     orchestration: dict[str, Any] | None = Field(default=None, description='Internal canonical orchestration contract for planner/evidence introspection.')
     conversation: ConversationView | None = Field(default=None, description='Conversation anchors surfaced for follow-up capable clients.')
+    composition: dict[str, Any] | None = Field(default=None, description='Canonical LLM-facing composition packet for bounded source-grounded answer rendering.')
     debug: dict[str, Any] | None = None
     result: dict[str, Any] | None = Field(
         default=None,

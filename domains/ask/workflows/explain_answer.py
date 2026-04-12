@@ -62,7 +62,8 @@ def _build_source_selection_error_payload(*, query: str, route: dict[str, object
         ok=False,
         query=query,
         answer_mode="abstain",
-        route_type=str(resolved_route.get("route_type") or "unsupported_for_now"),
+        terminal_state="abstain",
+        route_type=str(resolved_route.get("route_type") or "policy_restricted_request"),
         action_type=str(resolved_route.get("action_type") or "unknown"),
         answer_text=None,
         citations=[],
@@ -85,9 +86,12 @@ def _build_source_selection_error_payload(*, query: str, route: dict[str, object
     )
 
 
-def explain_answer(*, query: str, request: Request | None = None, route: dict[str, object] | None = None, include_tafsir: bool | None = None, tafsir_source_id: str | None = "tafsir:ibn-kathir-en", tafsir_limit: int = 3, database_url: str | None = None, repository_mode: str | None = None, quran_work_source_id: str | None = None, translation_work_source_id: str | None = None, quran_text_source_requested: bool = False, quran_translation_source_requested: bool = False, hadith_source_id: str | None = None, request_context: dict[str, object] | None = None, request_preferences: dict[str, object] | None = None, source_controls: dict[str, object] | None = None, request_contract_version: str = 'ask.vnext', debug: bool = False) -> dict[str, object]:
-    route = route or classify_ask_query(query)
-    if str(route.get('route_type')) == AskRouteType.EXPLICIT_HADITH_REFERENCE.value:
+def explain_answer(*, query: str, request: Request | None = None, route: dict[str, object] | None = None, include_tafsir: bool | None = None, tafsir_source_id: str | None = None, tafsir_limit: int = 3, database_url: str | None = None, repository_mode: str | None = None, quran_work_source_id: str | None = None, translation_work_source_id: str | None = None, quran_text_source_requested: bool = False, quran_translation_source_requested: bool = False, hadith_source_id: str | None = None, request_context: dict[str, object] | None = None, request_preferences: dict[str, object] | None = None, source_controls: dict[str, object] | None = None, request_contract_version: str = 'ask.vnext', debug: bool = False) -> dict[str, object]:
+    route = route or classify_ask_query(query, request_context=request_context)
+    if str(route.get('route_type')) in {
+        AskRouteType.EXPLICIT_HADITH_REFERENCE.value,
+        AskRouteType.ANCHORED_FOLLOWUP_HADITH.value,
+    }:
         plan = build_ask_plan(
             query,
             route=route,

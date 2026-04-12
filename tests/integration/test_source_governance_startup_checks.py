@@ -41,4 +41,6 @@ def test_governance_checks_flag_inconsistent_db_overlay(tmp_path):
     codes = {issue.code for issue in issues}
     assert "default_requires_enabled_approved" in codes
     assert "composition_requires_enabled_approved" in codes
-    assert get_default_tafsir_source_for_explain(database_url=database_url) is None
+    fallback = get_default_tafsir_source_for_explain(database_url=database_url)
+    assert fallback is not None
+    assert fallback.source_id == 'tafsir:tafheem-al-quran-en'

@@ -32,7 +32,12 @@ async def test_explain_route_surfaces_source_policy_for_tafsir_query(monkeypatch
     assert payload['source_policy']['tafsir']['request_origin'] == 'explicit_flag'
     assert payload['source_policy']['tafsir']['included'] is True
     assert payload['source_policy']['tafsir']['selected_source_id'] == 'tafsir:ibn-kathir-en'
-    assert payload['source_policy']['tafsir']['policy_reason'] == 'selected'
+    assert set(payload['source_policy']['tafsir']['selected_source_ids']) == {
+        'tafsir:ibn-kathir-en',
+        'tafsir:tafheem-al-quran-en',
+        'tafsir:maarif-al-quran-en',
+    }
+    assert payload['source_policy']['tafsir']['policy_reason'] == 'selected_multiple'
 
 
 @pytest.mark.anyio

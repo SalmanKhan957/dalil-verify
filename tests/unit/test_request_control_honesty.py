@@ -5,9 +5,14 @@ import pytest
 from apps.ask_api.schemas import AskRequest
 
 
-def test_request_schema_rejects_multiple_tafsir_source_ids() -> None:
-    with pytest.raises(ValueError, match='at most one source id'):
-        AskRequest(query='Explain 2:255', sources={'tafsir': {'source_ids': ['tafsir:ibn-kathir-en', 'tafsir:jalalayn-en']}})
+def test_request_schema_allows_up_to_three_tafsir_source_ids() -> None:
+    request = AskRequest(query='Explain 2:255', sources={'tafsir': {'source_ids': ['tafsir:ibn-kathir-en', 'tafsir:maarif-al-quran-en', 'tafsir:tafheem-al-quran-en']}})
+    assert request.effective_tafsir_source_ids == ['tafsir:ibn-kathir-en', 'tafsir:maarif-al-quran-en', 'tafsir:tafheem-al-quran-en']
+
+
+def test_request_schema_rejects_more_than_three_tafsir_source_ids() -> None:
+    with pytest.raises(ValueError, match='up to three Tafsir source ids'):
+        AskRequest(query='Explain 2:255', sources={'tafsir': {'source_ids': ['tafsir:ibn-kathir-en', 'tafsir:maarif-al-quran-en', 'tafsir:tafheem-al-quran-en', 'tafsir:jalalayn-en']}})
 
 
 def test_request_schema_rejects_multiple_hadith_collection_ids() -> None:

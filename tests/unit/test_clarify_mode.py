@@ -7,7 +7,7 @@ from domains.answer_engine.response_builder import build_explain_answer_payload
 
 def test_classifier_surfaces_clarify_metadata_for_broad_hadith_query() -> None:
     route = classify_ask_query('How can I improve myself according to hadith?')
-    assert route['route_type'] == 'unsupported_for_now'
+    assert route['route_type'] == 'broad_source_grounded_query'
     assert route['needs_clarification'] is True
     assert route['clarify']['prompt']
     assert 'anger' in route['clarify']['suggested_topics']
@@ -29,6 +29,7 @@ def test_response_builder_returns_clarify_answer_without_error() -> None:
     payload = build_explain_answer_payload(plan, evidence)
     assert payload['ok'] is True
     assert payload['answer_mode'] == 'clarify'
+    assert payload['terminal_state'] == 'clarify'
     assert payload['error'] is None
     assert payload['answer_text']
     assert 'clarification_required' in payload['warnings']

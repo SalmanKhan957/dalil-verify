@@ -44,7 +44,7 @@ def test_routes_arabic_quote_with_explain_question() -> None:
 
 def test_unsupported_generic_topic_question() -> None:
     result = classify_ask_query("What does Islam say about anxiety?")
-    assert result["route_type"] == AskRouteType.UNSUPPORTED_FOR_NOW.value
+    assert result["route_type"] == AskRouteType.POLICY_RESTRICTED_REQUEST.value
 
 
 def test_routes_public_topical_hadith_query() -> None:
@@ -79,3 +79,39 @@ def test_routes_very_short_quranic_opening_snippet() -> None:
     result = classify_ask_query("الم")
     assert result["route_type"] == AskRouteType.ARABIC_QURAN_QUOTE.value
     assert result["quote_payload"] == "الم"
+
+
+def test_routes_anchored_quran_followup_from_anchor_refs() -> None:
+    result = classify_ask_query(
+        "What about the second verse?",
+        request_context={"anchor_refs": ["quran:112:1-4"]},
+    )
+    assert result["route_type"] == AskRouteType.ANCHORED_FOLLOWUP_QURAN.value
+    assert result["action_type"] == AskActionType.EXPLAIN.value
+    assert result["followup_quran_ref"]["canonical_ref"] == "quran:112:2"
+
+
+def test_routes_anchored_tafsir_followup_from_anchor_refs() -> None:
+    result = classify_ask_query(
+        "What does Tafheem say?",
+        request_context={
+            "anchor_refs": [
+                "quran:112:1-4",
+                "tafsir:ibn-kathir-en:84552",
+                "tafsir:maarif-al-quran-en:112:1",
+                "tafsir:tafheem-al-quran-en:112:1",
+            ]
+        },
+    )
+    assert result["route_type"] == AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value
+    assert result["requested_tafsir_source_ids"] == ["tafsir:tafheem-al-quran-en"]
+
+
+def test_routes_anchored_hadith_followup_from_anchor_refs() -> None:
+    result = classify_ask_query(
+        "Summarize this hadith",
+        request_context={"anchor_refs": ["hadith:sahih-al-bukhari-en:7"]},
+    )
+    assert result["route_type"] == AskRouteType.ANCHORED_FOLLOWUP_HADITH.value
+    assert result["action_type"] == AskActionType.EXPLAIN.value
+    assert result["parsed_hadith_citation"]["canonical_ref"] == "hadith:sahih-al-bukhari-en:7"

@@ -10,6 +10,7 @@ from domains.ask.planner_types import AskPlan, ResponseMode
 from domains.ask.workflows.verifier_support import is_verifier_match_usable, run_arabic_quran_quote_workflow
 from domains.quran.repositories.context import resolve_quran_repository_context
 from domains.quran.retrieval.fetcher import fetch_quran_span
+from infrastructure.config.settings import settings
 
 
 @dataclass(slots=True)
@@ -114,6 +115,13 @@ def invoke_tafsir_domain(plan: AskPlan, quran: QuranEvidence | None, *, database
         return TafsirInvocationEvidence()
 
     selected_source_id = str(plan.tafsir_plan.params.get("source_id") or plan.tafsir_plan.source_id or "")
+    selected_source_ids = [
+        str(value).strip()
+        for value in list(plan.tafsir_plan.params.get('source_ids') or [])
+        if str(value).strip()
+    ]
+    if not selected_source_ids and selected_source_id:
+        selected_source_ids = [selected_source_id]
     limit = int(plan.tafsir_plan.params.get("limit", 3))
     retrieval_mode = str(plan.tafsir_plan.params.get('retrieval_mode') or 'overlap')
     try:
@@ -122,36 +130,59 @@ def invoke_tafsir_domain(plan: AskPlan, quran: QuranEvidence | None, *, database
         if retrieval_mode == 'lexical':
             topic_query = str(plan.tafsir_plan.params.get('query_text') or plan.topical_query or plan.query)
             minimum_score = float(plan.tafsir_plan.params.get('minimum_score', 0.0) or 0.0)
-            hits = tafsir_service.search_topically(
-                query_text=topic_query,
-                source_id=selected_source_id,
-                limit=limit,
-            )
+            warnings: list[str] = []
+            hits = []
+            for source_id in selected_source_ids or ([selected_source_id] if selected_source_id else []):
+                source_hits = tafsir_service.search_topically(
+                    query_text=topic_query,
+                    source_id=source_id,
+                    limit=limit,
+                )
+                if source_hits:
+                    top_score = float(getattr(source_hits[0], 'score', 0.0) or 0.0)
+                    if top_score < minimum_score:
+                        warnings.append(f"No Tafsir topical match met the minimum evidence threshold for {source_id}.")
+                        continue
+                if not source_hits:
+                    warnings.append(f"No approved Tafsir topical matches were found for {source_id}.")
+                    continue
+                hits.extend(source_hits)
             if hits:
-                top_score = float(getattr(hits[0], 'score', 0.0) or 0.0)
-                if top_score < minimum_score:
-                    return TafsirInvocationEvidence(tafsir=[], warnings=[f"No Tafsir topical match met the minimum evidence threshold for {selected_source_id}."], errors=['insufficient_evidence'])
+                hits.sort(key=lambda hit: float(getattr(hit, 'score', 0.0) or 0.0), reverse=True)
             tafsir = build_tafsir_evidence(hits)
             if not tafsir:
-                return TafsirInvocationEvidence(tafsir=[], warnings=[f"No approved Tafsir topical matches were found for {selected_source_id}."], errors=['insufficient_evidence'])
-            return TafsirInvocationEvidence(tafsir=tafsir)
+                return TafsirInvocationEvidence(tafsir=[], warnings=warnings or [f"No approved Tafsir topical matches were found for {selected_source_id}."], errors=['insufficient_evidence'])
+            return TafsirInvocationEvidence(tafsir=tafsir, warnings=warnings)
 
         if not plan.use_tafsir or quran is None:
             return TafsirInvocationEvidence()
-        hits = tafsir_service.get_overlap_for_quran_span(
-            source_id=selected_source_id,
-            surah_no=quran.surah_no,
-            ayah_start=quran.ayah_start,
-            ayah_end=quran.ayah_end,
-            limit=limit,
-        )
+        hits = []
+        warnings: list[str] = []
+        for source_id in selected_source_ids:
+            try:
+                source_hits = tafsir_service.get_overlap_for_quran_span(
+                    source_id=source_id,
+                    surah_no=quran.surah_no,
+                    ayah_start=quran.ayah_start,
+                    ayah_end=quran.ayah_end,
+                    limit=limit,
+                )
+            except (PermissionError, LookupError, RuntimeError, ValueError) as exc:
+                warnings.append(f"Tafsir retrieval failed for {source_id}; returned without that Tafsir support. Cause: {exc}")
+                continue
+            if not source_hits:
+                warnings.append(f"No approved Tafsir sections were found for {source_id}; returned without that Tafsir support.")
+                continue
+            hits.extend(source_hits)
+        if not hits:
+            return TafsirInvocationEvidence(tafsir=[], warnings=warnings or [f"No approved Tafsir sections were found for {selected_source_id}; returned without Tafsir support."])
     except (PermissionError, LookupError, RuntimeError, ValueError) as exc:
         return TafsirInvocationEvidence(warnings=[f"Tafsir retrieval failed; returned non-Tafsir answer path. Cause: {exc}"])
 
     tafsir = build_tafsir_evidence(hits)
     if not tafsir:
         return TafsirInvocationEvidence(tafsir=[], warnings=[f"No approved Tafsir sections were found for {selected_source_id}; returned without Tafsir support."])
-    return TafsirInvocationEvidence(tafsir=tafsir)
+    return TafsirInvocationEvidence(tafsir=tafsir, warnings=warnings if 'warnings' in locals() else [])
 
 
 def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> HadithInvocationEvidence:
@@ -159,6 +190,10 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
         return HadithInvocationEvidence()
 
     retrieval_mode = str(plan.hadith_plan.params.get('retrieval_mode') or 'citation')
+    if retrieval_mode in {'lexical', 'topical_v2_shadow'} and not bool(getattr(settings, 'public_topical_hadith_enabled', False)):
+        shadow_only = bool(plan.hadith_plan.params.get('shadow_only'))
+        if not shadow_only:
+            return HadithInvocationEvidence(warnings=['topical_hadith_temporarily_disabled'])
     if retrieval_mode in {'lexical', 'topical_v2_shadow'}:
         try:
             from domains.hadith.service import HadithService

@@ -79,7 +79,7 @@ def fetch_quran_span(
                 "arabic_text": arabic_row.get("text_display") or "",
                 "arabic_canonical_source_id": arabic_row.get("canonical_source_id") or "",
                 "translation_text": translation_row.get("text_display") or "",
-                "translation_source_id": translation_row.get("source_id") or translation.get("source_id") or "",
+                "translation_source_id": translation_work_source_id or translation_row.get("source_id") or translation.get("source_id") or "",
             }
         )
 
@@ -99,7 +99,8 @@ def fetch_quran_span(
             "language": translation.get("language") or "en",
             "translation_name": translation.get("translation_name") or "",
             "translator": translation.get("translator") or "",
-            "source_id": translation.get("source_id") or "",
+            "source_id": translation_work_source_id or translation.get("source_id") or "",
+            "underlying_source_id": translation.get("source_id") or None,
             "source_name": translation.get("source_name") or "",
             "text": translation.get("text") or "",
         },

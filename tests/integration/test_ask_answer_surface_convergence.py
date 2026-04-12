@@ -41,8 +41,9 @@ async def test_ask_route_surfaces_abstention_metadata_at_top_level() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["ok"] is False
-    assert payload["route_type"] == "unsupported_for_now"
+    assert payload["route_type"] == "policy_restricted_request"
     assert payload["answer_mode"] == "abstain"
+    assert payload['terminal_state'] == 'abstain'
     assert payload["warnings"] == []
     assert payload["error"]
     assert payload["result"]["answer_mode"] == "abstain"

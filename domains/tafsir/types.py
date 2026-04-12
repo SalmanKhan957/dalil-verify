@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
@@ -172,6 +172,7 @@ class TafsirOverlapHit:
     query_contains_section: bool
     span_width: int
     anchor_distance: int
+    raw_json: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -210,3 +211,4 @@ class TafsirLexicalHit:
     matched_terms: tuple[str, ...]
     snippet: str
     retrieval_method: str
+    raw_json: dict[str, Any] = field(default_factory=dict)

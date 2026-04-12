@@ -23,6 +23,12 @@ class ResponseMode(str, Enum):
     ABSTAIN = 'abstain'
 
 
+class TerminalState(str, Enum):
+    ANSWERED = 'answered'
+    CLARIFY = 'clarify'
+    ABSTAIN = 'abstain'
+
+
 class EvidenceDomain(str, Enum):
     QURAN = 'quran'
     TAFSIR = 'tafsir'
@@ -65,6 +71,7 @@ class AskPlan:
     route_type: str
     action_type: str
     response_mode: ResponseMode
+    terminal_state: TerminalState = TerminalState.ABSTAIN
     eligible_domains: list[EvidenceDomain] = field(default_factory=list)
     selected_domains: list[EvidenceDomain] = field(default_factory=list)
     requires_quran_verification: bool = False

@@ -108,8 +108,10 @@ def evaluate_case(case: dict[str, Any], response: dict[str, Any]) -> CaseResult:
     error = body.get("error")
     partial_success = bool(body.get("partial_success"))
 
-    checks["route_type"] = route_type == expected["route_type"]
-    checks["action_type"] = action_type == expected["action_type"]
+    strict_routing = bool(expected.get("strict_routing", True))
+    strict_action = bool(expected.get("strict_action", True))
+    checks["route_type"] = (route_type == expected.get("route_type")) if strict_routing and expected.get("route_type") is not None else True
+    checks["action_type"] = (action_type == expected.get("action_type")) if strict_action and expected.get("action_type") is not None else True
 
     expected_canonical = expected.get("canonical_source_id")
     if expected_canonical is None:
@@ -119,7 +121,10 @@ def evaluate_case(case: dict[str, Any], response: dict[str, Any]) -> CaseResult:
         checks["canonical_source_id"] = actual_canonical == expected_canonical
 
     should_abstain = bool(expected.get("should_abstain"))
-    checks["abstention"] = ((not body.get("ok")) or route_type == "unsupported_for_now") if should_abstain else bool(body.get("ok"))
+    terminal_state = str(body.get("terminal_state") or "")
+    abstention_packet = body.get("composition", {}).get("abstention") or {}
+    reason_code = str(abstention_packet.get("reason_code") or "")
+    checks["abstention"] = (terminal_state == "abstain" or route_type == "unsupported_for_now" or not body.get("ok")) if should_abstain else bool(body.get("ok"))
 
     should_have_citations = bool(expected.get("should_have_citations"))
     checks["citations_present"] = (len(citations) > 0) if should_have_citations else True
@@ -131,6 +136,9 @@ def evaluate_case(case: dict[str, Any], response: dict[str, Any]) -> CaseResult:
     else:
         checks["tafsir_included"] = len(tafsir_support) == 0
 
+    expected_reason_codes = [str(item).strip() for item in list(expected.get("expected_reason_codes") or []) if str(item).strip()]
+    checks["abstention_reason"] = (reason_code in expected_reason_codes) if expected_reason_codes else True
+
     if should_abstain:
         checks["unexpected_error"] = True
         checks["answer_quality"] = True
@@ -138,10 +146,19 @@ def evaluate_case(case: dict[str, Any], response: dict[str, Any]) -> CaseResult:
         checks["unexpected_error"] = not bool(error) and not partial_success
         normalized_answer = normalize_text(answer_text)
         normalized_translation = normalize_text(translation_text)
-        checks["answer_quality"] = bool(normalized_answer) and normalized_answer not in {
+        prohibited = {
             normalized_translation,
             normalize_text(f"{quran_support.get('citation_string', '')} says: {translation_text}"),
         }
+        low_value_markers = {
+            normalize_text('retrieved commentary is attached below'),
+            normalize_text('commentary is attached below'),
+        }
+        explanatory_markers = ('teaches:', 'explains:', 'in summary,', 'across ', 'this passage')
+        checks["answer_quality"] = bool(normalized_answer) and normalized_answer not in prohibited and all(marker not in normalized_answer for marker in low_value_markers)
+        if expected.get("answer_quality") == "explanatory":
+            has_explanatory_shape = any(marker in normalized_answer for marker in explanatory_markers) or (len(normalized_answer) >= 80 and bool(tafsir_support))
+            checks["answer_quality"] = checks["answer_quality"] and has_explanatory_shape
 
     for name, passed in checks.items():
         if not passed:

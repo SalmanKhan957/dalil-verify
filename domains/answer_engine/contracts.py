@@ -10,6 +10,7 @@ def make_explain_answer_payload(
     ok: bool,
     query: str,
     answer_mode: str,
+    terminal_state: str,
     route_type: str,
     action_type: str,
     answer_text: str | None,
@@ -26,11 +27,13 @@ def make_explain_answer_payload(
     source_policy: dict[str, Any] | None = None,
     orchestration: dict[str, Any] | None = None,
     conversation: dict[str, Any] | None = None,
+    composition: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         'ok': ok,
         'query': query,
         'answer_mode': answer_mode,
+        'terminal_state': terminal_state,
         'route_type': route_type,
         'action_type': action_type,
         'answer_text': answer_text,
@@ -45,6 +48,7 @@ def make_explain_answer_payload(
         'source_policy': source_policy,
         'orchestration': orchestration,
         'conversation': conversation,
+        'composition': composition,
         'debug': debug,
         'error': error,
     }

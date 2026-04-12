@@ -75,6 +75,8 @@ FETCH_PATTERNS = [
     ]
 ]
 
+WHAT_DOES_SAY_RE = re.compile(r"\bwhat does .+ say\b", re.IGNORECASE)
+
 ARABIC_VERIFY_HINT_RE = re.compile(r"(?:هل هذا صحيح|هل هذا من القرآن|تحقق|تأكد|صحيح\?)")
 ARABIC_EXPLAIN_HINT_RE = re.compile(r"(?:اشرح|فسر|ما معنى|ما تفسير|وضح)")
 
@@ -370,6 +372,10 @@ def detect_action_type(query: str, *, route_hint: str | None = None) -> dict[str
             return {"action_type": AskActionType.VERIFY_THEN_EXPLAIN.value, "signals": signals or ["question_form"]}
         return {"action_type": AskActionType.VERIFY_SOURCE.value, "signals": signals}
 
+    prefers_fetch = bool(WHAT_DOES_SAY_RE.search(lower_text))
+
+    if prefers_fetch and has_fetch and not has_verify:
+        return {"action_type": AskActionType.FETCH_TEXT.value, "signals": signals}
     if has_explain:
         return {"action_type": AskActionType.EXPLAIN.value, "signals": signals}
     if has_fetch:

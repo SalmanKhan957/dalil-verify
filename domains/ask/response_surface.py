@@ -6,6 +6,7 @@ from typing import Any
 # /ask/explain. These are the contract fields clients should treat as the source of truth.
 CANONICAL_TOP_LEVEL_ANSWER_FIELDS: tuple[str, ...] = (
     'answer_mode',
+    'terminal_state',
     'answer_text',
     'citations',
     'quran_support',
@@ -18,6 +19,7 @@ CANONICAL_TOP_LEVEL_ANSWER_FIELDS: tuple[str, ...] = (
     'source_policy',
     'orchestration',
     'conversation',
+    'composition',
     'debug',
 )
 
@@ -43,6 +45,7 @@ EXPLAIN_SURFACE_FIELDS: tuple[str, ...] = (
     'ok',
     'query',
     'answer_mode',
+    'terminal_state',
     'route_type',
     'action_type',
     'answer_text',
@@ -57,6 +60,7 @@ EXPLAIN_SURFACE_FIELDS: tuple[str, ...] = (
     'source_policy',
     'orchestration',
     'conversation',
+    'composition',
     'debug',
     'error',
 )
@@ -74,9 +78,25 @@ def describe_response_surfaces() -> dict[str, Any]:
             'source_policy': 'Canonical source-selection / capability truth layer.',
             'quran_source_selection': 'Legacy compatibility object; source_policy.quran is the truth layer for source-origin semantics.',
             'orchestration': 'Canonical introspection contract for planner/evidence/debugging.',
-            'conversation': 'Canonical surfaced follow-up anchors for compatible clients; currently advisory for runtime follow-up behavior.',
+            'conversation': 'Canonical surfaced follow-up anchors for compatible clients. Narrow anchored follow-up is active when anchors are supplied or hydrated from the current conversation/session.',
+            'composition': 'Canonical LLM-facing composition packet for bounded source-grounded answer rendering.',
         },
     }
+
+
+def _infer_terminal_state(payload: dict[str, Any] | None) -> str:
+    if not isinstance(payload, dict):
+        return 'abstain'
+    terminal_state = payload.get('terminal_state')
+    if isinstance(terminal_state, str) and terminal_state.strip():
+        return terminal_state.strip()
+    answer_mode = str(payload.get('answer_mode') or '').strip()
+    error = payload.get('error')
+    if answer_mode == 'clarify':
+        return 'clarify'
+    if answer_mode == 'abstain' or error is not None or payload.get('ok') is False:
+        return 'abstain'
+    return 'answered'
 
 
 def extract_answer_surface(result: dict[str, Any] | None) -> dict[str, Any]:
@@ -107,7 +127,7 @@ def build_ask_response_payload(*, query: str, route: dict[str, Any], result: dic
     payload: dict[str, Any] = {
         'ok': bool(result_dict.get('ok')),
         'query': query,
-        'route_type': str(route.get('route_type') or result_dict.get('route_type') or 'unsupported_for_now'),
+        'route_type': str(route.get('route_type') or result_dict.get('route_type') or 'policy_restricted_request'),
         'action_type': str(route.get('action_type') or result_dict.get('action_type') or 'unknown'),
         'route': route,
         'result': build_legacy_result_payload(result_dict),
@@ -127,7 +147,8 @@ def build_explain_response_payload_from_ask_payload(ask_payload: dict[str, Any] 
     explain_payload.setdefault('ok', False)
     explain_payload.setdefault('query', payload.get('query') if isinstance(payload, dict) else None)
     explain_payload.setdefault('answer_mode', None)
-    explain_payload.setdefault('route_type', 'unsupported_for_now')
+    explain_payload.setdefault('terminal_state', _infer_terminal_state(payload if isinstance(payload, dict) else None))
+    explain_payload.setdefault('route_type', 'policy_restricted_request')
     explain_payload.setdefault('action_type', 'unknown')
     explain_payload.setdefault('citations', [])
     explain_payload.setdefault('tafsir_support', [])

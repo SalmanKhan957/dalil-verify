@@ -1,0 +1,370 @@
+{
+  "suite_id": "dalil-mvp-acceptance-v1",
+  "endpoint": {
+    "path": "/ask"
+  },
+  "thresholds": {
+    "overall_pass_rate_min": 1.0,
+    "answered_rate_min": 1.0,
+    "clarify_rate_min": 1.0,
+    "abstain_rate_min": 1.0,
+    "followup_ready_rate_min": 1.0,
+    "comparative_tafsir_rate_min": 1.0,
+    "unexpected_error_rate_max": 0.0
+  },
+  "cases": [
+    {
+      "case_id": "quran_explicit_fetch_94_5_6",
+      "category": "quran_fetch",
+      "query": "What does 94:5-6 say?",
+      "request": {
+        "query": "What does 94:5-6 say?"
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "fetch_text",
+        "terminal_state": "answered",
+        "ok": true,
+        "required_domains": [
+          "quran"
+        ],
+        "excluded_domains": [
+          "hadith"
+        ],
+        "should_have_citations": true,
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "quran_text",
+        "answer_min_length": 20
+      }
+    },
+    {
+      "case_id": "quran_explicit_explain_with_tafsir_2_255",
+      "category": "quran_tafsir",
+      "query": "Explain 2:255 with tafsir",
+      "request": {
+        "query": "Explain 2:255 with tafsir"
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "terminal_state": "answered",
+        "composition_mode": "quran_with_tafsir",
+        "ok": true,
+        "required_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "excluded_domains": [
+          "hadith"
+        ],
+        "required_source_ids": [
+          "tafsir:ibn-kathir-en",
+          "tafsir:maarif-al-quran-en",
+          "tafsir:tafheem-al-quran-en"
+        ],
+        "required_bundle_counts": {
+          "quran": 1,
+          "tafsir": 3
+        },
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "quran_with_tafsir",
+        "answer_min_length": 80
+      }
+    },
+    {
+      "case_id": "surah_ikhlas_tafsir_three_sources",
+      "category": "named_quran_anchor_tafsir",
+      "query": "Tafsir of Surah Ikhlas",
+      "request": {
+        "query": "Tafsir of Surah Ikhlas"
+      },
+      "expected": {
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "terminal_state": "answered",
+        "composition_mode": "quran_with_tafsir",
+        "ok": true,
+        "required_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "excluded_domains": [
+          "hadith"
+        ],
+        "required_source_ids": [
+          "tafsir:ibn-kathir-en",
+          "tafsir:maarif-al-quran-en",
+          "tafsir:tafheem-al-quran-en"
+        ],
+        "required_bundle_counts": {
+          "quran": 1,
+          "tafsir": 3
+        },
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "quran_with_tafsir",
+        "answer_min_length": 80
+      }
+    },
+    {
+      "case_id": "arabic_quote_verify_then_explain_with_tafsir",
+      "category": "arabic_quote_tafsir",
+      "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ tafsir",
+      "request": {
+        "query": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ tafsir"
+      },
+      "expected": {
+        "route_type": "arabic_quran_quote",
+        "action_type": "verify_then_explain",
+        "terminal_state": "answered",
+        "ok": true,
+        "required_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "excluded_domains": [
+          "hadith"
+        ],
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "verification_then_explain",
+        "answer_min_length": 40
+      }
+    },
+    {
+      "case_id": "explicit_hadith_fetch_bukhari_7",
+      "category": "explicit_hadith_fetch",
+      "query": "Bukhari 7",
+      "request": {
+        "query": "Bukhari 7"
+      },
+      "expected": {
+        "route_type": "explicit_hadith_reference",
+        "action_type": "fetch_text",
+        "terminal_state": "answered",
+        "composition_mode": "hadith_text",
+        "ok": true,
+        "required_domains": [
+          "hadith"
+        ],
+        "excluded_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "required_bundle_counts": {
+          "hadith": 1
+        },
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "hadith"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "hadith_text",
+        "answer_min_length": 20
+      }
+    },
+    {
+      "case_id": "explicit_hadith_explain_bukhari_7",
+      "category": "explicit_hadith_explain",
+      "query": "Explain Bukhari 7",
+      "request": {
+        "query": "Explain Bukhari 7"
+      },
+      "expected": {
+        "route_type": "explicit_hadith_reference",
+        "action_type": "explain",
+        "terminal_state": "answered",
+        "composition_mode": "hadith_explanation",
+        "ok": true,
+        "required_domains": [
+          "hadith"
+        ],
+        "excluded_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "required_bundle_counts": {
+          "hadith": 1
+        },
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "hadith"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "hadith_explanation",
+        "answer_min_length": 50
+      }
+    },
+    {
+      "case_id": "broad_hadith_clarify_self_improvement",
+      "category": "clarify",
+      "query": "How can I improve myself according to hadith?",
+      "request": {
+        "query": "How can I improve myself according to hadith?"
+      },
+      "expected": {
+        "route_type": "broad_source_grounded_query",
+        "terminal_state": "clarify",
+        "composition_mode": "clarify",
+        "ok": true,
+        "required_warning": "clarification_required",
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "clarify"
+      }
+    },
+    {
+      "case_id": "policy_abstain_public_mixed_scope_anxiety",
+      "category": "abstain",
+      "query": "What does Islam say about anxiety?",
+      "request": {
+        "query": "What does Islam say about anxiety?"
+      },
+      "expected": {
+        "route_type": "policy_restricted_request",
+        "terminal_state": "abstain",
+        "composition_mode": "abstain",
+        "ok": false,
+        "abstention_reason_code": "policy_restricted",
+        "answer_kind": "empty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "abstain"
+      }
+    },
+    {
+      "case_id": "anchored_followup_tafsir_focus_tafheem",
+      "category": "anchored_followup_tafsir",
+      "query": "What does Tafheem say?",
+      "request": {
+        "query": "What does Tafheem say?",
+        "context": {
+          "anchor_refs": [
+            "quran:112:1-4",
+            "tafsir:tafheem-al-quran-en:112:1"
+          ]
+        }
+      },
+      "expected": {
+        "route_type": "anchored_followup_tafsir",
+        "action_type": "explain",
+        "terminal_state": "answered",
+        "composition_mode": "quran_with_tafsir",
+        "ok": true,
+        "required_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "excluded_domains": [
+          "hadith"
+        ],
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "anchored_followup_tafsir",
+        "answer_min_length": 30
+      }
+    },
+    {
+      "case_id": "anchored_followup_quran_second_verse",
+      "category": "anchored_followup_quran",
+      "query": "What about the second verse?",
+      "request": {
+        "query": "What about the second verse?",
+        "context": {
+          "anchor_refs": [
+            "quran:112:1-4"
+          ]
+        }
+      },
+      "expected": {
+        "route_type": "anchored_followup_quran",
+        "action_type": "explain",
+        "terminal_state": "answered",
+        "ok": true,
+        "required_domains": [
+          "quran"
+        ],
+        "excluded_domains": [
+          "hadith"
+        ],
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "quran"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "anchored_followup_quran",
+        "answer_min_length": 30
+      }
+    },
+    {
+      "case_id": "anchored_followup_hadith_summarize",
+      "category": "anchored_followup_hadith",
+      "query": "Summarize this hadith",
+      "request": {
+        "query": "Summarize this hadith",
+        "context": {
+          "anchor_refs": [
+            "hadith:sahih-al-bukhari-en:7"
+          ]
+        }
+      },
+      "expected": {
+        "route_type": "anchored_followup_hadith",
+        "action_type": "explain",
+        "terminal_state": "answered",
+        "composition_mode": "hadith_explanation",
+        "ok": true,
+        "required_domains": [
+          "hadith"
+        ],
+        "excluded_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "required_bundle_counts": {
+          "hadith": 1
+        },
+        "should_have_citations": true,
+        "followup_ready": true,
+        "required_anchor_domains": [
+          "hadith"
+        ],
+        "answer_kind": "nonempty",
+        "public_scope": "bounded_source_grounded",
+        "render_mode": "anchored_followup_hadith",
+        "answer_min_length": 30
+      }
+    }
+  ]
+}

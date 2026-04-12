@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import os
-
+from infrastructure.config.settings import settings
 from domains.ask.route_types import AskActionType, AskRouteType
 from domains.ask.source_policy_types import (
     AskSourcePolicyDecision,
@@ -20,26 +19,47 @@ from domains.source_registry.policies import can_mix_sources
 from domains.source_registry.registry import get_source_record, resolve_hadith_collection_source, resolve_tafsir_source_for_explain
 from shared.schemas.source_record import SourceRecord
 
-_TAFSIR_ELIGIBLE_ROUTE_TYPES = {AskRouteType.EXPLICIT_QURAN_REFERENCE.value, AskRouteType.ARABIC_QURAN_QUOTE.value}
+_TAFSIR_ELIGIBLE_ROUTE_TYPES = {
+    AskRouteType.EXPLICIT_QURAN_REFERENCE.value,
+    AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
+    AskRouteType.ARABIC_QURAN_QUOTE.value,
+}
 
 
-def _public_topical_hadith_enabled() -> bool:
-    raw = (os.getenv('DALIL_ENABLE_PUBLIC_TOPICAL_HADITH', 'false') or '').strip().lower()
-    return raw in {'1', 'true', 'yes', 'on'}
+def _normalize_requested_tafsir_source_ids(*, requested_tafsir_source_id: str | None, requested_tafsir_source_ids: list[str] | None) -> list[str]:
+    values = list(requested_tafsir_source_ids or [])
+    if requested_tafsir_source_id:
+        values = [requested_tafsir_source_id, *values]
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        cleaned = str(value or '').strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        normalized.append(cleaned)
+    return normalized
 
 
-def _effective_hadith_public_response_scope(source: SourceRecord | None) -> str | None:
-    scope = describe_hadith_public_response_scope(source)
-    if _public_topical_hadith_enabled() or source is None:
-        return scope
-    capabilities = list_enabled_capabilities(source)
-    has_explicit = SourceCapability.EXPLICIT_LOOKUP.value in capabilities
-    has_explain = SourceCapability.EXPLAIN_FROM_SOURCE.value in capabilities
-    if has_explain:
-        return 'bounded_public_explicit_and_explain'
-    if has_explicit:
-        return 'bounded_public_explicit_only'
-    return scope
+def _resolve_requested_tafsir_sources(*, requested_source_ids: list[str], database_url: str | None) -> list[SourceRecord] | None:
+    if not requested_source_ids:
+        requested_source_ids = [
+            'tafsir:ibn-kathir-en',
+            'tafsir:maarif-al-quran-en',
+            'tafsir:tafheem-al-quran-en',
+        ]
+
+    resolved: list[SourceRecord] = []
+    seen: set[str] = set()
+    for source_id in requested_source_ids:
+        source = resolve_tafsir_source_for_explain(source_id, database_url=database_url)
+        if source is None:
+            return None
+        if source.source_id in seen:
+            continue
+        seen.add(source.source_id)
+        resolved.append(source)
+    return resolved
 
 
 def _quran_selected_capability(*, route_type: str, action_type: str) -> str:
@@ -114,7 +134,7 @@ def _evaluate_hadith_source_policy(*, requested_hadith_source_id: str | None, re
     policy.available_capabilities = list_enabled_capabilities(source)
     policy.approved_for_answering = bool(source.approved_for_answering)
     policy.answer_capability = describe_hadith_answer_capability(source)
-    policy.public_response_scope = _effective_hadith_public_response_scope(source)
+    policy.public_response_scope = describe_hadith_public_response_scope(source)
     if not source_supports_capability(source, selected_capability):
         policy.policy_reason = 'requested_hadith_capability_not_allowed'
         return policy
@@ -169,22 +189,21 @@ def evaluate_topical_hadith_source_policy(*, requested_hadith_source_id: str | N
     policy.selected_source_id = source.source_id
     policy.available_capabilities = list_enabled_capabilities(source)
     policy.approved_for_answering = bool(source.approved_for_answering)
-    policy.answer_capability = describe_hadith_answer_capability(source)
-    policy.public_response_scope = _effective_hadith_public_response_scope(source)
-    if not _public_topical_hadith_enabled():
-        policy.policy_reason = 'topical_hadith_temporarily_disabled'
-        return policy
+    policy.answer_capability = 'topical_retrieval_bounded' if source_supports_capability(source, SourceCapability.TOPICAL_RETRIEVAL.value) else describe_hadith_answer_capability(source)
+    policy.public_response_scope = describe_hadith_public_response_scope(source)
     if not source_supports_capability(source, SourceCapability.TOPICAL_RETRIEVAL.value):
         policy.policy_reason = 'requested_hadith_capability_not_allowed'
         return policy
-    policy.answer_capability = 'topical_retrieval_bounded'
+    if not bool(getattr(settings, 'public_topical_hadith_enabled', False)):
+        policy.policy_reason = 'topical_hadith_temporarily_disabled'
+        return policy
     policy.allowed = True
     policy.included = True
     policy.policy_reason = 'topical_hadith_selected'
     return policy
 
 
-def evaluate_ask_source_policy(*, route_type: str, action_type: str, include_tafsir: bool | None, tafsir_intent_detected: bool, requested_tafsir_source_id: str | None, quran_source: SourceRecord | None, requested_quran_text_source_id: str | None, requested_quran_translation_source_id: str | None, selected_quran_text_source_id: str | None, selected_quran_translation_source_id: str | None, quran_text_source_origin: str | None, quran_translation_source_origin: str | None, requested_hadith_source_id: str | None = None, requested_hadith_mode: str = 'auto', database_url: str | None = None) -> AskSourcePolicyDecision:
+def evaluate_ask_source_policy(*, route_type: str, action_type: str, include_tafsir: bool | None, tafsir_intent_detected: bool, requested_tafsir_source_id: str | None, requested_tafsir_source_ids: list[str] | None = None, quran_source: SourceRecord | None, requested_quran_text_source_id: str | None, requested_quran_translation_source_id: str | None, selected_quran_text_source_id: str | None, selected_quran_translation_source_id: str | None, quran_text_source_origin: str | None, quran_translation_source_origin: str | None, requested_hadith_source_id: str | None = None, requested_hadith_mode: str = 'auto', database_url: str | None = None) -> AskSourcePolicyDecision:
     quran_capabilities = list_enabled_capabilities(quran_source)
     quran_selected_capability = _quran_selected_capability(route_type=route_type, action_type=action_type)
 
@@ -212,6 +231,10 @@ def evaluate_ask_source_policy(*, route_type: str, action_type: str, include_taf
     )
     tafsir_policy = TafsirSourcePolicyDecision(selected_capability=SourceCapability.EXPLAIN_FROM_SOURCE.value, available_capabilities=[])
     hadith_policy = HadithSourcePolicyDecision(policy_reason='not_requested_for_route', available_capabilities=[])
+    requested_tafsir_ids = _normalize_requested_tafsir_source_ids(
+        requested_tafsir_source_id=requested_tafsir_source_id,
+        requested_tafsir_source_ids=requested_tafsir_source_ids,
+    )
 
     if not _is_tafsir_route_eligible(route_type=route_type, action_type=action_type):
         tafsir_policy.policy_reason = 'route_not_eligible_for_tafsir'
@@ -223,39 +246,47 @@ def evaluate_ask_source_policy(*, route_type: str, action_type: str, include_taf
     if include_tafsir is True:
         tafsir_policy.requested = True
         tafsir_policy.request_origin = 'explicit_flag'
-        tafsir_policy.requested_source_id = requested_tafsir_source_id
+        tafsir_policy.requested_source_ids = list(requested_tafsir_ids)
+        tafsir_policy.requested_source_id = requested_tafsir_ids[0] if requested_tafsir_ids else requested_tafsir_source_id
     elif tafsir_intent_detected:
         tafsir_policy.requested = True
         tafsir_policy.request_origin = 'query_intent'
-        tafsir_policy.requested_source_id = requested_tafsir_source_id
+        tafsir_policy.requested_source_ids = list(requested_tafsir_ids)
+        tafsir_policy.requested_source_id = requested_tafsir_ids[0] if requested_tafsir_ids else requested_tafsir_source_id
     else:
         tafsir_policy.policy_reason = 'not_requested'
         return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)
 
-    resolved_tafsir_source = resolve_tafsir_source_for_explain(tafsir_policy.requested_source_id, database_url=database_url)
-    if resolved_tafsir_source is None:
+    resolved_tafsir_sources = _resolve_requested_tafsir_sources(
+        requested_source_ids=tafsir_policy.requested_source_ids,
+        database_url=database_url,
+    )
+    if resolved_tafsir_sources is None:
         tafsir_policy.allowed = False
         tafsir_policy.included = False
         tafsir_policy.policy_reason = 'tafsir_source_not_enabled'
         return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)
 
-    tafsir_policy.available_capabilities = list_enabled_capabilities(resolved_tafsir_source)
-    if not source_supports_capability(resolved_tafsir_source, SourceCapability.EXPLAIN_FROM_SOURCE.value):
-        tafsir_policy.allowed = False
-        tafsir_policy.included = False
-        tafsir_policy.selected_source_id = resolved_tafsir_source.source_id
-        tafsir_policy.policy_reason = 'requested_tafsir_capability_not_allowed'
-        return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)
+    tafsir_policy.available_capabilities = sorted({cap for source in resolved_tafsir_sources for cap in list_enabled_capabilities(source)})
+    for resolved_tafsir_source in resolved_tafsir_sources:
+        if not source_supports_capability(resolved_tafsir_source, SourceCapability.EXPLAIN_FROM_SOURCE.value):
+            tafsir_policy.allowed = False
+            tafsir_policy.included = False
+            tafsir_policy.selected_source_id = resolved_tafsir_source.source_id
+            tafsir_policy.selected_source_ids = [source.source_id for source in resolved_tafsir_sources]
+            tafsir_policy.policy_reason = 'requested_tafsir_capability_not_allowed'
+            return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)
+        if quran_source is None or not can_mix_sources(quran_source, resolved_tafsir_source):
+            tafsir_policy.allowed = False
+            tafsir_policy.included = False
+            tafsir_policy.selected_source_id = resolved_tafsir_source.source_id
+            tafsir_policy.selected_source_ids = [source.source_id for source in resolved_tafsir_sources]
+            tafsir_policy.policy_reason = 'quran_tafsir_composition_blocked'
+            return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)
 
-    if quran_source is None or not can_mix_sources(quran_source, resolved_tafsir_source):
-        tafsir_policy.allowed = False
-        tafsir_policy.included = False
-        tafsir_policy.selected_source_id = resolved_tafsir_source.source_id
-        tafsir_policy.policy_reason = 'quran_tafsir_composition_blocked'
-        return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)
-
-    tafsir_policy.selected_source_id = resolved_tafsir_source.source_id
+    tafsir_policy.selected_source_ids = [source.source_id for source in resolved_tafsir_sources]
+    tafsir_policy.selected_source_id = tafsir_policy.selected_source_ids[0] if tafsir_policy.selected_source_ids else None
     tafsir_policy.allowed = True
     tafsir_policy.included = True
-    tafsir_policy.policy_reason = 'selected'
+    tafsir_policy.policy_reason = 'selected_multiple' if len(tafsir_policy.selected_source_ids) > 1 else 'selected'
     return AskSourcePolicyDecision(quran=quran_policy, tafsir=tafsir_policy, hadith=hadith_policy)

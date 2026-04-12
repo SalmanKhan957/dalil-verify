@@ -24,6 +24,7 @@ async def test_ask_route_abstains_for_public_topical_hadith_when_lane_is_disable
     assert payload['ok'] is False
     assert payload['route_type'] == 'topical_hadith_query'
     assert payload['answer_mode'] == 'abstain'
+    assert payload['terminal_state'] == 'abstain'
     assert payload['hadith_support'] is None
     assert payload['source_policy']['hadith']['selected_capability'] == 'topical_retrieval'
     assert payload['source_policy']['hadith']['policy_reason'] == 'topical_hadith_temporarily_disabled'
@@ -93,4 +94,4 @@ async def test_ask_route_keeps_multi_source_topic_internal_until_later(monkeypat
     assert response.status_code == 200
     payload = response.json()
     assert payload['ok'] is False
-    assert payload['route_type'] == 'unsupported_for_now'
+    assert payload['route_type'] == 'policy_restricted_request'

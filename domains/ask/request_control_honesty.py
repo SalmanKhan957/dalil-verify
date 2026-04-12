@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from domains.ask.planner_types import AskPlan
+from domains.ask.route_types import AskRouteType
 
 
 _CONTROL_STATUS_ENFORCED = "enforced"
@@ -20,19 +21,51 @@ def _status(*, status: str, canonical_field: str | None = None, notes: str | Non
 
 
 def build_request_control_honesty(plan: AskPlan) -> dict[str, Any]:
+    anchored_followup_routes = {
+        AskRouteType.ANCHORED_FOLLOWUP_QURAN.value,
+        AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
+        AskRouteType.ANCHORED_FOLLOWUP_HADITH.value,
+    }
+    resolution_mode = str((plan.request_context or {}).get('_anchor_resolution_mode') or 'none')
+    anchor_status = _CONTROL_STATUS_ENFORCED if (plan.route_type in anchored_followup_routes or resolution_mode in {'request_supplied', 'parent_turn_hydrated', 'conversation_hydrated', 'implicit_session_hydrated'}) else _CONTROL_STATUS_ADVISORY
+    anchor_notes = (
+        'Used by the planner/runtime for narrow anchored follow-up resolution over Quran, Tafsir, and explicit Hadith anchors.'
+        if anchor_status == _CONTROL_STATUS_ENFORCED
+        else 'Accepted and surfaced for future follow-up support, but not yet used by the planner/runtime to resolve follow-up questions.'
+    )
+    if resolution_mode == 'parent_turn_hydrated':
+        conversation_status = _CONTROL_STATUS_ADVISORY
+        conversation_notes = 'Conversation-level state remains bounded; parent-turn hydration resolved the active follow-up anchor set for this request.'
+        parent_turn_status = _CONTROL_STATUS_ENFORCED
+        parent_turn_notes = 'Used by the planner/runtime to hydrate anchors from the immediately referenced prior turn for narrow anchored follow-up.'
+    elif resolution_mode == 'conversation_hydrated':
+        conversation_status = _CONTROL_STATUS_ENFORCED
+        conversation_notes = 'Used by the planner/runtime to hydrate the latest follow-up-eligible anchors for this explicit conversation.'
+        parent_turn_status = _CONTROL_STATUS_ADVISORY
+        parent_turn_notes = 'Accepted and surfaced for future parent-turn targeting, but not required for this request.'
+    elif resolution_mode == 'implicit_session_hydrated':
+        conversation_status = _CONTROL_STATUS_ENFORCED
+        conversation_notes = 'Used by the planner/runtime to hydrate the latest follow-up-eligible anchors for the current client session when no explicit anchors were supplied.'
+        parent_turn_status = _CONTROL_STATUS_ADVISORY
+        parent_turn_notes = 'Accepted and surfaced for future parent-turn targeting, but not required for this request.'
+    else:
+        conversation_status = _CONTROL_STATUS_ADVISORY
+        conversation_notes = 'Accepted and surfaced for follow-up support. Latest-anchor hydration is available for narrow anchored follow-up when a conversation id or stable client session is present.'
+        parent_turn_status = _CONTROL_STATUS_ADVISORY
+        parent_turn_notes = 'Accepted and surfaced for follow-up support. Parent-turn hydration is available when the caller supplies a prior turn id emitted by the conversation surface.'
     return {
         "context": {
             "conversation_id": _status(
-                status=_CONTROL_STATUS_ADVISORY,
-                notes="Accepted and surfaced for future follow-up support, but not yet used by the planner/runtime for stateful resolution.",
+                status=conversation_status,
+                notes=conversation_notes,
             ),
             "parent_turn_id": _status(
-                status=_CONTROL_STATUS_ADVISORY,
-                notes="Accepted and surfaced for future follow-up support, but not yet used by the planner/runtime for parent-turn resolution.",
+                status=parent_turn_status,
+                notes=parent_turn_notes,
             ),
             "anchor_refs": _status(
-                status=_CONTROL_STATUS_ADVISORY,
-                notes="Accepted and surfaced for future follow-up support, but not yet used by the planner/runtime to resolve follow-up questions.",
+                status=anchor_status,
+                notes=anchor_notes,
             ),
         },
         "preferences": {
@@ -62,7 +95,7 @@ def build_request_control_honesty(plan: AskPlan) -> dict[str, Any]:
                 ),
                 "source_ids": _status(
                     status=_CONTROL_STATUS_ENFORCED,
-                    notes="Current public contract supports at most one Tafsir source id; multi-source selection is deferred.",
+                    notes="Current public contract supports up to three Tafsir source ids for source-separated comparative Quran commentary selection.",
                 ),
             },
             "hadith": {

@@ -52,6 +52,7 @@ class SqlAlchemyTafsirLexicalSearchRepository:
                     matched_terms=matched_terms,
                     snippet=build_snippet(row.text_plain, query_text=normalized),
                     retrieval_method=row.retrieval_method,
+                    raw_json=dict(getattr(row, 'raw_json', {}) or {}),
                 )
             )
 
@@ -74,6 +75,7 @@ class SqlAlchemyTafsirLexicalSearchRepository:
                 TafsirSectionORM.quran_span_ref,
                 TafsirSectionORM.text_plain,
                 TafsirSectionORM.text_html,
+                TafsirSectionORM.raw_json,
                 literal('lexical_ranked_candidates').label('retrieval_method'),
             )
             .join(SourceWorkORM, SourceWorkORM.id == TafsirSectionORM.work_id)

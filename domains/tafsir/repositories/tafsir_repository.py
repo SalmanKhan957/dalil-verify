@@ -242,6 +242,7 @@ class SqlAlchemyTafsirRepository:
                 TafsirSectionORM.coverage_confidence,
                 TafsirSectionORM.text_plain,
                 TafsirSectionORM.text_html,
+                TafsirSectionORM.raw_json,
             )
             .join(SourceWorkORM, SourceWorkORM.id == TafsirSectionORM.work_id)
             .where(
@@ -287,6 +288,7 @@ class SqlAlchemyTafsirRepository:
                     query_contains_section=bool(query_contains_section),
                     span_width=int(span_width),
                     anchor_distance=int(anchor_distance),
+                    raw_json=dict(row.raw_json or {}),
                 )
             )
         return hits

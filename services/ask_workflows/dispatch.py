@@ -18,7 +18,7 @@ def dispatch_ask_query(query: str, *, request: Request | None = None, debug: boo
     return {
         "ok": bool(result.get("ok")),
         "query": query,
-        "route_type": str(route.get("route_type") or result.get("route_type") or "unsupported_for_now"),
+        "route_type": str(route.get("route_type") or result.get("route_type") or "policy_restricted_request"),
         "action_type": str(route.get("action_type") or result.get("action_type") or "unknown"),
         "route": route,
         "result": result,

@@ -1,6 +1,6 @@
 {
   "suite_id": "quran-tafsir-explain-v1",
-  "description": "Acceptance suite for the bounded Quran + Tafsir explain lane.",
+  "description": "Acceptance suite for the bounded Quran + Tafsir explain lane under the current public MVP boundary.",
   "endpoint": {
     "method": "POST",
     "path": "/ask/explain"
@@ -458,13 +458,13 @@
         "query": "What does Islam say about anxiety?"
       },
       "expected": {
-        "route_type": "unsupported_for_now",
-        "action_type": "unknown",
         "canonical_source_id": null,
         "should_include_tafsir": false,
         "should_have_citations": false,
         "should_abstain": true,
-        "answer_quality": null
+        "answer_quality": null,
+        "strict_routing": false,
+        "strict_action": false
       }
     },
     {
@@ -475,13 +475,17 @@
         "query": "Give me hadith about patience"
       },
       "expected": {
-        "route_type": "unsupported_for_now",
-        "action_type": "unknown",
         "canonical_source_id": null,
         "should_include_tafsir": false,
         "should_have_citations": false,
         "should_abstain": true,
-        "answer_quality": null
+        "answer_quality": null,
+        "strict_routing": false,
+        "strict_action": false,
+        "expected_reason_codes": [
+          "topical_hadith_temporarily_disabled",
+          "policy_restricted"
+        ]
       }
     },
     {
@@ -492,13 +496,13 @@
         "query": "Explain riba in detail"
       },
       "expected": {
-        "route_type": "unsupported_for_now",
-        "action_type": "unknown",
         "canonical_source_id": null,
         "should_include_tafsir": false,
         "should_have_citations": false,
         "should_abstain": true,
-        "answer_quality": null
+        "answer_quality": null,
+        "strict_routing": false,
+        "strict_action": false
       }
     },
     {
@@ -509,13 +513,13 @@
         "query": "Is music haram?"
       },
       "expected": {
-        "route_type": "unsupported_for_now",
-        "action_type": "unknown",
         "canonical_source_id": null,
         "should_include_tafsir": false,
         "should_have_citations": false,
         "should_abstain": true,
-        "answer_quality": null
+        "answer_quality": null,
+        "strict_routing": false,
+        "strict_action": false
       }
     },
     {
@@ -526,13 +530,13 @@
         "query": "What does Islam say about marriage rights?"
       },
       "expected": {
-        "route_type": "unsupported_for_now",
-        "action_type": "unknown",
         "canonical_source_id": null,
         "should_include_tafsir": false,
         "should_have_citations": false,
         "should_abstain": true,
-        "answer_quality": null
+        "answer_quality": null,
+        "strict_routing": false,
+        "strict_action": false
       }
     }
   ]

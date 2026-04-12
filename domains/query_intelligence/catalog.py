@@ -38,7 +38,6 @@ def load_query_family_definitions() -> tuple[QueryFamilyDefinition, ...]:
 
 
 @lru_cache(maxsize=1)
-@lru_cache(maxsize=1)
 def load_clarify_policies() -> tuple[dict, ...]:
     payload = _load_json('clarify_policies.v1.json')
     return tuple(dict(item) for item in payload.get('policies', []))

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any
 
 from domains.answer_engine.evidence_pack import EvidencePack
-from domains.ask.planner_types import AskPlan
+from domains.ask.planner_types import AskPlan, TerminalState
 
 
 def _resolve_hadith_numbering_quality(evidence: EvidencePack) -> str:
@@ -79,6 +79,7 @@ class ConversationAnchor:
 @dataclass(slots=True)
 class CanonicalAnswer:
     mode: str
+    terminal_state: str
     summary_text: str | None = None
     blocks: list[AnswerBlock] = field(default_factory=list)
 
@@ -106,6 +107,12 @@ class OrchestrationEnvelope:
 def _intent_from_plan(plan: AskPlan) -> str:
     if plan.should_abstain:
         return 'abstain'
+    if plan.route_type == 'anchored_followup_hadith':
+        return 'source_grounded_hadith_followup'
+    if plan.route_type == 'anchored_followup_tafsir':
+        return 'source_grounded_tafsir_followup'
+    if plan.route_type == 'anchored_followup_quran':
+        return 'source_grounded_quran_followup'
     response_mode = plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode)
     if response_mode in {'topical_tafsir', 'topical_hadith', 'topical_multi_source'}:
         return 'source_grounded_topical_retrieval'
@@ -123,6 +130,12 @@ def _intent_from_plan(plan: AskPlan) -> str:
 
 
 def _query_class(plan: AskPlan) -> str:
+    if plan.route_type == 'anchored_followup_quran':
+        return 'anchored_followup_quran'
+    if plan.route_type == 'anchored_followup_tafsir':
+        return 'anchored_followup_tafsir'
+    if plan.route_type == 'anchored_followup_hadith':
+        return 'anchored_followup_hadith'
     if plan.route_type == 'topical_tafsir_query':
         return 'topical_tafsir_query'
     if plan.route_type == 'topical_hadith_query':
@@ -152,7 +165,9 @@ def _build_interpretation(plan: AskPlan) -> QueryInterpretation:
     if plan.tafsir_requested:
         secondary_intents.append('tafsir_request')
     if plan.hadith_requested:
-        secondary_intents.append('hadith_citation_lookup' if plan.route_type == 'explicit_hadith_reference' else 'hadith_topic_request')
+        secondary_intents.append('hadith_citation_lookup' if plan.route_type in {'explicit_hadith_reference', 'anchored_followup_hadith'} else 'hadith_topic_request')
+    if plan.route_type in {'anchored_followup_quran', 'anchored_followup_tafsir', 'anchored_followup_hadith'}:
+        secondary_intents.append('anchored_followup')
     if plan.route_type in {'topical_tafsir_query', 'topical_hadith_query', 'topical_multi_source_query'}:
         secondary_intents.append('topical_retrieval')
     return QueryInterpretation(
@@ -198,7 +213,8 @@ def _build_answer(plan: AskPlan, evidence: EvidencePack, *, answer_text: str | N
     for item in tafsir_support:
         block_type = 'tafsir_topic_support' if str(plan.route_type).startswith('topical_') else 'tafsir_support'
         blocks.append(AnswerBlock(block_type=block_type, domain='tafsir', title=item.get('display_text'), text=str(item.get('excerpt') or ''), citations=[str(item.get('canonical_section_id') or '')], source_id=item.get('source_id')))
-    return CanonicalAnswer(mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode), summary_text=answer_text, blocks=blocks)
+    terminal_state = plan.terminal_state.value if hasattr(plan.terminal_state, 'value') else str(plan.terminal_state or TerminalState.ABSTAIN.value)
+    return CanonicalAnswer(mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode), terminal_state=terminal_state, summary_text=answer_text, blocks=blocks)
 
 
 def _build_evidence(evidence: EvidencePack) -> list[EvidenceItem]:

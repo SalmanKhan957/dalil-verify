@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from domains.ask.heuristics import (
@@ -16,6 +17,30 @@ from domains.query_intelligence.clarify_mode import build_clarify_instruction, s
 from domains.hadith.citations.parser import parse_hadith_citation
 
 
+_QURAN_CANONICAL_RE = re.compile(r"^quran:(?P<surah>\d+):(?P<start>\d+)(?:-(?P<end>\d+))?(?::[a-z]+)?$", re.IGNORECASE)
+_HADITH_CANONICAL_RE = re.compile(r"^hadith:(?P<collection>[a-z0-9\-]+):(?P<number>\d+)$", re.IGNORECASE)
+_ORDINAL_VERSE_RE = re.compile(r"\b(?P<ordinal>first|1st|second|2nd|third|3rd|fourth|4th|last)\s+verse\b", re.IGNORECASE)
+_NEXT_PREV_VERSE_RE = re.compile(r"\b(?P<direction>next|previous|prev|before|after)\s+verse\b", re.IGNORECASE)
+_GENERIC_FOLLOWUP_RE = re.compile(r"\b(?:what\s+does\s+this\s+mean|what\s+about\s+this|what\s+about\s+that|explain\s+this|summarize\s+this|summarise\s+this|what\s+lesson|what\s+does\s+this\s+teach)\b", re.IGNORECASE)
+_HADITH_FOLLOWUP_RE = re.compile(r"\b(?:summari[sz]e\s+this\s+hadith|what\s+lesson\s+does\s+this\s+hadith\s+teach|what\s+does\s+this\s+hadith\s+mean|explain\s+this\s+hadith|summari[sz]e\s+this|what\s+lesson\s+does\s+this\s+teach)\b", re.IGNORECASE)
+_COMPARE_RE = re.compile(r"\bcompare\b", re.IGNORECASE)
+_SHOW_ONLY_RE = re.compile(r"\bshow\s+only\b", re.IGNORECASE)
+_TAFSIR_SOURCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\btafheem\b", re.IGNORECASE), 'tafsir:tafheem-al-quran-en'),
+    (re.compile(r"\bma['’]?arif\b", re.IGNORECASE), 'tafsir:maarif-al-quran-en'),
+    (re.compile(r"\bibn\s+kathir\b", re.IGNORECASE), 'tafsir:ibn-kathir-en'),
+    (re.compile(r"\bkathir\b", re.IGNORECASE), 'tafsir:ibn-kathir-en'),
+]
+_ORDINAL_MAP = {
+    'first': 1,
+    '1st': 1,
+    'second': 2,
+    '2nd': 2,
+    'third': 3,
+    '3rd': 3,
+    'fourth': 4,
+    '4th': 4,
+}
 
 
 def _resolve_named_quran_anchor(text: str) -> dict[str, Any] | None:
@@ -45,11 +70,209 @@ def _resolve_named_quran_anchor(text: str) -> dict[str, Any] | None:
         'match': match,
     }
 
-def classify_ask_query(query: str) -> dict[str, Any]:
+
+def _extract_anchor_refs(request_context: dict[str, Any] | None) -> list[str]:
+    if not isinstance(request_context, dict):
+        return []
+    raw = request_context.get('anchor_refs')
+    if not isinstance(raw, list):
+        return []
+    values: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        cleaned = str(item or '').strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        values.append(cleaned)
+    return values
+
+
+def _parse_quran_anchor(anchor_ref: str) -> dict[str, int | str] | None:
+    match = _QURAN_CANONICAL_RE.match(str(anchor_ref or '').strip())
+    if not match:
+        return None
+    surah_no = int(match.group('surah'))
+    start = int(match.group('start'))
+    end = int(match.group('end') or start)
+    return {
+        'canonical_ref': f'quran:{surah_no}:{start}-{end}' if end != start else f'quran:{surah_no}:{start}',
+        'surah_no': surah_no,
+        'ayah_start': start,
+        'ayah_end': end,
+    }
+
+
+def _parse_hadith_anchor(anchor_ref: str) -> dict[str, str] | None:
+    match = _HADITH_CANONICAL_RE.match(str(anchor_ref or '').strip())
+    if not match:
+        return None
+    collection_slug = match.group('collection')
+    hadith_number = match.group('number')
+    return {
+        'canonical_ref': f'hadith:{collection_slug}:{hadith_number}',
+        'collection_slug': collection_slug,
+        'collection_source_id': f'hadith:{collection_slug}',
+        'hadith_number': hadith_number,
+    }
+
+
+def _detect_tafsir_source_ids(text: str) -> list[str]:
+    source_ids: list[str] = []
+    seen: set[str] = set()
+    for pattern, source_id in _TAFSIR_SOURCE_PATTERNS:
+        if not pattern.search(text):
+            continue
+        if source_id in seen:
+            continue
+        seen.add(source_id)
+        source_ids.append(source_id)
+    return source_ids
+
+
+def _resolve_followup_quran_target(text: str, quran_anchor: dict[str, int | str]) -> dict[str, Any] | None:
+    surah_no = int(quran_anchor['surah_no'])
+    ayah_start = int(quran_anchor['ayah_start'])
+    ayah_end = int(quran_anchor['ayah_end'])
+    span_length = (ayah_end - ayah_start) + 1
+
+    ordinal_match = _ORDINAL_VERSE_RE.search(text)
+    if ordinal_match:
+        ordinal = ordinal_match.group('ordinal').lower()
+        if ordinal == 'last':
+            target_ayah = ayah_end
+        else:
+            offset = _ORDINAL_MAP.get(ordinal)
+            if offset is None or offset > span_length:
+                return None
+            target_ayah = ayah_start + offset - 1
+        return {
+            'canonical_ref': f'quran:{surah_no}:{target_ayah}',
+            'surah_no': surah_no,
+            'ayah_start': target_ayah,
+            'ayah_end': target_ayah,
+            'followup_kind': 'verse_within_anchor_span',
+        }
+
+    direction_match = _NEXT_PREV_VERSE_RE.search(text)
+    if direction_match:
+        direction = direction_match.group('direction').lower()
+        if direction in {'previous', 'prev', 'before'}:
+            target_ayah = max(1, ayah_start - 1)
+        else:
+            target_ayah = ayah_end + 1
+        return {
+            'canonical_ref': f'quran:{surah_no}:{target_ayah}',
+            'surah_no': surah_no,
+            'ayah_start': target_ayah,
+            'ayah_end': target_ayah,
+            'followup_kind': 'adjacent_verse',
+        }
+
+    if _GENERIC_FOLLOWUP_RE.search(text):
+        return {
+            'canonical_ref': quran_anchor['canonical_ref'],
+            'surah_no': surah_no,
+            'ayah_start': ayah_start,
+            'ayah_end': ayah_end,
+            'followup_kind': 'anchored_scope_repeat',
+        }
+    return None
+
+
+def _classify_anchored_followup(text: str, request_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    anchor_refs = _extract_anchor_refs(request_context)
+    if not anchor_refs:
+        return None
+
+    quran_anchor = next((parsed for ref in anchor_refs if (parsed := _parse_quran_anchor(ref)) is not None), None)
+    hadith_anchor = next((parsed for ref in anchor_refs if (parsed := _parse_hadith_anchor(ref)) is not None), None)
+    tafsir_anchor_refs = [ref for ref in anchor_refs if str(ref).startswith('tafsir:')]
+
+    tafsir_source_ids = _detect_tafsir_source_ids(text)
+    compare_requested = bool(_COMPARE_RE.search(text))
+    show_only_requested = bool(_SHOW_ONLY_RE.search(text))
+
+    if hadith_anchor is not None and _HADITH_FOLLOWUP_RE.search(text):
+        return {
+            'route_type': AskRouteType.ANCHORED_FOLLOWUP_HADITH.value,
+            'action_type': AskActionType.EXPLAIN.value,
+            'confidence': 0.9,
+            'signals': ['anchor_refs_present', 'anchored_hadith_followup'],
+            'secondary_intents': ['anchored_followup'],
+            'reason': 'anchored_hadith_followup_detected',
+            'normalized_query': text,
+            'anchor_refs': list(anchor_refs),
+            'parsed_hadith_citation': {
+                'collection_source_id': hadith_anchor['collection_source_id'],
+                'collection_slug': hadith_anchor['collection_slug'],
+                'reference_type': 'collection_number',
+                'canonical_ref': hadith_anchor['canonical_ref'],
+                'hadith_number': hadith_anchor['hadith_number'],
+                'book_number': None,
+                'chapter_number': None,
+            },
+            'followup_kind': 'hadith_followup',
+        }
+
+    if quran_anchor is not None and (tafsir_anchor_refs or tafsir_source_ids or detect_tafsir_intent(text)['matched'] or compare_requested):
+        return {
+            'route_type': AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
+            'action_type': AskActionType.EXPLAIN.value,
+            'confidence': 0.88,
+            'signals': ['anchor_refs_present', 'anchored_tafsir_followup'] + (['tafsir_source_focus'] if tafsir_source_ids else []) + (['compare_request'] if compare_requested else []),
+            'secondary_intents': ['anchored_followup', 'tafsir_request'],
+            'reason': 'anchored_tafsir_followup_detected',
+            'normalized_query': text,
+            'anchor_refs': list(anchor_refs),
+            'followup_quran_ref': quran_anchor,
+            'requested_tafsir_source_ids': list(tafsir_source_ids),
+            'compare_requested': compare_requested,
+            'show_only_requested': show_only_requested,
+            'followup_kind': 'tafsir_source_followup',
+        }
+
+    if quran_anchor is not None:
+        quran_target = _resolve_followup_quran_target(text, quran_anchor)
+        if quran_target is not None:
+            return {
+                'route_type': AskRouteType.ANCHORED_FOLLOWUP_QURAN.value,
+                'action_type': AskActionType.EXPLAIN.value,
+                'confidence': 0.86,
+                'signals': ['anchor_refs_present', 'anchored_quran_followup'],
+                'secondary_intents': ['anchored_followup'],
+                'reason': 'anchored_quran_followup_detected',
+                'normalized_query': text,
+                'anchor_refs': list(anchor_refs),
+                'followup_quran_ref': quran_target,
+                'followup_kind': str(quran_target.get('followup_kind') or 'anchored_scope_repeat'),
+            }
+
+    return None
+
+
+def looks_like_anchored_followup_candidate(query: str) -> bool:
+    text = normalize_query_text(query)
+    if not text:
+        return False
+    if _HADITH_FOLLOWUP_RE.search(text):
+        return True
+    if _GENERIC_FOLLOWUP_RE.search(text):
+        return True
+    if _ORDINAL_VERSE_RE.search(text) or _NEXT_PREV_VERSE_RE.search(text):
+        return True
+    if _detect_tafsir_source_ids(text):
+        return True
+    if _COMPARE_RE.search(text) or _SHOW_ONLY_RE.search(text):
+        return True
+    return False
+
+
+def classify_ask_query(query: str, request_context: dict[str, Any] | None = None) -> dict[str, Any]:
     text = normalize_query_text(query)
     if not text:
         return {
-            "route_type": AskRouteType.UNSUPPORTED_FOR_NOW.value,
+            "route_type": AskRouteType.POLICY_RESTRICTED_REQUEST.value,
             "action_type": AskActionType.UNKNOWN.value,
             "confidence": 0.0,
             "signals": [],
@@ -129,6 +352,10 @@ def classify_ask_query(query: str) -> dict[str, Any]:
             },
         }
 
+    anchored_followup = _classify_anchored_followup(text, request_context)
+    if anchored_followup is not None:
+        return anchored_followup
+
     named_anchor = _resolve_named_quran_anchor(text)
     if named_anchor is not None:
         action = detect_action_type(text, route_hint=AskRouteType.EXPLICIT_QURAN_REFERENCE.value)
@@ -149,12 +376,23 @@ def classify_ask_query(query: str) -> dict[str, Any]:
             "reference_match_type": "named_anchor",
         }
 
-
-
-    topical = detect_topical_query_intent(text, allow_multi_source=False)
+    topical = detect_topical_query_intent(text, allow_multi_source=True)
     if topical.get("matched"):
+        detected_route_type = str(topical.get("route_type") or '')
+        if detected_route_type == AskRouteType.TOPICAL_MULTI_SOURCE_QUERY.value:
+            return {
+                "route_type": AskRouteType.POLICY_RESTRICTED_REQUEST.value,
+                "action_type": AskActionType.UNKNOWN.value,
+                "confidence": float(topical.get("confidence") or 0.6),
+                "signals": list(topical.get("signals") or []),
+                "secondary_intents": ["topical_retrieval"],
+                "reason": "public_mixed_source_topic_requires_future_planner",
+                "normalized_query": text,
+                "topic_query": str(topical.get("topic_query") or text),
+                "restriction_reason": "public_mixed_source_topic_requires_future_planner",
+            }
         return {
-            "route_type": str(topical.get("route_type")),
+            "route_type": detected_route_type,
             "action_type": str(topical.get("action_type") or AskActionType.EXPLAIN.value),
             "confidence": float(topical.get("confidence") or 0.7),
             "signals": list(topical.get("signals") or []),
@@ -171,7 +409,7 @@ def classify_ask_query(query: str) -> dict[str, Any]:
             concept_matches=list(topical.get('concept_matches') or []),
         )
         payload = {
-            "route_type": AskRouteType.UNSUPPORTED_FOR_NOW.value,
+            "route_type": AskRouteType.BROAD_SOURCE_GROUNDED_QUERY.value,
             "action_type": AskActionType.UNKNOWN.value,
             "confidence": float(topical.get("confidence") or 0.5),
             "signals": list(topical.get("signals") or []),
@@ -185,10 +423,11 @@ def classify_ask_query(query: str) -> dict[str, Any]:
         return payload
 
     return {
-        "route_type": AskRouteType.UNSUPPORTED_FOR_NOW.value,
+        "route_type": AskRouteType.POLICY_RESTRICTED_REQUEST.value,
         "action_type": AskActionType.UNKNOWN.value,
         "confidence": 0.15,
         "signals": arabic_quote.get("signals", []),
         "reason": arabic_quote.get("reason") or str(topical.get("reason") or "unsupported_query_type_for_now"),
         "normalized_query": text,
+        "restriction_reason": str(topical.get("reason") or "unsupported_query_type_for_now"),
     }

@@ -177,3 +177,14 @@ def test_fetch_quran_span_db_preferred(monkeypatch) -> None:
     assert result["translation"]["source_id"] == "quran:towards-understanding-en"
     assert result["ayah_rows"][0]["translation_source_id"] == "quran:towards-understanding-en"
     assert result["translation"]["text"] == "Say: He is Allah, the One. Allah, the Eternal Refuge."
+
+
+def test_fetch_single_ayah_quran_span_surfaces_requested_translation_work_source_id():
+    result = fetch_quran_span(
+        surah_no=94,
+        ayah_start=5,
+        ayah_end=5,
+        translation_work_source_id='quran:towards-understanding-en',
+    )
+    assert result['translation']['source_id'] == 'quran:towards-understanding-en'
+    assert result['ayah_rows'][0]['translation_source_id'] == 'quran:towards-understanding-en'

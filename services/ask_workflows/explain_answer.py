@@ -11,7 +11,7 @@ def explain_answer(
     request: Request | None = None,
     route: dict[str, object] | None = None,
     include_tafsir: bool | None = None,
-    tafsir_source_id: str | None = "tafsir:ibn-kathir-en",
+    tafsir_source_id: str | None = None,
     tafsir_limit: int = 3,
     database_url: str | None = None,
     repository_mode: str | None = None,

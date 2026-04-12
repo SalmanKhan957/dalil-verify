@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from domains.answer_engine.citation_renderer import render_citation_list
 from domains.answer_engine.contracts import make_explain_answer_payload
+from domains.answer_engine.composition_builder import build_composition_packet
+from domains.answer_engine.conversational_renderer import render_bounded_conversational_answer
 from domains.answer_engine.evidence_pack import EvidencePack
 from domains.answer_engine.excerpting import build_tafsir_excerpt
 from domains.answer_engine.orchestration_contract import build_orchestration_envelope, serialize_contract
-from domains.ask.planner_types import AskPlan, ResponseMode
+from domains.tafsir.tafheem_notes import build_tafheem_render_payload
+from domains.ask.planner_types import AskPlan, ResponseMode, TerminalState
 
 
 def _clean_hadith_book_title(value: Any, *, language: str) -> str | None:
@@ -128,8 +132,30 @@ def _build_hadith_support(evidence: EvidencePack) -> dict[str, Any] | None:
         'vector_score': raw.get('vector_score'),
         'supporting_refs': list(raw.get('supporting_refs') or []),
         'evidence_bundle_size': raw.get('evidence_bundle_size'),
-        'llm_composition_ready': bool(raw.get('llm_composition_ready')),
+        'llm_composition_ready': bool(raw.get('llm_composition_ready')) or bool(raw.get('source_excerpt') or hadith.snippet or raw.get('guidance_summary') or hadith.english_text),
         'numbering_quality': numbering_quality,
+    }
+
+
+def _resolve_tafsir_render_payload(hit: Any) -> dict[str, Any]:
+    source_id = str(getattr(hit, 'source_id', '') or '')
+    fallback_text_plain = str(getattr(hit, 'text_plain', '') or '')
+    fallback_text_html = getattr(hit, 'text_html', None)
+    raw_json = dict(getattr(hit, 'raw_json', {}) or {})
+
+    if source_id == 'tafsir:tafheem-al-quran-en':
+        return build_tafheem_render_payload(
+            raw_json=raw_json,
+            fallback_text_plain=fallback_text_plain,
+            fallback_text_html=fallback_text_html,
+        )
+
+    return {
+        'display_text': fallback_text_plain,
+        'excerpt_source_text': fallback_text_plain,
+        'text_html': fallback_text_html,
+        'inline_note_count': int(raw_json.get('inline_note_count') or 0),
+        'rendering_mode': 'stored_text',
     }
 
 
@@ -137,19 +163,23 @@ def _build_tafsir_support(evidence: EvidencePack) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for tafsir in evidence.tafsir:
         hit = tafsir.hit
+        render_payload = _resolve_tafsir_render_payload(hit)
         prebuilt_snippet = getattr(hit, 'snippet', None)
         if prebuilt_snippet:
             excerpt = str(prebuilt_snippet)
             trimmed = False
         else:
-            excerpt, trimmed = build_tafsir_excerpt(str(getattr(hit, 'text_plain', '') or ''))
+            excerpt_source_text = str(render_payload.get('excerpt_source_text') or getattr(hit, 'text_plain', '') or '')
+            excerpt, trimmed = build_tafsir_excerpt(excerpt_source_text)
         items.append(
             {
                 'source_id': getattr(hit, 'source_id', None),
                 'canonical_section_id': getattr(hit, 'canonical_section_id', None),
                 'display_text': f"{getattr(hit, 'citation_label', 'Tafsir')} on Quran {getattr(hit, 'quran_span_ref', '')}",
+                'citation_label': getattr(hit, 'citation_label', None),
+                'display_name': getattr(hit, 'display_name', None),
                 'excerpt': excerpt,
-                'text_html': getattr(hit, 'text_html', None),
+                'text_html': render_payload.get('text_html'),
                 'surah_no': getattr(hit, 'surah_no', None),
                 'ayah_start': getattr(hit, 'ayah_start', None),
                 'ayah_end': getattr(hit, 'ayah_end', None),
@@ -160,6 +190,8 @@ def _build_tafsir_support(evidence: EvidencePack) -> list[dict[str, Any]]:
                 'excerpt_was_trimmed': trimmed,
                 'matched_terms': list(getattr(hit, 'matched_terms', ()) or ()),
                 'retrieval_method': getattr(hit, 'retrieval_method', None),
+                'rendering_mode': render_payload.get('rendering_mode'),
+                'inline_note_count': render_payload.get('inline_note_count'),
             }
         )
     return items
@@ -183,6 +215,83 @@ def _condense_translation(translation_text: str, *, limit: int = 220) -> str:
     return cut.rstrip(' ,;:-') + '…'
 
 
+
+
+_SENTENCE_SPLIT_RE = re.compile(r'(?<=[.!?])\s+')
+
+
+def _take_sentences(text: str, *, max_sentences: int = 2, max_chars: int = 320) -> str:
+    normalized = ' '.join((text or '').split()).strip()
+    if not normalized:
+        return ''
+    parts = [segment.strip() for segment in _SENTENCE_SPLIT_RE.split(normalized) if segment.strip()]
+    if not parts:
+        return _condense_translation(normalized, limit=max_chars)
+    selected: list[str] = []
+    for part in parts:
+        candidate = ' '.join(selected + [part]).strip()
+        if len(candidate) > max_chars and selected:
+            break
+        selected.append(part)
+        if len(selected) >= max_sentences or len(candidate) >= max_chars:
+            break
+    combined = ' '.join(selected).strip()
+    if len(combined) <= max_chars:
+        return combined
+    return _condense_translation(combined, limit=max_chars)
+
+
+def _humanize_hadith_collection(raw: dict[str, Any]) -> str:
+    slug = str(raw.get('collection_slug') or raw.get('collection_source_id') or '').strip().lower()
+    mapping = {
+        'sahih-al-bukhari-en': 'Sahih al-Bukhari',
+        'sahih-al-bukhari': 'Sahih al-Bukhari',
+        'sahih-muslim-en': 'Sahih Muslim',
+        'sahih-muslim': 'Sahih Muslim',
+    }
+    if slug in mapping:
+        return mapping[slug]
+    cleaned = slug.split(':')[-1].replace('-en', '').replace('-', ' ').strip()
+    return cleaned.title() if cleaned else 'Hadith source'
+
+
+def _build_hadith_explanation_seed(raw: dict[str, Any]) -> str:
+    guidance = ' '.join(str(raw.get('guidance_summary') or '').split()).strip()
+    if guidance:
+        return _condense_translation(guidance, limit=280)
+    snippet = ' '.join(str(raw.get('snippet') or '').split()).strip()
+    if snippet:
+        return _condense_translation(snippet, limit=280)
+    excerpt = ' '.join(str(raw.get('source_excerpt') or '').split()).strip()
+    if excerpt:
+        return _take_sentences(excerpt, max_sentences=2, max_chars=280)
+    english_text = ' '.join(str(raw.get('english_text') or '').split()).strip()
+    if english_text:
+        return _take_sentences(english_text, max_sentences=2, max_chars=280)
+    return ''
+
+
+def _unique_tafsir_labels(evidence: EvidencePack) -> list[str]:
+    labels: list[str] = []
+    seen: set[str] = set()
+    for item in evidence.tafsir:
+        label = ' '.join(str(getattr(item.hit, 'citation_label', '') or '').split()).strip() or 'Tafsir'
+        if label in seen:
+            continue
+        seen.add(label)
+        labels.append(label)
+    return labels
+
+
+def _join_labels(labels: list[str]) -> str:
+    if not labels:
+        return 'Tafsir'
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f'{labels[0]} and {labels[1]}'
+    return f"{', '.join(labels[:-1])}, and {labels[-1]}"
+
 def _build_quran_with_tafsir_answer(plan: AskPlan, evidence: EvidencePack) -> str | None:
     del plan
     quran = evidence.quran
@@ -190,13 +299,15 @@ def _build_quran_with_tafsir_answer(plan: AskPlan, evidence: EvidencePack) -> st
         return None
 
     first_tafsir = evidence.tafsir[0].hit
+    tafsir_labels = _unique_tafsir_labels(evidence)
+    label_text = _join_labels(tafsir_labels)
     translation_text = _condense_translation(quran.translation_text or '')
     if translation_text:
         return (
             f'{quran.citation_string} says: {translation_text} '
-            f'Retrieved commentary from {getattr(first_tafsir, "citation_label", "Tafsir")} is attached below.'
+            f'Retrieved commentary from {label_text} is attached below.'
         ).strip()
-    return f'Retrieved commentary from {getattr(first_tafsir, "citation_label", "Tafsir")} on {quran.citation_string} is attached below.'.strip()
+    return f'Retrieved commentary from {label_text} on {quran.citation_string} is attached below.'.strip()
 
 
 def _build_quran_only_answer(plan: AskPlan, evidence: EvidencePack) -> str | None:
@@ -225,19 +336,33 @@ def _build_hadith_answer(plan: AskPlan, evidence: EvidencePack) -> str | None:
         return None
     narrator = ' '.join((hadith.english_narrator or '').split()).strip()
     text = ' '.join((hadith.english_text or '').split()).strip()
+    summary = _build_hadith_explanation_seed({
+        'guidance_summary': (hadith.raw or {}).get('guidance_summary'),
+        'snippet': hadith.snippet,
+        'source_excerpt': (hadith.raw or {}).get('source_excerpt'),
+        'english_text': hadith.english_text,
+    })
+    collection_name = _humanize_hadith_collection({
+        'collection_slug': hadith.collection_slug,
+        'collection_source_id': hadith.collection_source_id,
+    })
     if plan.response_mode == ResponseMode.HADITH_TEXT:
         if narrator:
             return f'{hadith.citation_string}: {narrator} {text}'.strip()
         return f'{hadith.citation_string}: {text}'.strip()
     if plan.response_mode == ResponseMode.HADITH_EXPLANATION:
+        lead = summary or _take_sentences(text, max_sentences=2, max_chars=260)
+        if lead:
+            return (
+                f'{collection_name}, {hadith.citation_string} indicates: {lead} '
+                f'The full narration is provided below as the grounding source.'
+            ).strip()
         if narrator and text:
             return (
-                f'According to {hadith.citation_string}, {narrator} {text} '
-                f'The retrieved narration is attached below as the grounding source.'
+                f'{collection_name}, {hadith.citation_string} reports {narrator}. '
+                f'The full narration is provided below as the grounding source.'
             ).strip()
-        if text:
-            return f'According to {hadith.citation_string}, {text} The retrieved narration is attached below as the grounding source.'.strip()
-        return f'{hadith.citation_string} was retrieved, but the stored narration text is empty.'.strip()
+        return f'{collection_name}, {hadith.citation_string} was retrieved. The full narration is provided below as the grounding source.'.strip()
     return None
 
 
@@ -273,19 +398,12 @@ def _build_topical_multi_source_answer(evidence: EvidencePack) -> str | None:
     return None
 
 
-def _build_abstain_answer(plan: AskPlan) -> str | None:
-    hadith_policy = plan.source_policy.hadith if plan.source_policy is not None else None
-    policy_reason = str(hadith_policy.policy_reason or '').strip() if hadith_policy is not None else ''
-    if plan.route_type == 'topical_hadith_query' and policy_reason == 'topical_hadith_temporarily_disabled':
-        return 'Topical Hadith answers are temporarily disabled in this release. Direct Hadith references such as “Bukhari 20” are still supported.'
-    if plan.route_type == 'topical_hadith_query' and policy_reason == 'hadith_mode_blocks_topical_retrieval':
-        return 'Topical Hadith retrieval is disabled for this request because hadith.mode is set to explicit_lookup_only. Direct Hadith references are still supported.'
-    return None
-
-
 def _build_answer_text(plan: AskPlan, evidence: EvidencePack) -> str | None:
     if plan.response_mode == ResponseMode.ABSTAIN:
-        return _build_abstain_answer(plan)
+        hadith_policy = getattr(getattr(plan, 'source_policy', None), 'hadith', None)
+        if hadith_policy is not None and getattr(hadith_policy, 'policy_reason', None) == 'topical_hadith_temporarily_disabled':
+            return 'Topical Hadith answers are temporarily disabled in this release. Direct Hadith references such as “Bukhari 20” are still supported.'
+        return None
     if plan.response_mode == ResponseMode.CLARIFY:
         return _build_clarify_answer(plan)
     if plan.response_mode == ResponseMode.TOPICAL_TAFSIR:
@@ -303,7 +421,7 @@ def _build_answer_text(plan: AskPlan, evidence: EvidencePack) -> str | None:
     return _build_quran_only_answer(plan, evidence)
 
 
-def _build_quran_source_selection(plan: AskPlan) -> dict[str, Any] | None:
+def _build_quran_source_selection(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None:
     if not any(
         [
             plan.repository_mode,
@@ -320,12 +438,12 @@ def _build_quran_source_selection(plan: AskPlan) -> dict[str, Any] | None:
         'source_resolution_strategy': plan.source_resolution_strategy,
         'requested_quran_text_source_id': plan.requested_quran_work_source_id,
         'requested_quran_translation_source_id': plan.requested_translation_work_source_id,
-        'selected_quran_text_source_id': plan.quran_work_source_id,
-        'selected_quran_translation_source_id': plan.translation_work_source_id,
+        'selected_quran_text_source_id': (evidence.quran.quran_source_id if evidence.quran and evidence.quran.quran_source_id else plan.quran_work_source_id),
+        'selected_quran_translation_source_id': (evidence.quran.translation_source_id if evidence.quran and evidence.quran.translation_source_id else plan.translation_work_source_id),
     }
 
 
-def _build_source_policy(plan: AskPlan) -> dict[str, Any] | None:
+def _build_source_policy(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any] | None:
     if plan.source_policy is None:
         return None
     quran_policy = plan.source_policy.quran
@@ -340,8 +458,8 @@ def _build_source_policy(plan: AskPlan) -> dict[str, Any] | None:
             'available_capabilities': list(quran_policy.available_capabilities),
             'requested_text_source_id': quran_policy.requested_text_source_id,
             'requested_translation_source_id': quran_policy.requested_translation_source_id,
-            'selected_text_source_id': quran_policy.selected_text_source_id,
-            'selected_translation_source_id': quran_policy.selected_translation_source_id,
+            'selected_text_source_id': (evidence.quran.quran_source_id if evidence.quran and evidence.quran.quran_source_id else quran_policy.selected_text_source_id),
+            'selected_translation_source_id': (evidence.quran.translation_source_id if evidence.quran and evidence.quran.translation_source_id else quran_policy.selected_translation_source_id),
             'text_source_origin': quran_policy.text_source_origin,
             'translation_source_origin': quran_policy.translation_source_origin,
         },
@@ -352,7 +470,9 @@ def _build_source_policy(plan: AskPlan) -> dict[str, Any] | None:
             'requested': tafsir_policy.requested,
             'request_origin': tafsir_policy.request_origin,
             'requested_source_id': tafsir_policy.requested_source_id,
+            'requested_source_ids': list(getattr(tafsir_policy, 'requested_source_ids', []) or []),
             'selected_source_id': tafsir_policy.selected_source_id,
+            'selected_source_ids': list(getattr(tafsir_policy, 'selected_source_ids', []) or []),
             'request_mode': tafsir_policy.request_mode,
             'mode_enforced': tafsir_policy.mode_enforced,
             'allowed': tafsir_policy.allowed,
@@ -449,6 +569,19 @@ def _build_debug(plan: AskPlan, evidence: EvidencePack, *, source_policy: dict[s
     }
 
 
+
+
+def _terminal_state_for_plan(plan: AskPlan) -> str:
+    terminal_state = getattr(plan, 'terminal_state', None)
+    if terminal_state is not None:
+        return terminal_state.value if hasattr(terminal_state, 'value') else str(terminal_state)
+    if plan.response_mode == ResponseMode.CLARIFY:
+        return TerminalState.CLARIFY.value
+    if plan.should_abstain or plan.response_mode == ResponseMode.ABSTAIN:
+        return TerminalState.ABSTAIN.value
+    return TerminalState.ANSWERED.value
+
+
 def _derive_partial_success(plan: AskPlan, evidence: EvidencePack) -> bool:
     if plan.response_mode == ResponseMode.CLARIFY:
         return False
@@ -474,7 +607,7 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
     tafsir_support = _build_tafsir_support(evidence)
     answer_text = _build_answer_text(plan, evidence)
     partial_success = _derive_partial_success(plan, evidence)
-    source_policy = _build_source_policy(plan)
+    source_policy = _build_source_policy(plan, evidence)
 
     error = None
     if plan.should_abstain and not quran_support and not hadith_support and not tafsir_support:
@@ -486,6 +619,46 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
     elif evidence.quran is None and evidence.errors and plan.quran_plan is not None:
         error = evidence.errors[0]
 
+    pre_render_orchestration = _build_orchestration_payload(
+        plan,
+        evidence,
+        answer_text=answer_text,
+        tafsir_support=tafsir_support,
+        source_policy=source_policy,
+        partial_success=partial_success,
+    )
+
+    conversation_payload = pre_render_orchestration.get('conversation') if isinstance(pre_render_orchestration, dict) else None
+    composition_payload = build_composition_packet(
+        plan=plan,
+        evidence=evidence,
+        answer_text=answer_text,
+        quran_support=quran_support,
+        hadith_support=hadith_support,
+        tafsir_support=tafsir_support,
+        source_policy=source_policy,
+        conversation=conversation_payload,
+    )
+
+    rendered_answer = render_bounded_conversational_answer(
+        payload={
+            'route_type': plan.route_type,
+            'action_type': plan.action_type,
+            'composition': composition_payload,
+            'source_policy': source_policy,
+            'conversation': conversation_payload,
+        },
+        fallback_answer_text=answer_text,
+    )
+    answer_text = rendered_answer.get('answer_text') or answer_text
+    followup_suggestions = [str(item).strip() for item in list(rendered_answer.get('followup_suggestions') or []) if str(item).strip()]
+    if isinstance(conversation_payload, dict) and followup_suggestions:
+        conversation_payload['suggested_followups'] = followup_suggestions
+    if isinstance(composition_payload, dict):
+        followup_packet = composition_payload.get('followup')
+        if isinstance(followup_packet, dict) and followup_suggestions:
+            followup_packet['suggested_followups'] = followup_suggestions
+
     orchestration_payload = _build_orchestration_payload(
         plan,
         evidence,
@@ -494,6 +667,13 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         source_policy=source_policy,
         partial_success=partial_success,
     )
+    if isinstance(orchestration_payload, dict):
+        diagnostics = orchestration_payload.get('diagnostics')
+        if isinstance(diagnostics, dict):
+            diagnostics['render_mode'] = rendered_answer.get('render_mode')
+            diagnostics['renderer_version'] = rendered_answer.get('renderer_version')
+            diagnostics['renderer_backend'] = rendered_answer.get('renderer_backend')
+
     debug_payload = _build_debug(
         plan,
         evidence,
@@ -506,6 +686,7 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         ok=bool(answer_text or quran_support or hadith_support or tafsir_support) and not bool(plan.should_abstain and not quran_support and not hadith_support and not tafsir_support),
         query=plan.query,
         answer_mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
+        terminal_state=_terminal_state_for_plan(plan),
         route_type=plan.route_type,
         action_type=plan.action_type,
         answer_text=answer_text,
@@ -518,10 +699,11 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         warnings=(['clarification_required'] if plan.response_mode == ResponseMode.CLARIFY else []) + list(evidence.warnings),
         debug=debug_payload,
         error=error,
-        quran_source_selection=_build_quran_source_selection(plan),
+        quran_source_selection=_build_quran_source_selection(plan, evidence),
         source_policy=source_policy,
         orchestration=orchestration_payload,
-        conversation=(orchestration_payload.get('conversation') if isinstance(orchestration_payload, dict) else None),
+        conversation=conversation_payload,
+        composition=composition_payload,
     )
     payload['quran_span'] = evidence.quran.raw if evidence.quran else None
     payload['verifier_result'] = evidence.verifier_result

@@ -23,7 +23,7 @@ def test_detect_topical_multi_source_query() -> None:
 
 def test_public_classifier_does_not_broaden_to_topical_routes_yet() -> None:
     route = classify_ask_query('What does Islam say about patience?')
-    assert route['route_type'] == 'unsupported_for_now'
+    assert route['route_type'] == 'policy_restricted_request'
 
 
 def test_explicit_reference_beats_topical_pattern() -> None:

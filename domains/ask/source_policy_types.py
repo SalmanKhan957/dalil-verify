@@ -27,7 +27,9 @@ class TafsirSourcePolicyDecision:
     requested: bool = False
     request_origin: str | None = None
     requested_source_id: str | None = None
+    requested_source_ids: list[str] = field(default_factory=list)
     selected_source_id: str | None = None
+    selected_source_ids: list[str] = field(default_factory=list)
     request_mode: str = 'auto'
     mode_enforced: bool = False
     allowed: bool = False

@@ -83,7 +83,7 @@ async def test_ask_api_abstains_cleanly_on_unsupported_query():
     assert response.status_code == 200
     payload = response.json()
     assert payload["ok"] is False
-    assert payload["route_type"] == "unsupported_for_now"
+    assert payload["route_type"] == "policy_restricted_request"
     assert payload["error"]
 
 
