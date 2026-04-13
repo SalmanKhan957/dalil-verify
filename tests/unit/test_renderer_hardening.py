@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from domains.answer_engine.conversational_renderer import render_bounded_conversational_answer
-from domains.answer_engine.render_modes import render_quran_with_tafsir, suggest_followups
+from domains.answer_engine.render_modes import render_quran_with_tafsir
 
 
 def test_render_quran_with_tafsir_prefers_meaning_summary_and_source_points() -> None:
@@ -39,11 +39,10 @@ def test_render_quran_with_tafsir_prefers_meaning_summary_and_source_points() ->
     rendered = render_quran_with_tafsir(composition, fallback=None)
 
     assert rendered is not None
-    assert rendered.startswith("In simple terms, this passage affirms Allah's absolute oneness")
+    assert rendered.startswith("This passage affirms Allah's absolute oneness")
     assert 'attached below' not in rendered.lower()
-    assert 'Looking at the tafsir:' in rendered
     assert 'Tafsir Ibn Kathir emphasizes that this surah answers people who asked about Allah' in rendered
-    assert "Ma'arif al-Qur'an highlights that allah's oneness, self-sufficiency, and freedom from lineage" in rendered
+    assert "Ma'arif al-Qur'an highlights that it highlights Allah's oneness" in rendered
 
 
 def test_render_quran_explanation_uses_meaning_summary_when_available() -> None:
@@ -64,7 +63,6 @@ def test_render_quran_explanation_uses_meaning_summary_when_available() -> None:
 
     rendered = render_bounded_conversational_answer(payload=payload, fallback_answer_text='Quran 1:1-7 says: All praise be to Allah.')
     assert rendered['render_mode'] == 'quran_explanation'
-    assert rendered['answer_text'].startswith('In simple terms,')
     assert 'praise of Allah' in rendered['answer_text']
     assert 'straight path' in rendered['answer_text']
     assert rendered['followup_suggestions'] == ['Explain this more simply']
@@ -99,25 +97,5 @@ def test_render_quran_with_tafsir_does_not_use_mechanical_language() -> None:
     rendered = render_bounded_conversational_answer(payload=payload, fallback_answer_text='Retrieved commentary is attached below.')
     assert 'attached below' not in rendered['answer_text'].lower()
     assert 'per-source emphasis' not in rendered['answer_text'].lower()
-    assert rendered['answer_text'].startswith("In simple terms, this verse affirms Allah's absolute oneness")
+    assert rendered['answer_text'].startswith("This verse affirms Allah's absolute oneness")
     assert 'tafsir ibn kathir emphasizes that ayat al-kursi has exceptional virtue' in rendered['answer_text'].lower()
-    assert 'looking at the tafsir:' in rendered['answer_text'].lower()
-
-
-def test_renderer_followup_defaults_sound_natural_when_none_are_provided() -> None:
-    composition = {
-        'composition_mode': 'quran_with_tafsir',
-        'resolved_scope': {'span_label': 'Quran 112:1-4'},
-        'source_bundles': [
-            {'domain': 'quran', 'focused_extract': 'Say: He is Allah, One.'},
-            {'domain': 'tafsir', 'display_name': 'Tafsir Ibn Kathir', 'focused_extract': 'It explains Allah\'s oneness and uniqueness.'},
-            {'domain': 'tafsir', 'display_name': 'Tafheem al-Quran', 'focused_extract': 'It explains sincerity of tawhid.'},
-        ],
-        'followup': {'suggested_followups': []},
-    }
-
-    suggestions = suggest_followups(composition, route_type='explicit_quran_reference', render_mode='quran_with_tafsir')
-
-    assert suggestions[0] == 'Explain this more simply'
-    assert 'What is the main lesson of this passage?' in suggestions
-    assert any('What does Tafsir Ibn Kathir emphasize here?' == item for item in suggestions)

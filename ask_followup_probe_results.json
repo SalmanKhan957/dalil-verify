@@ -1,0 +1,1030 @@
+﻿{
+    "suite_id":  "ask_followup_probe.v1",
+    "generated_at_utc":  "2026-04-13T22:35:24Z",
+    "base_url":  "http://127.0.0.1:8000",
+    "chains":  [
+                   {
+                       "chain_id":  "quran_relative_navigation",
+                       "purpose":  "Check next/previous/ordinal Quran span navigation precedence.",
+                       "conversation_id":  "probe-quran_relative_navigation-66a261cb",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "quran_relative_navigation",
+                                         "purpose":  "Check next/previous/ordinal Quran span navigation precedence.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-quran_relative_navigation-66a261cb",
+                                         "query":  "Explain 2:255",
+                                         "route_type":  "explicit_quran_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Quran 2:255 says: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Tafsir Ibn Kathir (English) emphasizes that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b s..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_relative_navigation",
+                                         "purpose":  "Check next/previous/ordinal Quran span navigation precedence.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-quran_relative_navigation-66a261cb",
+                                         "query":  "What about the next verse",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:256",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "navigate_next_verse",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:256",
+                                                                        "reason":  "quran_next_verse_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:256",
+                                                           "tafsir:ibn-kathir-en:82803",
+                                                           "tafsir:maarif-al-quran-en:79800",
+                                                           "tafsir:tafheem-al-quran-en:2:256"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:256, the requested wording is: There is no compulsion and coercion in regard to religion. The right thing has been made distinct from the wrong thing: now whoever rejects taghut and believes in Allah has taken a firm support that never gives way."
+                                     },
+                                     {
+                                         "chain_id":  "quran_relative_navigation",
+                                         "purpose":  "Check next/previous/ordinal Quran span navigation precedence.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-quran_relative_navigation-66a261cb",
+                                         "query":  "What about the previous verse",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "navigate_previous_verse",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "quran_previous_verse_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:255, the requested wording is: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Who is there that can intercede with Him except by His own perm..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_relative_navigation",
+                                         "purpose":  "Check next/previous/ordinal Quran span navigation precedence.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-quran_relative_navigation-66a261cb",
+                                         "query":  "What about the second verse",
+                                         "route_type":  "policy_restricted_request",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_span_not_available",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_span_not_available",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That verse navigation move is not available from the current anchored span. Supported next steps: Ask about the current verse directly; Ask to simplify the current explanation."
+                                     },
+                                     {
+                                         "chain_id":  "quran_relative_navigation",
+                                         "purpose":  "Check next/previous/ordinal Quran span navigation precedence.",
+                                         "step_index":  5,
+                                         "conversation_id":  "probe-quran_relative_navigation-66a261cb",
+                                         "query":  "What about the first verse",
+                                         "route_type":  "unsupported_for_now",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_span_not_available",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_span_not_available",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That verse navigation move is not available from the current anchored span. Supported next steps: Ask about the current verse directly; Ask to simplify the current explanation."
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "quran_source_focus_and_quote",
+                       "purpose":  "Check tafsir source focus versus Quran quote precedence.",
+                       "conversation_id":  "probe-quran_source_focus_and_quote-0bf663a2",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "quran_source_focus_and_quote",
+                                         "purpose":  "Check tafsir source focus versus Quran quote precedence.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-quran_source_focus_and_quote-0bf663a2",
+                                         "query":  "Explain 2:255",
+                                         "route_type":  "explicit_quran_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Quran 2:255 says: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Tafsir Ibn Kathir (English) emphasizes that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b s..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_source_focus_and_quote",
+                                         "purpose":  "Check tafsir source focus versus Quran quote precedence.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-quran_source_focus_and_quote-0bf663a2",
+                                         "query":  "What does Tafheem say?",
+                                         "route_type":  "anchored_followup_tafsir",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "focus_source",
+                                                                        "target_domain":  "tafsir",
+                                                                        "target_source_id":  "tafsir:tafheem-al-quran-en",
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "source_specific_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Focusing just on Tafheem al-Quran for Quran 2:255, it explains that irrespective of the number of gods or objects of worship set up by ignorant people, the fact remains that godhead in its entirety, belongs exclusively to the Eternal Being, Who is indebted to no one for His exist..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_source_focus_and_quote",
+                                         "purpose":  "Check tafsir source focus versus Quran quote precedence.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-quran_source_focus_and_quote-0bf663a2",
+                                         "query":  "What does Ibn Kathir say?",
+                                         "route_type":  "anchored_followup_tafsir",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "focus_source",
+                                                                        "target_domain":  "tafsir",
+                                                                        "target_source_id":  "tafsir:ibn-kathir-en",
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "source_specific_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802"
+                                                       ],
+                                         "answer_text_preview":  "Focusing just on Tafsir Ibn Kathir (English) for Quran 2:255, it explains that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b said that the Prophet asked him about the greatest Ayah in the Book of Allah, and `Ubayy answered, \"Allah and His Messenger know better.\" When the Prophet rep..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_source_focus_and_quote",
+                                         "purpose":  "Check tafsir source focus versus Quran quote precedence.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-quran_source_focus_and_quote-0bf663a2",
+                                         "query":  "Show the exact wording again",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "fetch_text",
+                                         "answer_mode":  "quran_text",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "repeat_exact_text",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "repeat_exact_text_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:255, the requested wording is: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Who is there that can intercede with Him except by His own perm..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_source_focus_and_quote",
+                                         "purpose":  "Check tafsir source focus versus Quran quote precedence.",
+                                         "step_index":  5,
+                                         "conversation_id":  "probe-quran_source_focus_and_quote-0bf663a2",
+                                         "query":  "Quote the verse again",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "fetch_text",
+                                         "answer_mode":  "quran_text",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "repeat_exact_text",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "repeat_exact_text_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:255, the requested wording is: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Who is there that can intercede with Him except by His own perm..."
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "quran_simplify_then_quote",
+                       "purpose":  "Check simplify behavior and then repeat exact wording.",
+                       "conversation_id":  "probe-quran_simplify_then_quote-a7d95053",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "quran_simplify_then_quote",
+                                         "purpose":  "Check simplify behavior and then repeat exact wording.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-quran_simplify_then_quote-a7d95053",
+                                         "query":  "Explain 2:255",
+                                         "route_type":  "explicit_quran_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Quran 2:255 says: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Tafsir Ibn Kathir (English) emphasizes that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b s..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_simplify_then_quote",
+                                         "purpose":  "Check simplify behavior and then repeat exact wording.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-quran_simplify_then_quote-a7d95053",
+                                         "query":  "Say it more simply",
+                                         "route_type":  "anchored_followup_tafsir",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "simplify",
+                                                                        "target_domain":  "tafsir",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "simplify_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Focusing just on Tafsir Ibn Kathir (English) for Quran 2:255, it explains that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b said that the Prophet asked him about the greatest Ayah in the Book of Allah, and `Ubayy answered, \"Allah and His Messenger know better.\" When the Prophet rep..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_simplify_then_quote",
+                                         "purpose":  "Check simplify behavior and then repeat exact wording.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-quran_simplify_then_quote-a7d95053",
+                                         "query":  "Explain that in simple words",
+                                         "route_type":  "anchored_followup_tafsir",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "simplify",
+                                                                        "target_domain":  "tafsir",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "simplify_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Focusing just on Tafsir Ibn Kathir (English) for Quran 2:255, it explains that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b said that the Prophet asked him about the greatest Ayah in the Book of Allah, and `Ubayy answered, \"Allah and His Messenger know better.\" When the Prophet rep..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_simplify_then_quote",
+                                         "purpose":  "Check simplify behavior and then repeat exact wording.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-quran_simplify_then_quote-a7d95053",
+                                         "query":  "Show the exact wording again",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "fetch_text",
+                                         "answer_mode":  "quran_text",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "repeat_exact_text",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "repeat_exact_text_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:255, the requested wording is: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Who is there that can intercede with Him except by His own perm..."
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "quran_mixed_followup_precedence",
+                       "purpose":  "Check mixed precedence: source focus -\u003e next verse -\u003e simplify -\u003e quote.",
+                       "conversation_id":  "probe-quran_mixed_followup_precedence-6e9dfa88",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "quran_mixed_followup_precedence",
+                                         "purpose":  "Check mixed precedence: source focus -\u003e next verse -\u003e simplify -\u003e quote.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-quran_mixed_followup_precedence-6e9dfa88",
+                                         "query":  "Explain 2:255",
+                                         "route_type":  "explicit_quran_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Quran 2:255 says: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Tafsir Ibn Kathir (English) emphasizes that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b s..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_mixed_followup_precedence",
+                                         "purpose":  "Check mixed precedence: source focus -\u003e next verse -\u003e simplify -\u003e quote.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-quran_mixed_followup_precedence-6e9dfa88",
+                                         "query":  "What does Tafheem say?",
+                                         "route_type":  "anchored_followup_tafsir",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "focus_source",
+                                                                        "target_domain":  "tafsir",
+                                                                        "target_source_id":  "tafsir:tafheem-al-quran-en",
+                                                                        "target_ref":  "quran:2:255",
+                                                                        "reason":  "source_specific_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Focusing just on Tafheem al-Quran for Quran 2:255, it explains that irrespective of the number of gods or objects of worship set up by ignorant people, the fact remains that godhead in its entirety, belongs exclusively to the Eternal Being, Who is indebted to no one for His exist..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_mixed_followup_precedence",
+                                         "purpose":  "Check mixed precedence: source focus -\u003e next verse -\u003e simplify -\u003e quote.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-quran_mixed_followup_precedence-6e9dfa88",
+                                         "query":  "What about the next verse",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:256",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "navigate_next_verse",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:256",
+                                                                        "reason":  "quran_next_verse_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:256",
+                                                           "tafsir:ibn-kathir-en:82803",
+                                                           "tafsir:maarif-al-quran-en:79800",
+                                                           "tafsir:tafheem-al-quran-en:2:256"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:256, the requested wording is: There is no compulsion and coercion in regard to religion. The right thing has been made distinct from the wrong thing: now whoever rejects taghut and believes in Allah has taken a firm support that never gives way."
+                                     },
+                                     {
+                                         "chain_id":  "quran_mixed_followup_precedence",
+                                         "purpose":  "Check mixed precedence: source focus -\u003e next verse -\u003e simplify -\u003e quote.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-quran_mixed_followup_precedence-6e9dfa88",
+                                         "query":  "Say it more simply",
+                                         "route_type":  "anchored_followup_tafsir",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:256",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "simplify",
+                                                                        "target_domain":  "tafsir",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:256",
+                                                                        "reason":  "simplify_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:256",
+                                                           "tafsir:ibn-kathir-en:82803",
+                                                           "tafsir:maarif-al-quran-en:79800",
+                                                           "tafsir:tafheem-al-quran-en:2:256"
+                                                       ],
+                                         "answer_text_preview":  "Focusing just on Tafsir Ibn Kathir (English) for Quran 2:256, it explains that no Compulsion in Religion Allah said, ÙØ§Ù Ø¥ÙÙÙØ±ÙØ§ÙÙ ÙÙÙ Ø§ÙØ¯ÙÙÙÙÙ (There is no compulsion in religion), meaning, \"Do not force anyone to become Muslim, for Islam is plain and clea..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_mixed_followup_precedence",
+                                         "purpose":  "Check mixed precedence: source focus -\u003e next verse -\u003e simplify -\u003e quote.",
+                                         "step_index":  5,
+                                         "conversation_id":  "probe-quran_mixed_followup_precedence-6e9dfa88",
+                                         "query":  "Show the exact wording again",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "fetch_text",
+                                         "answer_mode":  "quran_text",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:256",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "repeat_exact_text",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:2:256",
+                                                                        "reason":  "repeat_exact_text_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:256"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 2:256, the requested wording is: There is no compulsion and coercion in regard to religion. The right thing has been made distinct from the wrong thing: now whoever rejects taghut and believes in Allah has taken a firm support that never gives way."
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "hadith_followups",
+                       "purpose":  "Check explicit Hadith follow-ups.",
+                       "conversation_id":  "probe-hadith_followups-d75f9268",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "hadith_followups",
+                                         "purpose":  "Check explicit Hadith follow-ups.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-hadith_followups-d75f9268",
+                                         "query":  "Explain Bukhari 7",
+                                         "route_type":  "explicit_hadith_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "hadith_explanation",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "hadith:sahih-al-bukhari-en:7"
+                                                       ],
+                                         "answer_text_preview":  "Abu Sufyan bin Harb informed me that Heraclius had sent a messenger to him while he had been accompanying a caravan from Quraish. They were merchants doing business in Sham (Syria, Palestine, Lebanon and Jordan), at the time when Allah\u0027s Messenger (ï·º) had truce with Abu Sufyan ..."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_followups",
+                                         "purpose":  "Check explicit Hadith follow-ups.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-hadith_followups-d75f9268",
+                                         "query":  "Summarize this hadith",
+                                         "route_type":  "anchored_followup_hadith",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "hadith_explanation",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  "summarize_hadith",
+                                                                        "target_domain":  "hadith",
+                                                                        "target_source_id":  "hadith:sahih-al-bukhari-en",
+                                                                        "target_ref":  "hadith:sahih-al-bukhari-en:7",
+                                                                        "reason":  "hadith_summary_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "hadith:sahih-al-bukhari-en:7"
+                                                       ],
+                                         "answer_text_preview":  "Abu Sufyan bin Harb informed me that Heraclius had sent a messenger to him while he had been accompanying a caravan from Quraish. They were merchants doing business in Sham (Syria, Palestine, Lebanon and Jordan), at the time when Allah\u0027s Messenger (ï·º) had truce with Abu Sufyan ..."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_followups",
+                                         "purpose":  "Check explicit Hadith follow-ups.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-hadith_followups-d75f9268",
+                                         "query":  "What lesson does this hadith teach?",
+                                         "route_type":  "anchored_followup_hadith",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "hadith_explanation",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  "extract_hadith_lesson",
+                                                                        "target_domain":  "hadith",
+                                                                        "target_source_id":  "hadith:sahih-al-bukhari-en",
+                                                                        "target_ref":  "hadith:sahih-al-bukhari-en:7",
+                                                                        "reason":  "hadith_lesson_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "hadith:sahih-al-bukhari-en:7"
+                                                       ],
+                                         "answer_text_preview":  "Abu Sufyan bin Harb informed me that Heraclius had sent a messenger to him while he had been accompanying a caravan from Quraish. They were merchants doing business in Sham (Syria, Palestine, Lebanon and Jordan), at the time when Allah\u0027s Messenger (ï·º) had truce with Abu Sufyan ..."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_followups",
+                                         "purpose":  "Check explicit Hadith follow-ups.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-hadith_followups-d75f9268",
+                                         "query":  "Show the exact wording again",
+                                         "route_type":  "anchored_followup_hadith",
+                                         "action_type":  "fetch_text",
+                                         "answer_mode":  "hadith_explanation",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  "repeat_exact_text",
+                                                                        "target_domain":  "hadith",
+                                                                        "target_source_id":  "hadith:sahih-al-bukhari-en",
+                                                                        "target_ref":  "hadith:sahih-al-bukhari-en:7",
+                                                                        "reason":  "repeat_exact_text_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "hadith:sahih-al-bukhari-en:7"
+                                                       ],
+                                         "answer_text_preview":  "Abu Sufyan bin Harb informed me that Heraclius had sent a messenger to him while he had been accompanying a caravan from Quraish. They were merchants doing business in Sham (Syria, Palestine, Lebanon and Jordan), at the time when Allah\u0027s Messenger (ï·º) had truce with Abu Sufyan ..."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_followups",
+                                         "purpose":  "Check explicit Hadith follow-ups.",
+                                         "step_index":  5,
+                                         "conversation_id":  "probe-hadith_followups-d75f9268",
+                                         "query":  "Say that more simply",
+                                         "route_type":  "policy_restricted_request",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_action_not_supported_for_scope",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_action_not_supported_for_scope",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That follow-up action does not fit the current hadith thread. Supported next steps: Ask a direct Quran reference such as 2:255; Ask a direct hadith reference such as Bukhari 7."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_followups",
+                                         "purpose":  "Check explicit Hadith follow-ups.",
+                                         "step_index":  6,
+                                         "conversation_id":  "probe-hadith_followups-d75f9268",
+                                         "query":  "What about the next hadith",
+                                         "route_type":  "policy_restricted_request",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  null,
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "policy_restricted",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  null
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "quran_guardrails",
+                       "purpose":  "Check cross-domain rejection from a Quran thread.",
+                       "conversation_id":  "probe-quran_guardrails-ef5c2e27",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "quran_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Quran thread.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-quran_guardrails-ef5c2e27",
+                                         "query":  "Explain 2:255",
+                                         "route_type":  "explicit_quran_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:2:255",
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:2:255",
+                                                           "tafsir:ibn-kathir-en:82802",
+                                                           "tafsir:maarif-al-quran-en:79799",
+                                                           "tafsir:tafheem-al-quran-en:2:255"
+                                                       ],
+                                         "answer_text_preview":  "Quran 2:255 says: Allah: the Everlasting, the Sustainer of the whole Universe; there is no god but He. He does neither slumber nor sleep. Whatsoever is in the heavens and in the earth is His. Tafsir Ibn Kathir (English) emphasizes that \u0027 Imam Ahmad recorded that `Ubayy bin Ka`b s..."
+                                     },
+                                     {
+                                         "chain_id":  "quran_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Quran thread.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-quran_guardrails-ef5c2e27",
+                                         "query":  "Summarize this hadith",
+                                         "route_type":  "unsupported_for_now",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_action_not_supported_for_scope",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_action_not_supported_for_scope",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That follow-up action does not fit the current anchored verse thread. Supported next steps: Ask a direct Quran reference such as 2:255; Ask a direct hadith reference such as Bukhari 7."
+                                     },
+                                     {
+                                         "chain_id":  "quran_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Quran thread.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-quran_guardrails-ef5c2e27",
+                                         "query":  "Give me ahadith about this",
+                                         "route_type":  "unsupported_for_now",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_requires_new_query_boundary",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_requires_new_query_boundary",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That request changes the question boundary. Please ask it as a fresh direct query instead of continuing the current anchored verse thread. Supported next steps: Ask a new direct Quran or Hadith question; Use an explicit reference such as 2:255 or Bukhari 7."
+                                     },
+                                     {
+                                         "chain_id":  "quran_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Quran thread.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-quran_guardrails-ef5c2e27",
+                                         "query":  "What does Islam say about rizq generally",
+                                         "route_type":  "unsupported_for_now",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_requires_new_query_boundary",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_requires_new_query_boundary",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That request changes the question boundary. Please ask it as a fresh direct query instead of continuing the current anchored verse thread. Supported next steps: Ask a new direct Quran or Hadith question; Use an explicit reference such as 2:255 or Bukhari 7."
+                                     },
+                                     {
+                                         "chain_id":  "quran_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Quran thread.",
+                                         "step_index":  5,
+                                         "conversation_id":  "probe-quran_guardrails-ef5c2e27",
+                                         "query":  "Show topical tafsir about this theme",
+                                         "route_type":  "unsupported_for_now",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_requires_new_query_boundary",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_requires_new_query_boundary",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That request changes the question boundary. Please ask it as a fresh direct query instead of continuing the current anchored verse thread. Supported next steps: Ask a new direct Quran or Hadith question; Use an explicit reference such as 2:255 or Bukhari 7."
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "hadith_guardrails",
+                       "purpose":  "Check cross-domain rejection from a Hadith thread.",
+                       "conversation_id":  "probe-hadith_guardrails-c24aa098",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "hadith_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Hadith thread.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-hadith_guardrails-c24aa098",
+                                         "query":  "Explain Bukhari 7",
+                                         "route_type":  "explicit_hadith_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "hadith_explanation",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "hadith:sahih-al-bukhari-en:7"
+                                                       ],
+                                         "answer_text_preview":  "Abu Sufyan bin Harb informed me that Heraclius had sent a messenger to him while he had been accompanying a caravan from Quraish. They were merchants doing business in Sham (Syria, Palestine, Lebanon and Jordan), at the time when Allah\u0027s Messenger (ï·º) had truce with Abu Sufyan ..."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Hadith thread.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-hadith_guardrails-c24aa098",
+                                         "query":  "What does Tafheem say?",
+                                         "route_type":  "policy_restricted_request",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_target_source_not_in_scope",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_target_source_not_in_scope",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That tafsir source is not part of the current thread scope, so I should not jump to it automatically. Supported next steps: Ask about one of the sources already in scope; Ask to simplify the current explanation."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Hadith thread.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-hadith_guardrails-c24aa098",
+                                         "query":  "What about the next verse",
+                                         "route_type":  "policy_restricted_request",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  {
+                                                                        "action_type":  null,
+                                                                        "target_domain":  null,
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  null,
+                                                                        "reason":  "followup_span_not_available",
+                                                                        "rejected":  true
+                                                                    },
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "followup_span_not_available",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  "That verse navigation move is not available from the current hadith thread. Supported next steps: Ask about the current hadith directly; Ask to simplify the current explanation."
+                                     },
+                                     {
+                                         "chain_id":  "hadith_guardrails",
+                                         "purpose":  "Check cross-domain rejection from a Hadith thread.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-hadith_guardrails-c24aa098",
+                                         "query":  "Give me Quran commentary on this hadith",
+                                         "route_type":  "policy_restricted_request",
+                                         "action_type":  "unknown",
+                                         "answer_mode":  "abstain",
+                                         "terminal_state":  "abstain",
+                                         "resolved_ref":  null,
+                                         "active_followup_action":  null,
+                                         "followup_ready":  false,
+                                         "abstention_reason":  "policy_restricted",
+                                         "citations":  [
+
+                                                       ],
+                                         "answer_text_preview":  null
+                                     }
+                                 ]
+                   },
+                   {
+                       "chain_id":  "range_and_boundary_navigation",
+                       "purpose":  "Check range behavior and verse-boundary navigation.",
+                       "conversation_id":  "probe-range_and_boundary_navigation-4f527389",
+                       "steps":  [
+                                     {
+                                         "chain_id":  "range_and_boundary_navigation",
+                                         "purpose":  "Check range behavior and verse-boundary navigation.",
+                                         "step_index":  1,
+                                         "conversation_id":  "probe-range_and_boundary_navigation-4f527389",
+                                         "query":  "Explain 94:5-6",
+                                         "route_type":  "explicit_quran_reference",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:94:5-6",
+                                         "active_followup_action":  null,
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:94:5-6",
+                                                           "tafsir:ibn-kathir-en:84533",
+                                                           "tafsir:maarif-al-quran-en:82568",
+                                                           "tafsir:tafheem-al-quran-en:94:5",
+                                                           "tafsir:tafheem-al-quran-en:94:6"
+                                                       ],
+                                         "answer_text_preview":  "Quran 94:5-6 says: Indeed, there is ease with hardship. Most certainly, there is ease with hardship. Tafsir Ibn Kathir (English) emphasizes that which was revealed in Makkah Ø¨ÙØ³ÙÙ\u0085Ù Ø§ÙÙÙÙÙÙ Ø§ÙØ±ÙÙØ­ÙÙ\u0085ÙÙÙÙ Ø§ÙØ±ÙÙØ­ÙÙÙ\u0085Ù In the Name of Allah, the Most G..."
+                                     },
+                                     {
+                                         "chain_id":  "range_and_boundary_navigation",
+                                         "purpose":  "Check range behavior and verse-boundary navigation.",
+                                         "step_index":  2,
+                                         "conversation_id":  "probe-range_and_boundary_navigation-4f527389",
+                                         "query":  "What about the second verse",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:94:6",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "select_quran_verse",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:94:6",
+                                                                        "reason":  "quran_ordinal_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:94:6",
+                                                           "tafsir:ibn-kathir-en:84533",
+                                                           "tafsir:maarif-al-quran-en:82568",
+                                                           "tafsir:tafheem-al-quran-en:94:6"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 94:6, the requested wording is: Most certainly, there is ease with hardship."
+                                     },
+                                     {
+                                         "chain_id":  "range_and_boundary_navigation",
+                                         "purpose":  "Check range behavior and verse-boundary navigation.",
+                                         "step_index":  3,
+                                         "conversation_id":  "probe-range_and_boundary_navigation-4f527389",
+                                         "query":  "What about the next verse",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:94:7",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "navigate_next_verse",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:94:7",
+                                                                        "reason":  "quran_next_verse_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:94:7",
+                                                           "tafsir:ibn-kathir-en:84533",
+                                                           "tafsir:maarif-al-quran-en:82569",
+                                                           "tafsir:tafheem-al-quran-en:94:7"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 94:7, the requested wording is: So, whenever you are free, strive in devotion,"
+                                     },
+                                     {
+                                         "chain_id":  "range_and_boundary_navigation",
+                                         "purpose":  "Check range behavior and verse-boundary navigation.",
+                                         "step_index":  4,
+                                         "conversation_id":  "probe-range_and_boundary_navigation-4f527389",
+                                         "query":  "Go to the next verse",
+                                         "route_type":  "anchored_followup_quran",
+                                         "action_type":  "explain",
+                                         "answer_mode":  "quran_with_tafsir",
+                                         "terminal_state":  "answered",
+                                         "resolved_ref":  "quran:94:8",
+                                         "active_followup_action":  {
+                                                                        "action_type":  "navigate_next_verse",
+                                                                        "target_domain":  "quran",
+                                                                        "target_source_id":  null,
+                                                                        "target_ref":  "quran:94:8",
+                                                                        "reason":  "quran_next_verse_followup",
+                                                                        "rejected":  false
+                                                                    },
+                                         "followup_ready":  true,
+                                         "abstention_reason":  null,
+                                         "citations":  [
+                                                           "quran:94:8",
+                                                           "tafsir:ibn-kathir-en:84533",
+                                                           "tafsir:maarif-al-quran-en:82569",
+                                                           "tafsir:tafheem-al-quran-en:94:8"
+                                                       ],
+                                         "answer_text_preview":  "For Quran 94:8, the requested wording is: and turn to your Lord with longing."
+                                     }
+                                 ]
+                   }
+               ]
+}

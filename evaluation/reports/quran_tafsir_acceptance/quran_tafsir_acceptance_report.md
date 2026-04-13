@@ -1,10 +1,10 @@
 # Acceptance Report — quran-tafsir-explain-v1
 
 - Total cases: 27
-- Passed cases: 25
-- Failed cases: 2
-- Overall pass rate: 92.6%
-- All gates passed: no
+- Passed cases: 27
+- Failed cases: 0
+- Overall pass rate: 100.0%
+- All gates passed: yes
 
 ## Metrics
 
@@ -21,9 +21,4 @@
 - citation_presence_gate: PASS
 - abstention_gate: PASS
 - unexpected_error_gate: PASS
-- overall_pass_gate: FAIL
-
-## Failed Cases
-
-- `surah_fatiha_quran_only` — Explain Surah Al-Fatiha — answer_quality
-- `ikhlas_quran_only` — Explain Surah Al-Ikhlas — answer_quality
+- overall_pass_gate: PASS

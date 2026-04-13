@@ -1,0 +1,168 @@
+{
+  "suite_id": "ask_followup_probe.v1",
+  "description": "Manual probe suite for bounded /ask conversational follow-ups. Reuse the same conversation_id within each chain.",
+  "chains": [
+    {
+      "chain_id": "quran_relative_navigation",
+      "purpose": "Check next/previous/ordinal Quran span navigation precedence.",
+      "steps": [
+        {
+          "query": "Explain 2:255"
+        },
+        {
+          "query": "What about the next verse"
+        },
+        {
+          "query": "What about the previous verse"
+        },
+        {
+          "query": "What about the second verse"
+        },
+        {
+          "query": "What about the first verse"
+        }
+      ]
+    },
+    {
+      "chain_id": "quran_source_focus_and_quote",
+      "purpose": "Check tafsir source focus versus Quran quote precedence.",
+      "steps": [
+        {
+          "query": "Explain 2:255"
+        },
+        {
+          "query": "What does Tafheem say?"
+        },
+        {
+          "query": "What does Ibn Kathir say?"
+        },
+        {
+          "query": "Show the exact wording again"
+        },
+        {
+          "query": "Quote the verse again"
+        }
+      ]
+    },
+    {
+      "chain_id": "quran_simplify_then_quote",
+      "purpose": "Check simplify behavior and then repeat exact wording.",
+      "steps": [
+        {
+          "query": "Explain 2:255"
+        },
+        {
+          "query": "Say it more simply"
+        },
+        {
+          "query": "Explain that in simple words"
+        },
+        {
+          "query": "Show the exact wording again"
+        }
+      ]
+    },
+    {
+      "chain_id": "quran_mixed_followup_precedence",
+      "purpose": "Check mixed precedence: source focus -> next verse -> simplify -> quote.",
+      "steps": [
+        {
+          "query": "Explain 2:255"
+        },
+        {
+          "query": "What does Tafheem say?"
+        },
+        {
+          "query": "What about the next verse"
+        },
+        {
+          "query": "Say it more simply"
+        },
+        {
+          "query": "Show the exact wording again"
+        }
+      ]
+    },
+    {
+      "chain_id": "hadith_followups",
+      "purpose": "Check explicit Hadith follow-ups.",
+      "steps": [
+        {
+          "query": "Explain Bukhari 7"
+        },
+        {
+          "query": "Summarize this hadith"
+        },
+        {
+          "query": "What lesson does this hadith teach?"
+        },
+        {
+          "query": "Show the exact wording again"
+        },
+        {
+          "query": "Say that more simply"
+        },
+        {
+          "query": "What about the next hadith"
+        }
+      ]
+    },
+    {
+      "chain_id": "quran_guardrails",
+      "purpose": "Check cross-domain rejection from a Quran thread.",
+      "steps": [
+        {
+          "query": "Explain 2:255"
+        },
+        {
+          "query": "Summarize this hadith"
+        },
+        {
+          "query": "Give me ahadith about this"
+        },
+        {
+          "query": "What does Islam say about rizq generally"
+        },
+        {
+          "query": "Show topical tafsir about this theme"
+        }
+      ]
+    },
+    {
+      "chain_id": "hadith_guardrails",
+      "purpose": "Check cross-domain rejection from a Hadith thread.",
+      "steps": [
+        {
+          "query": "Explain Bukhari 7"
+        },
+        {
+          "query": "What does Tafheem say?"
+        },
+        {
+          "query": "What about the next verse"
+        },
+        {
+          "query": "Give me Quran commentary on this hadith"
+        }
+      ]
+    },
+    {
+      "chain_id": "range_and_boundary_navigation",
+      "purpose": "Check range behavior and verse-boundary navigation.",
+      "steps": [
+        {
+          "query": "Explain 94:5-6"
+        },
+        {
+          "query": "What about the second verse"
+        },
+        {
+          "query": "What about the next verse"
+        },
+        {
+          "query": "Go to the next verse"
+        }
+      ]
+    }
+  ]
+}

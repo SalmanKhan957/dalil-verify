@@ -23,10 +23,11 @@ _ORDINAL_VERSE_RE = re.compile(r"\b(?P<ordinal>first|1st|second|2nd|third|3rd|fo
 _NEXT_PREV_VERSE_RE = re.compile(r"\b(?P<direction>next|previous|prev|before|after)\s+verse\b", re.IGNORECASE)
 _GENERIC_FOLLOWUP_RE = re.compile(r"\b(?:what\s+does\s+this\s+mean|what\s+about\s+this|what\s+about\s+that|explain\s+this|summarize\s+this|summarise\s+this|what\s+lesson|what\s+does\s+this\s+teach)\b", re.IGNORECASE)
 _HADITH_FOLLOWUP_RE = re.compile(r"\b(?:summari[sz]e\s+this\s+hadith|what\s+lesson\s+does\s+this\s+hadith\s+teach|what\s+does\s+this\s+hadith\s+mean|explain\s+this\s+hadith|summari[sz]e\s+this|what\s+lesson\s+does\s+this\s+teach)\b", re.IGNORECASE)
-_SIMPLIFY_FOLLOWUP_RE = re.compile(r"\b(?:say\s+it\s+more\s+simply|say\s+that\s+more\s+simply|simplify(?:\s+this)?|explain\s+it\s+simply|in\s+simple\s+words|in\s+plain\s+words)\b", re.IGNORECASE)
+_SIMPLIFY_FOLLOWUP_RE = re.compile(r"\b(?:say\s+it\s+more\s+simply|say\s+that\s+more\s+simply|simplify(?:\s+(?:this|that|it))?|explain\s+(?:it|this|that)\s+simply|explain\s+(?:it|this|that)\s+in\s+(?:simple|plain)\s+words|(?:in|using)\s+(?:simple|plain)\s+words)\b", re.IGNORECASE)
 _REPEAT_FOLLOWUP_RE = re.compile(r"\b(?:show\s+the\s+exact\s+wording\s+again|repeat\s+that|quote\s+that\s+again|show\s+it\s+again)\b", re.IGNORECASE)
 _COMPARE_RE = re.compile(r"\bcompare\b", re.IGNORECASE)
 _SHOW_ONLY_RE = re.compile(r"\bshow\s+only\b", re.IGNORECASE)
+_BROAD_TOPIC_SHIFT_RE = re.compile(r"\b(?:what does islam say about|generally|in general|theme|topical tafsir|about this theme|give me ahadith|give me hadith)\b", re.IGNORECASE)
 _TAFSIR_SOURCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\btafheem\b", re.IGNORECASE), 'tafsir:tafheem-al-quran-en'),
     (re.compile(r"\bma['’]?arif\b", re.IGNORECASE), 'tafsir:maarif-al-quran-en'),
@@ -182,6 +183,10 @@ def _resolve_followup_quran_target(text: str, quran_anchor: dict[str, int | str]
     return None
 
 
+def _looks_like_broad_anchored_shift(text: str) -> bool:
+    return bool(_BROAD_TOPIC_SHIFT_RE.search(text))
+
+
 def _classify_anchored_followup(text: str, request_context: dict[str, Any] | None) -> dict[str, Any] | None:
     anchor_refs = _extract_anchor_refs(request_context)
     if not anchor_refs:
@@ -217,7 +222,8 @@ def _classify_anchored_followup(text: str, request_context: dict[str, Any] | Non
             'followup_kind': 'hadith_followup',
         }
 
-    if quran_anchor is not None and (tafsir_anchor_refs or tafsir_source_ids or detect_tafsir_intent(text)['matched'] or compare_requested):
+    tafsir_intent = detect_tafsir_intent(text)['matched']
+    if quran_anchor is not None and not _looks_like_broad_anchored_shift(text) and (tafsir_source_ids or tafsir_intent or compare_requested or show_only_requested):
         return {
             'route_type': AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
             'action_type': AskActionType.EXPLAIN.value,

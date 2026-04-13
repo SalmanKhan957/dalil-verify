@@ -3,6 +3,15 @@ from __future__ import annotations
 from .followup_capabilities import FollowupAction, FollowupCapabilitySet
 
 
+_ORDINAL_LABELS = {
+    'first': 'first',
+    'second': 'second',
+    'third': 'third',
+    'fourth': 'fourth',
+    'last': 'last',
+}
+
+
 def render_suggested_followups(capability_set: FollowupCapabilitySet, *, limit: int = 4) -> list[str]:
     """Presentation layer only.
 
@@ -17,8 +26,13 @@ def render_suggested_followups(capability_set: FollowupCapabilitySet, *, limit: 
         if item.action_type == FollowupAction.FOCUS_SOURCE:
             source_label = item.phrase_params.get("source_label") or "this source"
             phrase = f"What does {source_label} say?"
-        elif item.action_type == FollowupAction.FOCUS_SECOND_VERSE:
-            phrase = "What about the second verse?"
+        elif item.action_type == FollowupAction.SELECT_QURAN_VERSE:
+            ordinal = _ORDINAL_LABELS.get(item.phrase_params.get('ordinal', ''), item.phrase_params.get('ordinal', 'second'))
+            phrase = f"What about the {ordinal} verse?"
+        elif item.action_type == FollowupAction.NAVIGATE_NEXT_VERSE:
+            phrase = "What about the next verse?"
+        elif item.action_type == FollowupAction.NAVIGATE_PREVIOUS_VERSE:
+            phrase = "What about the previous verse?"
         elif item.action_type == FollowupAction.SIMPLIFY:
             phrase = "Say it more simply"
         elif item.action_type == FollowupAction.SUMMARIZE_HADITH:

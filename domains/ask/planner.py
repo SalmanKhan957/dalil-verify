@@ -99,7 +99,7 @@ def _route_for_resolved_followup(*, query: str, resolved: object, state: object)
             'show_only_requested': True,
             'followup_kind': 'tafsir_source_followup',
         }
-    if action_type in {FollowupAction.FOCUS_SECOND_VERSE, FollowupAction.REPEAT_EXACT_TEXT, FollowupAction.SIMPLIFY} and (quran_ref or quran_span_ref):
+    if action_type in {FollowupAction.SELECT_QURAN_VERSE, FollowupAction.NAVIGATE_NEXT_VERSE, FollowupAction.NAVIGATE_PREVIOUS_VERSE, FollowupAction.REPEAT_EXACT_TEXT, FollowupAction.SIMPLIFY} and (quran_ref or quran_span_ref):
         target = target_ref or quran_ref or quran_span_ref
         parts = str(target).split(':')
         ayah_part = parts[2] if len(parts) > 2 else '1'
@@ -122,7 +122,7 @@ def _route_for_resolved_followup(*, query: str, resolved: object, state: object)
                 'ayah_end': ayah_end,
                 'parse_type': 'anchored_followup',
             },
-            'followup_kind': 'simplify_followup' if action_type == FollowupAction.SIMPLIFY else ('anchored_scope_repeat' if action_type == FollowupAction.REPEAT_EXACT_TEXT else 'verse_within_anchor_span'),
+            'followup_kind': 'simplify_followup' if action_type == FollowupAction.SIMPLIFY else ('anchored_scope_repeat' if action_type == FollowupAction.REPEAT_EXACT_TEXT else ('adjacent_verse' if action_type in {FollowupAction.NAVIGATE_NEXT_VERSE, FollowupAction.NAVIGATE_PREVIOUS_VERSE} else 'verse_within_anchor_span')), 
         }
     if action_type in {FollowupAction.SUMMARIZE_HADITH, FollowupAction.EXTRACT_HADITH_LESSON, FollowupAction.REPEAT_EXACT_TEXT} and hadith_ref:
         hadith_number = str(hadith_ref).rsplit(':', 1)[-1]
@@ -152,6 +152,18 @@ def _route_for_resolved_followup(*, query: str, resolved: object, state: object)
         'reason': 'state_followup_resolution_failed',
         'normalized_query': query,
     }
+
+
+
+def _route_starts_new_reference_boundary(route: dict[str, object] | None) -> bool:
+    route_type = _normalized_route_type(route)
+    if route_type == AskRouteType.EXPLICIT_QURAN_REFERENCE.value:
+        return bool((route or {}).get('parsed_reference'))
+    if route_type == AskRouteType.EXPLICIT_HADITH_REFERENCE.value:
+        return bool((route or {}).get('parsed_hadith_citation'))
+    if route_type == AskRouteType.ARABIC_QURAN_QUOTE.value:
+        return True
+    return False
 
 
 def _response_mode_for_plan(*, route_type: str, action_type: str, use_tafsir: bool) -> ResponseMode:
@@ -552,7 +564,8 @@ def build_ask_plan(
     route_was_supplied = route is not None
     route = route or classify_ask_query(query, request_context=request_context)
     session_state = hydrate_session_state_from_request_context(request_context)
-    resolved_followup = resolve_followup(query, session_state) if session_state.supports_followups() else None
+    should_attempt_followup_resolution = session_state.supports_followups() and not _route_starts_new_reference_boundary(route)
+    resolved_followup = resolve_followup(query, session_state) if should_attempt_followup_resolution else None
     if resolved_followup is not None and (getattr(resolved_followup, 'matched', False) or getattr(resolved_followup, 'rejected', False)):
         route = _attach_followup_resolution(route, resolved_followup)
         if getattr(resolved_followup, 'matched', False):
@@ -570,10 +583,15 @@ def build_ask_plan(
             ):
                 route = _attach_followup_resolution(desired_route, resolved_followup)
                 route_was_supplied = True
-        elif getattr(resolved_followup, 'rejected', False) and _normalized_route_type(route) in {
-            AskRouteType.UNSUPPORTED_FOR_NOW.value,
-            AskRouteType.BROAD_SOURCE_GROUNDED_QUERY.value,
-        }:
+        elif getattr(resolved_followup, 'rejected', False) and (
+            _normalized_route_type(route) in {
+                AskRouteType.UNSUPPORTED_FOR_NOW.value,
+                AskRouteType.BROAD_SOURCE_GROUNDED_QUERY.value,
+                AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
+                AskRouteType.ANCHORED_FOLLOWUP_QURAN.value,
+            }
+            or str(getattr(resolved_followup, 'reason', '') or '').strip() == 'followup_requires_new_query_boundary'
+        ):
             route = _attach_followup_resolution(_route_for_rejected_followup(query=query, resolved=resolved_followup), resolved_followup)
             route_was_supplied = True
     if not route_was_supplied and str(route.get('route_type')) == AskRouteType.UNSUPPORTED_FOR_NOW.value:
@@ -605,6 +623,10 @@ def build_ask_plan(
         followup_reason = str(route.get('resolved_followup_reason') or route.get('reason') or '').strip()
         if route_type == AskRouteType.POLICY_RESTRICTED_REQUEST.value:
             plan.abstain_reason = AbstentionReason.POLICY_RESTRICTED
+        elif followup_reason == 'followup_requires_new_query_boundary':
+            plan.abstain_reason = AbstentionReason.NEEDS_CLARIFICATION
+            plan.followup_rejected = True
+            plan.followup_reason = followup_reason
         elif followup_reason in {'followup_action_not_supported_for_scope', 'followup_missing_anchor', 'followup_target_source_not_in_scope', 'followup_span_not_available'}:
             plan.abstain_reason = AbstentionReason.UNSUPPORTED_CAPABILITY
             plan.followup_rejected = True

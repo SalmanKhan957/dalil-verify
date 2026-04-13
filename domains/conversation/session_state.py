@@ -18,8 +18,13 @@ class ActiveScope:
     quran_ref: str | None = None
     quran_span_ref: str | None = None
     tafsir_source_ids: list[str] = field(default_factory=list)
+    comparative_tafsir_source_ids: list[str] = field(default_factory=list)
+    current_tafsir_source_id: str | None = None
     hadith_ref: str | None = None
     hadith_source_id: str | None = None
+
+    def effective_tafsir_source_ids(self) -> list[str]:
+        return list(self.comparative_tafsir_source_ids or self.tafsir_source_ids)
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -29,6 +34,8 @@ class ActiveScope:
             'quran_ref': self.quran_ref,
             'quran_span_ref': self.quran_span_ref,
             'tafsir_source_ids': list(self.tafsir_source_ids),
+            'comparative_tafsir_source_ids': list(self.comparative_tafsir_source_ids),
+            'current_tafsir_source_id': self.current_tafsir_source_id,
             'hadith_ref': self.hadith_ref,
             'hadith_source_id': self.hadith_source_id,
         }
@@ -88,7 +95,7 @@ class SessionState:
         return bool(self.scope.hadith_ref)
 
     def has_tafsir_scope(self) -> bool:
-        return bool(self.scope.tafsir_source_ids)
+        return bool(self.scope.effective_tafsir_source_ids())
 
     def supports_followups(self) -> bool:
         return bool(self.followup_ready and self.anchors.refs)
@@ -99,6 +106,8 @@ class SessionState:
             'quran_ref': self.scope.quran_ref,
             'quran_span_ref': self.scope.quran_span_ref,
             'tafsir_source_ids': list(self.scope.tafsir_source_ids),
+            'comparative_tafsir_source_ids': list(self.scope.comparative_tafsir_source_ids),
+            'current_tafsir_source_id': self.scope.current_tafsir_source_id,
             'hadith_ref': self.scope.hadith_ref,
             'hadith_source_id': self.scope.hadith_source_id,
         }
@@ -137,6 +146,8 @@ class SessionState:
                 quran_ref=str(scope_payload.get('quran_ref') or '').strip() or None,
                 quran_span_ref=str(scope_payload.get('quran_span_ref') or '').strip() or None,
                 tafsir_source_ids=[str(item).strip() for item in list(scope_payload.get('tafsir_source_ids') or []) if str(item).strip()],
+                comparative_tafsir_source_ids=[str(item).strip() for item in list(scope_payload.get('comparative_tafsir_source_ids') or []) if str(item).strip()],
+                current_tafsir_source_id=str(scope_payload.get('current_tafsir_source_id') or '').strip() or None,
                 hadith_ref=str(scope_payload.get('hadith_ref') or '').strip() or None,
                 hadith_source_id=str(scope_payload.get('hadith_source_id') or '').strip() or None,
             ),

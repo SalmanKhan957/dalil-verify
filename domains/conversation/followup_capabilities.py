@@ -3,12 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from .quran_followup import adjacent_ref, available_ordinals
 from .session_state import SessionState
 
 
 class FollowupAction(StrEnum):
     FOCUS_SOURCE = "focus_source"
-    FOCUS_SECOND_VERSE = "focus_second_verse"
+    SELECT_QURAN_VERSE = "select_quran_verse"
+    NAVIGATE_NEXT_VERSE = "navigate_next_verse"
+    NAVIGATE_PREVIOUS_VERSE = "navigate_previous_verse"
     SIMPLIFY = "simplify"
     SUMMARIZE_HADITH = "summarize_hadith"
     EXTRACT_HADITH_LESSON = "extract_hadith_lesson"
@@ -50,28 +53,6 @@ def _source_label(source_id: str) -> str:
     return source_id.split(':', 1)[-1].replace('-en', '').replace('-', ' ').title()
 
 
-def _parse_quran_span_second_verse(ref: str | None) -> str | None:
-    cleaned = str(ref or '').strip()
-    if not cleaned.startswith('quran:'):
-        return None
-    body = cleaned[len('quran:'):]
-    parts = body.split(':', 1)
-    if len(parts) != 2:
-        return None
-    surah, ayah_part = parts
-    if '-' not in ayah_part:
-        return None
-    start_text, end_text = ayah_part.split('-', 1)
-    try:
-        start = int(start_text)
-        end = int(end_text)
-    except ValueError:
-        return None
-    if end - start < 1:
-        return None
-    return f'quran:{surah}:{start + 1}'
-
-
 def derive_followup_capabilities(state: SessionState) -> FollowupCapabilitySet:
     result = FollowupCapabilitySet()
 
@@ -79,7 +60,11 @@ def derive_followup_capabilities(state: SessionState) -> FollowupCapabilitySet:
         return result
 
     if state.has_quran_scope():
-        for idx, source_id in enumerate(list(state.scope.tafsir_source_ids or [])):
+        comparative_source_ids = list(state.scope.effective_tafsir_source_ids())
+        current_tafsir_source_id = str(state.scope.current_tafsir_source_id or '').strip() or None
+        for idx, source_id in enumerate(comparative_source_ids):
+            if current_tafsir_source_id and source_id == current_tafsir_source_id:
+                continue
             result.add(
                 FollowupCapability(
                     action_type=FollowupAction.FOCUS_SOURCE,
@@ -90,14 +75,36 @@ def derive_followup_capabilities(state: SessionState) -> FollowupCapabilitySet:
                     priority=10 + idx,
                 )
             )
-        second_verse_ref = _parse_quran_span_second_verse(state.scope.quran_span_ref or state.scope.quran_ref)
-        if second_verse_ref is not None:
+        for offset, (ordinal, target_ref) in enumerate(available_ordinals(state.scope.quran_span_ref), start=0):
             result.add(
                 FollowupCapability(
-                    action_type=FollowupAction.FOCUS_SECOND_VERSE,
+                    action_type=FollowupAction.SELECT_QURAN_VERSE,
                     target_domain="quran",
-                    target_ref=second_verse_ref,
-                    priority=20,
+                    target_ref=target_ref,
+                    phrase_params={"ordinal": ordinal},
+                    priority=20 + offset,
+                )
+            )
+        previous_ref = adjacent_ref(state.scope.quran_ref or state.scope.quran_span_ref, 'previous')
+        if previous_ref is not None:
+            result.add(
+                FollowupCapability(
+                    action_type=FollowupAction.NAVIGATE_PREVIOUS_VERSE,
+                    target_domain="quran",
+                    target_ref=previous_ref,
+                    phrase_params={"direction": 'previous'},
+                    priority=30,
+                )
+            )
+        next_ref = adjacent_ref(state.scope.quran_ref or state.scope.quran_span_ref, 'next')
+        if next_ref is not None:
+            result.add(
+                FollowupCapability(
+                    action_type=FollowupAction.NAVIGATE_NEXT_VERSE,
+                    target_domain="quran",
+                    target_ref=next_ref,
+                    phrase_params={"direction": 'next'},
+                    priority=31,
                 )
             )
         result.add(

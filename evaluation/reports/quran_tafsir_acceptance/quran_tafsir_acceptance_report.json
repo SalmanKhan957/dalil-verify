@@ -2,9 +2,9 @@
   "summary": {
     "suite_id": "quran-tafsir-explain-v1",
     "total_cases": 27,
-    "passed_cases": 25,
-    "failed_cases": 2,
-    "overall_pass_rate": 0.9259259259259259,
+    "passed_cases": 27,
+    "failed_cases": 0,
+    "overall_pass_rate": 1.0,
     "metrics": {
       "quran_resolution_rate": 1.0,
       "tafsir_inclusion_rate": 1.0,
@@ -26,27 +26,10 @@
       "citation_presence_gate": true,
       "abstention_gate": true,
       "unexpected_error_gate": true,
-      "overall_pass_gate": false
+      "overall_pass_gate": true
     },
-    "all_gates_passed": false,
-    "failures": [
-      {
-        "case_id": "surah_fatiha_quran_only",
-        "category": "control",
-        "query": "Explain Surah Al-Fatiha",
-        "failure_reasons": [
-          "answer_quality"
-        ]
-      },
-      {
-        "case_id": "ikhlas_quran_only",
-        "category": "control",
-        "query": "Explain Surah Al-Ikhlas",
-        "failure_reasons": [
-          "answer_quality"
-        ]
-      }
-    ]
+    "all_gates_passed": true,
+    "failures": []
   },
   "results": [
     {
@@ -413,7 +396,7 @@
       "case_id": "surah_fatiha_quran_only",
       "category": "control",
       "query": "Explain Surah Al-Fatiha",
-      "passed": false,
+      "passed": true,
       "checks": {
         "route_type": true,
         "action_type": true,
@@ -423,17 +406,15 @@
         "tafsir_included": true,
         "abstention_reason": true,
         "unexpected_error": true,
-        "answer_quality": false
+        "answer_quality": true
       },
-      "failure_reasons": [
-        "answer_quality"
-      ]
+      "failure_reasons": []
     },
     {
       "case_id": "ikhlas_quran_only",
       "category": "control",
       "query": "Explain Surah Al-Ikhlas",
-      "passed": false,
+      "passed": true,
       "checks": {
         "route_type": true,
         "action_type": true,
@@ -443,11 +424,9 @@
         "tafsir_included": true,
         "abstention_reason": true,
         "unexpected_error": true,
-        "answer_quality": false
+        "answer_quality": true
       },
-      "failure_reasons": [
-        "answer_quality"
-      ]
+      "failure_reasons": []
     },
     {
       "case_id": "abstain_anxiety",

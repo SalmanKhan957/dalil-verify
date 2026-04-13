@@ -432,17 +432,22 @@ def _followup_session_state(
     quran_support: dict[str, Any] | None,
     hadith_support: dict[str, Any] | None,
     tafsir_support: list[dict[str, Any]],
+    active_scope_summary: dict[str, Any] | None = None,
 ) -> SessionState:
     conversation = conversation or {}
     anchors = list(conversation.get('anchors') or [])
     anchor_set = ConversationAnchorSet.from_anchor_payload(anchors)
-    domains: list[str] = []
-    if quran_support:
+    summary = dict(active_scope_summary or {})
+    domains: list[str] = [str(item).strip() for item in list(summary.get('domains') or []) if str(item).strip()]
+    if quran_support and 'quran' not in domains:
         domains.append('quran')
-    if tafsir_support:
+    if tafsir_support and 'tafsir' not in domains:
         domains.append('tafsir')
-    if hadith_support:
+    if hadith_support and 'hadith' not in domains:
         domains.append('hadith')
+    displayed_tafsir_source_ids = [str(item.get('source_id') or '').strip() for item in list(tafsir_support or []) if str(item.get('source_id') or '').strip()]
+    comparative_tafsir_source_ids = [str(item).strip() for item in list(summary.get('comparative_tafsir_source_ids') or []) if str(item).strip()] or list(displayed_tafsir_source_ids)
+    current_tafsir_source_id = str(summary.get('current_tafsir_source_id') or '').strip() or (displayed_tafsir_source_ids[0] if len(displayed_tafsir_source_ids) == 1 else None)
     return SessionState(
         route_type=None,
         answer_mode=composition_mode,
@@ -451,11 +456,13 @@ def _followup_session_state(
             route_type=None,
             answer_mode=composition_mode,
             domains=domains,
-            quran_ref=str((quran_support or {}).get('canonical_source_id') or '').strip() or None,
-            quran_span_ref=str((quran_support or {}).get('canonical_source_id') or '').strip() or None,
-            tafsir_source_ids=[str(item.get('source_id') or '').strip() for item in list(tafsir_support or []) if str(item.get('source_id') or '').strip()],
-            hadith_ref=str((hadith_support or {}).get('canonical_ref') or '').strip() or None,
-            hadith_source_id=str((hadith_support or {}).get('collection_source_id') or '').strip() or None,
+            quran_ref=str((quran_support or {}).get('canonical_source_id') or summary.get('quran_ref') or '').strip() or None,
+            quran_span_ref=str(summary.get('quran_span_ref') or (quran_support or {}).get('canonical_source_id') or '').strip() or None,
+            tafsir_source_ids=displayed_tafsir_source_ids,
+            comparative_tafsir_source_ids=comparative_tafsir_source_ids,
+            current_tafsir_source_id=current_tafsir_source_id,
+            hadith_ref=str((hadith_support or {}).get('canonical_ref') or summary.get('hadith_ref') or '').strip() or None,
+            hadith_source_id=str((hadith_support or {}).get('collection_source_id') or summary.get('hadith_source_id') or '').strip() or None,
         ),
         anchors=anchor_set,
         citations=[],
@@ -491,6 +498,7 @@ def _followup_packet(
     source_bundles: list[dict[str, Any]] | None = None,
     terminal_state: str | None = None,
     followup_rejected: bool = False,
+    active_scope_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     conversation = conversation or {}
     active_refs = [str(item.get('canonical_ref') or '') for item in list(conversation.get('anchors') or []) if str(item.get('canonical_ref') or '').strip()]
@@ -500,6 +508,7 @@ def _followup_packet(
         quran_support=quran_support,
         hadith_support=hadith_support,
         tafsir_support=list(tafsir_support or []),
+        active_scope_summary=active_scope_summary,
     )
     capability_set = derive_followup_capabilities(state)
     suggestions = render_suggested_followups(capability_set)
@@ -525,6 +534,8 @@ def _followup_packet(
             'quran_ref': state.scope.quran_ref,
             'quran_span_ref': state.scope.quran_span_ref,
             'tafsir_source_ids': list(state.scope.tafsir_source_ids),
+            'comparative_tafsir_source_ids': list(state.scope.comparative_tafsir_source_ids),
+            'current_tafsir_source_id': state.scope.current_tafsir_source_id,
             'hadith_ref': state.scope.hadith_ref,
             'hadith_source_id': state.scope.hadith_source_id,
         },
@@ -579,17 +590,48 @@ def _abstention_packet(plan: AskPlan, terminal_state: str, answer_text: str | No
     else:
         reason_code = 'policy_restricted'
     next_supported_actions: list[str] = []
+    safe_user_message = None
+    active_scope_summary = dict(plan.active_scope_summary or {})
+    scope_domains = {str(item).strip().lower() for item in list(active_scope_summary.get('domains') or []) if str(item).strip()}
+    has_quran_scope = bool(active_scope_summary.get('quran_ref') or active_scope_summary.get('quran_span_ref') or 'quran' in scope_domains)
+    has_hadith_scope = bool(active_scope_summary.get('hadith_ref') or 'hadith' in scope_domains)
     if reason_code == 'topical_hadith_temporarily_disabled':
+        safe_user_message = 'Public topical Hadith is not enabled in the current bounded product surface.'
         next_supported_actions = ['Ask for an explicit hadith reference', 'Use a direct citation such as Bukhari 20']
     elif reason_code == 'followup_target_source_not_in_scope':
-        next_supported_actions = ['Ask about one of the sources already shown in the current answer', 'Ask to simplify the current answer']
+        safe_user_message = 'That tafsir source is not part of the current thread scope, so I should not jump to it automatically.'
+        next_supported_actions = ['Ask about one of the sources already in scope', 'Ask to simplify the current explanation']
     elif reason_code == 'followup_span_not_available':
-        next_supported_actions = ['Ask about the current verse directly', 'Ask to simplify the current explanation']
+        if has_quran_scope:
+            safe_user_message = 'That verse navigation move is not available from the current anchored span.'
+            next_supported_actions = ['Ask about the current verse directly', 'Ask to simplify the current explanation']
+        elif has_hadith_scope:
+            safe_user_message = 'That verse navigation move is not available from the current hadith thread.'
+            next_supported_actions = ['Ask about the current hadith directly', 'Ask to simplify the current explanation']
+        else:
+            safe_user_message = 'That navigation move is not available from the current anchored thread.'
+            next_supported_actions = ['Ask about the current answer directly', 'Ask to simplify the current explanation']
+    elif reason_code == 'followup_requires_new_query_boundary':
+        if has_quran_scope:
+            safe_user_message = 'That request changes the question boundary. Please ask it as a fresh direct query instead of continuing the current anchored verse thread.'
+        elif has_hadith_scope:
+            safe_user_message = 'That request changes the question boundary. Please ask it as a fresh direct query instead of continuing the current anchored hadith thread.'
+        else:
+            safe_user_message = 'That request changes the current question boundary. Please ask it as a fresh direct query.'
+        next_supported_actions = ['Ask a new direct Quran or Hadith question', 'Use an explicit reference such as 2:255 or Bukhari 7']
     elif reason_code in {'followup_missing_anchor', 'followup_action_not_supported_for_scope'}:
+        if has_hadith_scope and not has_quran_scope:
+            safe_user_message = 'That follow-up action does not fit the current hadith thread.'
+        elif has_quran_scope:
+            safe_user_message = 'That follow-up action does not fit the current anchored verse thread.'
+        else:
+            safe_user_message = 'That follow-up action does not fit the current anchored scope.'
         next_supported_actions = ['Ask a direct Quran reference such as 2:255', 'Ask a direct hadith reference such as Bukhari 7']
+    elif plan.followup_rejected:
+        safe_user_message = 'I cannot continue that request inside the current anchored thread.'
     return {
         'reason_code': reason_code,
-        'safe_user_message': answer_text,
+        'safe_user_message': safe_user_message if safe_user_message is not None else answer_text,
         'next_supported_actions': next_supported_actions,
     }
 
@@ -629,6 +671,7 @@ def build_composition_packet(*, plan: AskPlan, evidence: EvidencePack, answer_te
             source_bundles=source_bundles,
             terminal_state=terminal_state,
             followup_rejected=bool(plan.followup_rejected),
+            active_scope_summary=dict(plan.active_scope_summary or {}),
         ),
         'active_scope_summary': dict(plan.active_scope_summary or {}),
         'policy': _policy_packet(plan, source_policy, source_bundles, terminal_state),

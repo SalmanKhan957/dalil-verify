@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .quran_followup import contains_ref, parse_quran_ref
 from .session_state import ActiveScope, ConversationAnchorSet, SessionState
 
 
@@ -13,6 +14,18 @@ _TAFSIR_PREFIX = "tafsir:"
 def _clean(value: Any) -> str | None:
     text = str(value or '').strip()
     return text or None
+
+
+def _dedup(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        cleaned = str(value or '').strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        result.append(cleaned)
+    return result
 
 
 def _collect_citation_refs(response_payload: dict[str, Any]) -> list[str]:
@@ -37,14 +50,37 @@ def _collect_active_source_ids(response_payload: dict[str, Any]) -> list[str]:
     return source_ids
 
 
-def _derive_scope(response_payload: dict[str, Any]) -> ActiveScope:
+def _previous_scope_from_request_context(request_context: dict[str, Any] | None) -> ActiveScope | None:
+    if not isinstance(request_context, dict):
+        return None
+    snapshot = request_context.get('_hydrated_session_state') if isinstance(request_context.get('_hydrated_session_state'), dict) else None
+    if snapshot:
+        return SessionState.from_payload(snapshot, raw_context=request_context).scope
+    return None
+
+
+def _derive_quran_span_ref(*, quran_ref: str | None, previous_scope: ActiveScope | None) -> str | None:
+    if quran_ref is None:
+        return previous_scope.quran_span_ref if previous_scope is not None else None
+    if previous_scope is None:
+        return quran_ref
+    previous_span_ref = previous_scope.quran_span_ref or previous_scope.quran_ref
+    if contains_ref(previous_span_ref, quran_ref):
+        return previous_span_ref
+    current = parse_quran_ref(quran_ref)
+    previous = parse_quran_ref(previous_span_ref)
+    if current is not None and previous is not None and current.canonical_ref == previous.canonical_ref:
+        return previous.canonical_ref
+    return quran_ref
+
+
+def _derive_scope(response_payload: dict[str, Any], *, previous_scope: ActiveScope | None = None) -> ActiveScope:
     answer_mode = _clean(response_payload.get("answer_mode"))
     route_type = _clean(response_payload.get("route_type"))
 
     domains: list[str] = []
     quran_ref: str | None = None
-    quran_span_ref: str | None = None
-    tafsir_source_ids: list[str] = []
+    displayed_tafsir_source_ids: list[str] = []
     hadith_ref: str | None = None
     hadith_source_id: str | None = None
 
@@ -53,7 +89,6 @@ def _derive_scope(response_payload: dict[str, Any]) -> ActiveScope:
         canonical_source_id = _clean(quran_support.get("canonical_source_id"))
         if canonical_source_id:
             quran_ref = canonical_source_id
-            quran_span_ref = canonical_source_id
             domains.append("quran")
 
     hadith_support = response_payload.get("hadith_support")
@@ -71,9 +106,9 @@ def _derive_scope(response_payload: dict[str, Any]) -> ActiveScope:
         if not isinstance(item, dict):
             continue
         source_id = _clean(item.get("source_id"))
-        if source_id and source_id not in tafsir_source_ids:
-            tafsir_source_ids.append(source_id)
-    if tafsir_source_ids and "tafsir" not in domains:
+        if source_id and source_id not in displayed_tafsir_source_ids:
+            displayed_tafsir_source_ids.append(source_id)
+    if displayed_tafsir_source_ids and "tafsir" not in domains:
         domains.append("tafsir")
 
     anchors = response_payload.get("conversation", {}).get("anchors") if isinstance(response_payload.get("conversation"), dict) else []
@@ -85,7 +120,6 @@ def _derive_scope(response_payload: dict[str, Any]) -> ActiveScope:
             continue
         if canonical_ref.startswith(_QURAN_PREFIX):
             quran_ref = quran_ref or canonical_ref
-            quran_span_ref = quran_span_ref or canonical_ref
             if "quran" not in domains:
                 domains.append("quran")
         elif canonical_ref.startswith(_HADITH_PREFIX):
@@ -94,18 +128,28 @@ def _derive_scope(response_payload: dict[str, Any]) -> ActiveScope:
                 domains.append("hadith")
         elif canonical_ref.startswith(_TAFSIR_PREFIX):
             source_prefix = ':'.join(canonical_ref.split(':', 2)[:2])
-            if source_prefix and source_prefix not in tafsir_source_ids:
-                tafsir_source_ids.append(source_prefix)
+            if source_prefix and source_prefix not in displayed_tafsir_source_ids:
+                displayed_tafsir_source_ids.append(source_prefix)
             if "tafsir" not in domains:
                 domains.append("tafsir")
+
+    comparative_tafsir_source_ids = _dedup(
+        displayed_tafsir_source_ids
+        + list((previous_scope.comparative_tafsir_source_ids if previous_scope is not None else []) or [])
+        + list((previous_scope.tafsir_source_ids if previous_scope is not None else []) or [])
+    )
+    current_tafsir_source_id = displayed_tafsir_source_ids[0] if len(displayed_tafsir_source_ids) == 1 else None
+    quran_span_ref = _derive_quran_span_ref(quran_ref=quran_ref, previous_scope=previous_scope)
 
     return ActiveScope(
         route_type=route_type,
         answer_mode=answer_mode,
-        domains=domains,
+        domains=_dedup(domains),
         quran_ref=quran_ref,
         quran_span_ref=quran_span_ref,
-        tafsir_source_ids=tafsir_source_ids,
+        tafsir_source_ids=displayed_tafsir_source_ids,
+        comparative_tafsir_source_ids=comparative_tafsir_source_ids,
+        current_tafsir_source_id=current_tafsir_source_id,
         hadith_ref=hadith_ref,
         hadith_source_id=hadith_source_id,
     )
@@ -119,7 +163,8 @@ def hydrate_session_state(
     request_context = dict(request_context or {})
     conversation = response_payload.get("conversation") if isinstance(response_payload.get("conversation"), dict) else {}
     anchors = ConversationAnchorSet.from_anchor_payload(conversation.get("anchors") or [])
-    scope = _derive_scope(response_payload)
+    previous_scope = _previous_scope_from_request_context(request_context)
+    scope = _derive_scope(response_payload, previous_scope=previous_scope)
 
     return SessionState(
         conversation_id=_clean(request_context.get("conversation_id")),
@@ -166,6 +211,9 @@ def _state_from_anchor_refs(context: dict[str, Any]) -> SessionState:
             if 'tafsir' not in domains:
                 domains.append('tafsir')
 
+    comparative_tafsir_source_ids = list(tafsir_source_ids)
+    current_tafsir_source_id = tafsir_source_ids[0] if len(tafsir_source_ids) == 1 else None
+
     return SessionState(
         conversation_id=_clean(context.get('conversation_id')),
         parent_turn_id=_clean(context.get('parent_turn_id')),
@@ -177,6 +225,8 @@ def _state_from_anchor_refs(context: dict[str, Any]) -> SessionState:
             quran_ref=quran_ref,
             quran_span_ref=quran_span_ref,
             tafsir_source_ids=tafsir_source_ids,
+            comparative_tafsir_source_ids=comparative_tafsir_source_ids,
+            current_tafsir_source_id=current_tafsir_source_id,
             hadith_ref=hadith_ref,
             hadith_source_id=hadith_source_id,
         ),

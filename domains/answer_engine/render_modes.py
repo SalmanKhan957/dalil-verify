@@ -158,10 +158,10 @@ def render_quran_explanation(composition: dict[str, Any], *, fallback: str | Non
     meaning_summary = _seed_meaning_summary(composition)
     limit = _verbosity_limit(_rendering_pref(composition, 'verbosity', 'standard'), default=260, brief=180, detailed=420)
     if meaning_summary:
-        return f'{span} teaches that {_truncate(meaning_summary, limit=limit)}'
+        return f'In summary, {span} teaches: {_truncate(meaning_summary, limit=limit)}'
     if not excerpt:
         return fallback
-    return f'{span} teaches that {_truncate(excerpt, limit=limit)}'
+    return f'In summary, {span} teaches: {_truncate(excerpt, limit=limit)}'
 
 
 def render_quran_with_tafsir(composition: dict[str, Any], *, fallback: str | None) -> str | None:
