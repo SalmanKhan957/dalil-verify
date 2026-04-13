@@ -1,0 +1,65 @@
+{
+  "suite_id": "ask_conversation_acceptance.v1",
+  "endpoint": {"path": "/ask"},
+  "thresholds": {
+    "overall_pass_rate_min": 1.0,
+    "answered_rate_min": 1.0,
+    "clarify_rate_min": 1.0,
+    "abstain_rate_min": 1.0,
+    "followup_ready_rate_min": 1.0,
+    "comparative_tafsir_rate_min": 0.0,
+    "unexpected_error_rate_max": 0.0
+  },
+  "cases": [
+    {
+      "case_id": "quran_followup_simplify",
+      "category": "conversation_quran",
+      "query": "Say it more simply",
+      "request": {
+        "query": "Say it more simply",
+        "context": {
+          "conversation_id": "conv-quran-followup",
+          "anchor_refs": ["quran:112:1-4"]
+        }
+      },
+      "expected": {
+        "terminal_state": "answered",
+        "followup_ready": true,
+        "answer_kind": "nonempty"
+      }
+    },
+    {
+      "case_id": "hadith_followup_summarize",
+      "category": "conversation_hadith",
+      "query": "Summarize this hadith",
+      "request": {
+        "query": "Summarize this hadith",
+        "context": {
+          "conversation_id": "conv-hadith-followup",
+          "anchor_refs": ["hadith:sahih-al-bukhari-en:7"]
+        }
+      },
+      "expected": {
+        "terminal_state": "answered",
+        "followup_ready": true,
+        "answer_kind": "nonempty"
+      }
+    },
+    {
+      "case_id": "followup_out_of_scope_rejected",
+      "category": "conversation_guardrail",
+      "query": "Summarize this hadith",
+      "request": {
+        "query": "Summarize this hadith",
+        "context": {
+          "conversation_id": "conv-guardrail",
+          "anchor_refs": ["quran:2:255"]
+        }
+      },
+      "expected": {
+        "terminal_state": "abstain",
+        "answer_kind": "nonempty"
+      }
+    }
+  ]
+}

@@ -16,23 +16,14 @@ class ResolvedFollowup:
     target_ref: str | None = None
     confidence: float = 0.0
     reason: str | None = None
+    rejected: bool = False
 
 
-_SIMPLIFY_PATTERNS = [
-    re.compile(r"\b(simplify|simpler|more simply|easy words|plain words)\b", re.I),
-]
-_SUMMARIZE_PATTERNS = [
-    re.compile(r"\b(summarize|summary|sum up)\b", re.I),
-]
-_LESSON_PATTERNS = [
-    re.compile(r"\b(lesson|teaches|teaching|takeaway)\b", re.I),
-]
-_REPEAT_PATTERNS = [
-    re.compile(r"\b(exact wording|show.*again|repeat.*again|quote.*again)\b", re.I),
-]
-_SECOND_VERSE_PATTERNS = [
-    re.compile(r"\b(second verse|2nd verse|next verse)\b", re.I),
-]
+_SIMPLIFY_PATTERNS = [re.compile(r"\b(simplify|simpler|more simply|easy words|plain words)\b", re.I)]
+_SUMMARIZE_PATTERNS = [re.compile(r"\b(summarize|summary|sum up)\b", re.I)]
+_LESSON_PATTERNS = [re.compile(r"\b(lesson|teaches|teaching|takeaway)\b", re.I)]
+_REPEAT_PATTERNS = [re.compile(r"\b(exact wording|show.*again|repeat.*again|quote.*again)\b", re.I)]
+_SECOND_VERSE_PATTERNS = [re.compile(r"\b(second verse|2nd verse|next verse)\b", re.I)]
 
 
 _SOURCE_LABEL_PATTERNS = {
@@ -50,48 +41,64 @@ def _first_capability(state: SessionState, action_type: FollowupAction) -> Follo
     return None
 
 
+def _out_of_scope_source_request(query: str, state: SessionState) -> ResolvedFollowup | None:
+    for source_id, pattern in _SOURCE_LABEL_PATTERNS.items():
+        if not pattern.search(query):
+            continue
+        for capability in derive_followup_capabilities(state).sorted():
+            if capability.action_type == FollowupAction.FOCUS_SOURCE and capability.target_source_id == source_id:
+                return ResolvedFollowup(
+                    matched=True,
+                    action_type=capability.action_type,
+                    target_domain=capability.target_domain,
+                    target_source_id=capability.target_source_id,
+                    target_ref=capability.target_ref,
+                    confidence=0.96,
+                    reason="source_specific_followup",
+                )
+        return ResolvedFollowup(matched=False, rejected=True, reason='followup_target_source_not_in_scope')
+    return None
+
+
 def resolve_followup(query: str, state: SessionState) -> ResolvedFollowup:
     normalized = query.strip()
     if not normalized or not state.supports_followups():
         return ResolvedFollowup(matched=False)
 
-    for source_id, pattern in _SOURCE_LABEL_PATTERNS.items():
-        if pattern.search(normalized):
-            for capability in derive_followup_capabilities(state).sorted():
-                if capability.action_type == FollowupAction.FOCUS_SOURCE and capability.target_source_id == source_id:
-                    return ResolvedFollowup(
-                        matched=True,
-                        action_type=capability.action_type,
-                        target_domain=capability.target_domain,
-                        target_source_id=capability.target_source_id,
-                        target_ref=capability.target_ref,
-                        confidence=0.96,
-                        reason="source_specific_followup",
-                    )
+    source_result = _out_of_scope_source_request(normalized, state)
+    if source_result is not None:
+        return source_result
 
     if any(p.search(normalized) for p in _SECOND_VERSE_PATTERNS):
         cap = _first_capability(state, FollowupAction.FOCUS_SECOND_VERSE)
         if cap:
             return ResolvedFollowup(True, cap.action_type, cap.target_domain, cap.target_source_id, cap.target_ref, 0.93, "quran_second_verse_followup")
+        return ResolvedFollowup(matched=False, rejected=True, reason='followup_span_not_available')
 
     if any(p.search(normalized) for p in _SIMPLIFY_PATTERNS):
         cap = _first_capability(state, FollowupAction.SIMPLIFY)
         if cap:
-            return ResolvedFollowup(True, cap.action_type, cap.target_domain, cap.target_source_id, cap.target_ref, 0.9, "simplify_followup")
+            return ResolvedFollowup(True, cap.action_type, cap.target_domain, cap.target_source_id, cap.target_ref, 0.90, "simplify_followup")
+        return ResolvedFollowup(matched=False, rejected=True, reason='followup_action_not_supported_for_scope')
 
     if any(p.search(normalized) for p in _SUMMARIZE_PATTERNS):
         cap = _first_capability(state, FollowupAction.SUMMARIZE_HADITH)
         if cap:
             return ResolvedFollowup(True, cap.action_type, cap.target_domain, cap.target_source_id, cap.target_ref, 0.95, "hadith_summary_followup")
+        if state.has_quran_scope():
+            return ResolvedFollowup(matched=False, rejected=True, reason='followup_action_not_supported_for_scope')
 
     if any(p.search(normalized) for p in _LESSON_PATTERNS):
         cap = _first_capability(state, FollowupAction.EXTRACT_HADITH_LESSON)
         if cap:
             return ResolvedFollowup(True, cap.action_type, cap.target_domain, cap.target_source_id, cap.target_ref, 0.94, "hadith_lesson_followup")
+        if state.has_quran_scope():
+            return ResolvedFollowup(matched=False, rejected=True, reason='followup_action_not_supported_for_scope')
 
     if any(p.search(normalized) for p in _REPEAT_PATTERNS):
         cap = _first_capability(state, FollowupAction.REPEAT_EXACT_TEXT)
         if cap:
             return ResolvedFollowup(True, cap.action_type, cap.target_domain, cap.target_source_id, cap.target_ref, 0.88, "repeat_exact_text_followup")
+        return ResolvedFollowup(matched=False, rejected=True, reason='followup_missing_anchor')
 
     return ResolvedFollowup(matched=False)

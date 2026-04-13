@@ -6,6 +6,9 @@ from typing import Any
 
 from domains.answer_engine.evidence_pack import EvidencePack
 from domains.ask.planner_types import AskPlan, ResponseMode, TerminalState
+from domains.conversation.followup_capabilities import FollowupAction, derive_followup_capabilities
+from domains.conversation.followup_phrasebook import render_suggested_followups
+from domains.conversation.session_state import ActiveScope, ConversationAnchorSet, SessionState
 
 
 _COMPOSITION_MODE_MAP = {
@@ -174,6 +177,8 @@ def _composition_mode(plan: AskPlan) -> str:
 
 
 def _terminal_state(plan: AskPlan) -> str:
+    if bool(getattr(plan, 'followup_rejected', False)):
+        return TerminalState.ABSTAIN.value
     terminal_state = getattr(plan, 'terminal_state', None)
     if terminal_state is not None:
         return terminal_state.value if hasattr(terminal_state, 'value') else str(terminal_state)
@@ -420,39 +425,109 @@ def _comparative_packet(tafsir_bundles: list[dict[str, Any]]) -> dict[str, Any] 
     }
 
 
+def _followup_session_state(
+    conversation: dict[str, Any] | None,
+    *,
+    composition_mode: str,
+    quran_support: dict[str, Any] | None,
+    hadith_support: dict[str, Any] | None,
+    tafsir_support: list[dict[str, Any]],
+) -> SessionState:
+    conversation = conversation or {}
+    anchors = list(conversation.get('anchors') or [])
+    anchor_set = ConversationAnchorSet.from_anchor_payload(anchors)
+    domains: list[str] = []
+    if quran_support:
+        domains.append('quran')
+    if tafsir_support:
+        domains.append('tafsir')
+    if hadith_support:
+        domains.append('hadith')
+    return SessionState(
+        route_type=None,
+        answer_mode=composition_mode,
+        terminal_state=None,
+        scope=ActiveScope(
+            route_type=None,
+            answer_mode=composition_mode,
+            domains=domains,
+            quran_ref=str((quran_support or {}).get('canonical_source_id') or '').strip() or None,
+            quran_span_ref=str((quran_support or {}).get('canonical_source_id') or '').strip() or None,
+            tafsir_source_ids=[str(item.get('source_id') or '').strip() for item in list(tafsir_support or []) if str(item.get('source_id') or '').strip()],
+            hadith_ref=str((hadith_support or {}).get('canonical_ref') or '').strip() or None,
+            hadith_source_id=str((hadith_support or {}).get('collection_source_id') or '').strip() or None,
+        ),
+        anchors=anchor_set,
+        citations=[],
+        active_source_ids=[str(item.get('source_id') or '').strip() for item in list(tafsir_support or []) if str(item.get('source_id') or '').strip()],
+        followup_ready=bool(conversation.get('followup_ready')),
+        raw_context={},
+    )
+
+
+
+def _serialize_followup_capabilities(state: SessionState) -> list[dict[str, Any]]:
+    items = []
+    for capability in derive_followup_capabilities(state).sorted():
+        items.append({
+            'action_type': capability.action_type.value if hasattr(capability.action_type, 'value') else str(capability.action_type),
+            'target_domain': capability.target_domain,
+            'target_source_id': capability.target_source_id,
+            'target_ref': capability.target_ref,
+            'display_priority': capability.priority,
+            'phrase_params': dict(capability.phrase_params),
+        })
+    return items
+
+
+
 def _followup_packet(
     conversation: dict[str, Any] | None,
     composition_mode: str,
     *,
+    quran_support: dict[str, Any] | None = None,
+    hadith_support: dict[str, Any] | None = None,
+    tafsir_support: list[dict[str, Any]] | None = None,
     source_bundles: list[dict[str, Any]] | None = None,
+    terminal_state: str | None = None,
+    followup_rejected: bool = False,
 ) -> dict[str, Any]:
     conversation = conversation or {}
-    anchors = list(conversation.get('anchors') or [])
-    active_refs = [str(item.get('canonical_ref') or '') for item in anchors if str(item.get('canonical_ref') or '').strip()]
-    bundles = list(source_bundles or [])
+    active_refs = [str(item.get('canonical_ref') or '') for item in list(conversation.get('anchors') or []) if str(item.get('canonical_ref') or '').strip()]
+    state = _followup_session_state(
+        conversation,
+        composition_mode=composition_mode,
+        quran_support=quran_support,
+        hadith_support=hadith_support,
+        tafsir_support=list(tafsir_support or []),
+    )
+    capability_set = derive_followup_capabilities(state)
+    suggestions = render_suggested_followups(capability_set)
+    if followup_rejected or terminal_state == TerminalState.ABSTAIN.value:
+        suggestions = []
     source_specific: list[str] = []
     span_specific: list[str] = []
-    if composition_mode == 'quran_with_tafsir':
-        tafsir_display_names: list[str] = []
-        seen_names: set[str] = set()
-        for bundle in bundles:
-            if bundle.get('domain') != 'tafsir':
-                continue
-            display_name = _collapse_whitespace(bundle.get('display_name')) or 'Tafsir'
-            if display_name in seen_names:
-                continue
-            seen_names.add(display_name)
-            tafsir_display_names.append(display_name)
-        source_specific = [f'What does {name} say?' for name in tafsir_display_names[:3]]
-        span_specific = ['What about the second verse?']
-    elif composition_mode in {'hadith_text', 'hadith_explanation', 'topical_hadith'}:
-        source_specific = ['Summarize this hadith', 'What lesson does this hadith teach?']
+    for capability, phrase in zip(capability_set.sorted(), suggestions):
+        if capability.action_type == FollowupAction.FOCUS_SOURCE:
+            source_specific.append(phrase)
+        else:
+            span_specific.append(phrase)
     return {
-        'followup_ready': bool(conversation.get('followup_ready')),
+        'followup_ready': bool(conversation.get('followup_ready')) and not (followup_rejected or terminal_state == TerminalState.ABSTAIN.value),
         'runtime_statefulness': 'anchored_only' if active_refs else 'none',
         'active_anchor_refs': active_refs,
         'source_specific_followups_supported': source_specific,
         'span_specific_followups_supported': span_specific,
+        'capabilities': _serialize_followup_capabilities(state),
+        'suggested_followups': suggestions[:4],
+        'active_scope_summary': {
+            'domains': list(state.scope.domains),
+            'quran_ref': state.scope.quran_ref,
+            'quran_span_ref': state.scope.quran_span_ref,
+            'tafsir_source_ids': list(state.scope.tafsir_source_ids),
+            'hadith_ref': state.scope.hadith_ref,
+            'hadith_source_id': state.scope.hadith_source_id,
+        },
     }
 
 
@@ -497,6 +572,8 @@ def _abstention_packet(plan: AskPlan, terminal_state: str, answer_text: str | No
         hadith_policy_reason = ((source_policy.get('hadith') or {}).get('policy_reason'))
     if hadith_policy_reason:
         reason_code = hadith_policy_reason
+    elif plan.followup_rejected and plan.followup_reason:
+        reason_code = plan.followup_reason
     elif plan.abstain_reason is not None:
         reason_code = plan.abstain_reason.value if hasattr(plan.abstain_reason, 'value') else str(plan.abstain_reason)
     else:
@@ -504,6 +581,12 @@ def _abstention_packet(plan: AskPlan, terminal_state: str, answer_text: str | No
     next_supported_actions: list[str] = []
     if reason_code == 'topical_hadith_temporarily_disabled':
         next_supported_actions = ['Ask for an explicit hadith reference', 'Use a direct citation such as Bukhari 20']
+    elif reason_code == 'followup_target_source_not_in_scope':
+        next_supported_actions = ['Ask about one of the sources already shown in the current answer', 'Ask to simplify the current answer']
+    elif reason_code == 'followup_span_not_available':
+        next_supported_actions = ['Ask about the current verse directly', 'Ask to simplify the current explanation']
+    elif reason_code in {'followup_missing_anchor', 'followup_action_not_supported_for_scope'}:
+        next_supported_actions = ['Ask a direct Quran reference such as 2:255', 'Ask a direct hadith reference such as Bukhari 7']
     return {
         'reason_code': reason_code,
         'safe_user_message': answer_text,
@@ -537,7 +620,17 @@ def build_composition_packet(*, plan: AskPlan, evidence: EvidencePack, answer_te
         'answer_seed': _answer_seed(plan, answer_text, quran_support, hadith_support),
         'source_bundles': source_bundles,
         'comparative': _comparative_packet(tafsir_bundles),
-        'followup': _followup_packet(conversation, composition_mode, source_bundles=source_bundles),
+        'followup': _followup_packet(
+            conversation,
+            composition_mode,
+            quran_support=quran_support,
+            hadith_support=hadith_support,
+            tafsir_support=tafsir_support,
+            source_bundles=source_bundles,
+            terminal_state=terminal_state,
+            followup_rejected=bool(plan.followup_rejected),
+        ),
+        'active_scope_summary': dict(plan.active_scope_summary or {}),
         'policy': _policy_packet(plan, source_policy, source_bundles, terminal_state),
         'clarification': _clarification_packet(plan, terminal_state),
         'abstention': _abstention_packet(plan, terminal_state, answer_text, source_policy),

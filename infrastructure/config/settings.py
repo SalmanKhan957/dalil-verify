@@ -36,6 +36,10 @@ class Settings(BaseModel):
             )
         )
     )
+    public_topical_tafsir_enabled: bool = Field(
+        default_factory=lambda: os.getenv("DALIL_PUBLIC_TOPICAL_TAFSIR_ENABLED", "false").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
     public_topical_hadith_enabled: bool = Field(
         default_factory=lambda: os.getenv("DALIL_PUBLIC_TOPICAL_HADITH_ENABLED", "false").strip().lower()
         in {"1", "true", "yes", "on"}

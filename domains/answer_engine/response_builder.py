@@ -572,6 +572,8 @@ def _build_debug(plan: AskPlan, evidence: EvidencePack, *, source_policy: dict[s
 
 
 def _terminal_state_for_plan(plan: AskPlan) -> str:
+    if bool(getattr(plan, 'followup_rejected', False)):
+        return TerminalState.ABSTAIN.value
     terminal_state = getattr(plan, 'terminal_state', None)
     if terminal_state is not None:
         return terminal_state.value if hasattr(terminal_state, 'value') else str(terminal_state)
@@ -658,6 +660,31 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         followup_packet = composition_payload.get('followup')
         if isinstance(followup_packet, dict) and followup_suggestions:
             followup_packet['suggested_followups'] = followup_suggestions
+        if plan.followup_action_type or plan.followup_rejected:
+            composition_payload['active_followup_action'] = {
+                'action_type': plan.followup_action_type,
+                'target_domain': plan.followup_target_domain,
+                'target_source_id': plan.followup_target_source_id,
+                'target_ref': plan.followup_target_ref,
+                'reason': plan.followup_reason,
+                'rejected': bool(plan.followup_rejected),
+            }
+
+    terminal_state = _terminal_state_for_plan(plan)
+    if plan.followup_rejected and terminal_state == TerminalState.ABSTAIN.value:
+        followup_suggestions = []
+        if isinstance(conversation_payload, dict):
+            conversation_payload['followup_ready'] = False
+            conversation_payload['suggested_followups'] = []
+        if isinstance(composition_payload, dict):
+            composition_payload['terminal_state'] = TerminalState.ABSTAIN.value
+            followup_packet = composition_payload.get('followup')
+            if isinstance(followup_packet, dict):
+                followup_packet['followup_ready'] = False
+                followup_packet['suggested_followups'] = []
+            abstention_packet = composition_payload.get('abstention')
+            if isinstance(abstention_packet, dict) and plan.followup_reason:
+                abstention_packet['reason_code'] = plan.followup_reason
 
     orchestration_payload = _build_orchestration_payload(
         plan,
@@ -686,7 +713,7 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         ok=bool(answer_text or quran_support or hadith_support or tafsir_support) and not bool(plan.should_abstain and not quran_support and not hadith_support and not tafsir_support),
         query=plan.query,
         answer_mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
-        terminal_state=_terminal_state_for_plan(plan),
+        terminal_state=terminal_state,
         route_type=plan.route_type,
         action_type=plan.action_type,
         answer_text=answer_text,

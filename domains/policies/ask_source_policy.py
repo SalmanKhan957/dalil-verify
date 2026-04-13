@@ -160,6 +160,9 @@ def evaluate_topical_tafsir_source_policy(*, requested_tafsir_source_id: str | N
     if not source_supports_capability(resolved_tafsir_source, SourceCapability.TOPICAL_RETRIEVAL.value):
         policy.policy_reason = 'requested_tafsir_capability_not_allowed'
         return policy
+    if not bool(getattr(settings, 'public_topical_tafsir_enabled', False)):
+        policy.policy_reason = 'topical_tafsir_temporarily_disabled'
+        return policy
     policy.allowed = True
     policy.included = True
     policy.policy_reason = 'topical_tafsir_selected'

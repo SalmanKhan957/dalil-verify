@@ -21,6 +21,7 @@ class StoredAnchorSet:
     turn_id: str
     anchor_refs: list[str] = field(default_factory=list)
     anchors: list[dict[str, Any]] = field(default_factory=list)
+    session_state_payload: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
 
@@ -67,6 +68,10 @@ def _normalize_anchor_payloads(raw: object) -> list[dict[str, Any]]:
     return payloads
 
 
+def _normalize_session_state_payload(raw: object) -> dict[str, Any]:
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
 def _anchor_store_backend() -> str:
     backend = str(getattr(settings, 'anchor_store_backend', 'memory') or 'memory').strip().lower()
     return backend if backend in {'memory', 'sqlite'} else 'memory'
@@ -104,11 +109,15 @@ def _ensure_sqlite_schema() -> None:
                     turn_id TEXT NOT NULL UNIQUE,
                     anchor_refs_json TEXT NOT NULL,
                     anchors_json TEXT NOT NULL,
+                    session_state_json TEXT NOT NULL DEFAULT '{}',
                     created_at REAL NOT NULL
                 )
                 '''
             )
             connection.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_anchor_sets_turn_id ON anchor_sets(turn_id)')
+            columns = {row['name'] for row in connection.execute('PRAGMA table_info(anchor_sets)')}
+            if 'session_state_json' not in columns:
+                connection.execute("ALTER TABLE anchor_sets ADD COLUMN session_state_json TEXT NOT NULL DEFAULT '{}' ")
             connection.commit()
         _SQLITE_READY = True
 
@@ -124,16 +133,21 @@ def _row_to_record(row: sqlite3.Row | None) -> StoredAnchorSet | None:
         anchors = json.loads(row['anchors_json'])
     except Exception:
         anchors = []
+    try:
+        session_state_payload = json.loads(row['session_state_json'])
+    except Exception:
+        session_state_payload = {}
     return StoredAnchorSet(
         session_key=str(row['session_key']),
         turn_id=str(row['turn_id']),
         anchor_refs=_normalize_anchor_refs(anchor_refs),
         anchors=_normalize_anchor_payloads(anchors),
+        session_state_payload=_normalize_session_state_payload(session_state_payload),
         created_at=float(row['created_at'] or time.time()),
     )
 
 
-def _save_response_anchors_memory(*, session_key: str, anchors: list[dict[str, Any]]) -> StoredAnchorSet | None:
+def _save_response_anchors_memory(*, session_key: str, anchors: list[dict[str, Any]], session_state_payload: dict[str, Any] | None = None) -> StoredAnchorSet | None:
     normalized_payloads = _normalize_anchor_payloads(anchors)
     normalized_refs = [item['canonical_ref'] for item in normalized_payloads]
     if not normalized_refs:
@@ -143,6 +157,7 @@ def _save_response_anchors_memory(*, session_key: str, anchors: list[dict[str, A
         turn_id=uuid.uuid4().hex,
         anchor_refs=normalized_refs,
         anchors=normalized_payloads,
+        session_state_payload=_normalize_session_state_payload(session_state_payload),
     )
     with _LOCK:
         _BY_SESSION[session_key] = record
@@ -150,7 +165,7 @@ def _save_response_anchors_memory(*, session_key: str, anchors: list[dict[str, A
     return record
 
 
-def _save_response_anchors_sqlite(*, session_key: str, anchors: list[dict[str, Any]]) -> StoredAnchorSet | None:
+def _save_response_anchors_sqlite(*, session_key: str, anchors: list[dict[str, Any]], session_state_payload: dict[str, Any] | None = None) -> StoredAnchorSet | None:
     normalized_payloads = _normalize_anchor_payloads(anchors)
     normalized_refs = [item['canonical_ref'] for item in normalized_payloads]
     if not normalized_refs:
@@ -160,17 +175,19 @@ def _save_response_anchors_sqlite(*, session_key: str, anchors: list[dict[str, A
         turn_id=uuid.uuid4().hex,
         anchor_refs=normalized_refs,
         anchors=normalized_payloads,
+        session_state_payload=_normalize_session_state_payload(session_state_payload),
     )
     _ensure_sqlite_schema()
     with _sqlite_connection() as connection:
         connection.execute(
             '''
-            INSERT INTO anchor_sets(session_key, turn_id, anchor_refs_json, anchors_json, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO anchor_sets(session_key, turn_id, anchor_refs_json, anchors_json, session_state_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_key) DO UPDATE SET
                 turn_id = excluded.turn_id,
                 anchor_refs_json = excluded.anchor_refs_json,
                 anchors_json = excluded.anchors_json,
+                session_state_json = excluded.session_state_json,
                 created_at = excluded.created_at
             ''',
             (
@@ -178,6 +195,7 @@ def _save_response_anchors_sqlite(*, session_key: str, anchors: list[dict[str, A
                 record.turn_id,
                 json.dumps(record.anchor_refs, ensure_ascii=False),
                 json.dumps(record.anchors, ensure_ascii=False),
+                json.dumps(record.session_state_payload, ensure_ascii=False),
                 record.created_at,
             ),
         )
@@ -200,7 +218,7 @@ def _get_anchors_for_parent_turn_sqlite(parent_turn_id: str | None) -> StoredAnc
     _ensure_sqlite_schema()
     with _sqlite_connection() as connection:
         row = connection.execute(
-            'SELECT session_key, turn_id, anchor_refs_json, anchors_json, created_at FROM anchor_sets WHERE turn_id = ?',
+            'SELECT session_key, turn_id, anchor_refs_json, anchors_json, session_state_json, created_at FROM anchor_sets WHERE turn_id = ?',
             (cleaned,),
         ).fetchone()
     return _row_to_record(row)
@@ -219,7 +237,7 @@ def _get_latest_anchors_for_session_sqlite(session_key: str | None) -> StoredAnc
     _ensure_sqlite_schema()
     with _sqlite_connection() as connection:
         row = connection.execute(
-            'SELECT session_key, turn_id, anchor_refs_json, anchors_json, created_at FROM anchor_sets WHERE session_key = ?',
+            'SELECT session_key, turn_id, anchor_refs_json, anchors_json, session_state_json, created_at FROM anchor_sets WHERE session_key = ?',
             (session_key,),
         ).fetchone()
     return _row_to_record(row)
@@ -246,12 +264,12 @@ def derive_anchor_session_key(request: Request | None, request_context: dict[str
     return f'implicit:{digest}'
 
 
-def save_response_anchors(*, session_key: str | None, anchors: list[dict[str, Any]]) -> StoredAnchorSet | None:
+def save_response_anchors(*, session_key: str | None, anchors: list[dict[str, Any]], session_state_payload: dict[str, Any] | None = None) -> StoredAnchorSet | None:
     if not session_key:
         return None
     if _anchor_store_backend() == 'sqlite':
-        return _save_response_anchors_sqlite(session_key=session_key, anchors=anchors)
-    return _save_response_anchors_memory(session_key=session_key, anchors=anchors)
+        return _save_response_anchors_sqlite(session_key=session_key, anchors=anchors, session_state_payload=session_state_payload)
+    return _save_response_anchors_memory(session_key=session_key, anchors=anchors, session_state_payload=session_state_payload)
 
 
 def get_anchors_for_parent_turn(parent_turn_id: str | None) -> StoredAnchorSet | None:
@@ -287,6 +305,8 @@ def hydrate_request_context(
         if record is not None:
             context['anchor_refs'] = list(record.anchor_refs)
             context['_hydrated_anchors'] = list(record.anchors)
+            if record.session_state_payload:
+                context['_hydrated_session_state'] = dict(record.session_state_payload)
             context['_anchor_resolution_mode'] = 'parent_turn_hydrated'
             context['_anchor_session_key'] = record.session_key
             return context
@@ -303,6 +323,8 @@ def hydrate_request_context(
         explicit_conversation_id = _clean_string(context.get('conversation_id'))
         context['anchor_refs'] = list(record.anchor_refs)
         context['_hydrated_anchors'] = list(record.anchors)
+        if record.session_state_payload:
+            context['_hydrated_session_state'] = dict(record.session_state_payload)
         context['_anchor_resolution_mode'] = 'conversation_hydrated' if explicit_conversation_id is not None else 'implicit_session_hydrated'
         context['_anchor_session_key'] = record.session_key
         return context

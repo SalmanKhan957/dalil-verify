@@ -128,6 +128,8 @@ def invoke_tafsir_domain(plan: AskPlan, quran: QuranEvidence | None, *, database
         from domains.tafsir.service import TafsirService
         tafsir_service = TafsirService(database_url=database_url)
         if retrieval_mode == 'lexical':
+            if not bool(getattr(settings, 'public_topical_tafsir_enabled', False)):
+                return TafsirInvocationEvidence(warnings=['topical_tafsir_temporarily_disabled'])
             topic_query = str(plan.tafsir_plan.params.get('query_text') or plan.topical_query or plan.query)
             minimum_score = float(plan.tafsir_plan.params.get('minimum_score', 0.0) or 0.0)
             warnings: list[str] = []

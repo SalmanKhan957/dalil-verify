@@ -111,6 +111,13 @@ class AskPlan:
     topical_query: str | None = None
     clarify_prompt: str | None = None
     clarify_topics: list[str] = field(default_factory=list)
+    followup_action_type: str | None = None
+    followup_target_domain: str | None = None
+    followup_target_source_id: str | None = None
+    followup_target_ref: str | None = None
+    followup_reason: str | None = None
+    followup_rejected: bool = False
+    active_scope_summary: dict[str, Any] = field(default_factory=dict)
 
     @property
     def mode(self) -> ResponseMode:

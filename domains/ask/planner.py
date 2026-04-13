@@ -16,6 +16,9 @@ from domains.ask.planner_types import (
     TerminalState,
 )
 from domains.ask.route_types import AskActionType, AskRouteType
+from domains.conversation.followup_capabilities import FollowupAction
+from domains.conversation.followup_resolver import resolve_followup
+from domains.conversation.state_hydrator import hydrate_session_state_from_request_context
 from domains.ask.source_policy_types import AskSourcePolicyDecision, HadithSourcePolicyDecision, TafsirSourcePolicyDecision
 from domains.hadith.citations.parser import parse_hadith_citation
 from domains.hadith.contracts import HadithCitationReference
@@ -42,6 +45,113 @@ _DEFAULT_COMPARATIVE_TAFSIR_SOURCE_IDS = [
     'tafsir:maarif-al-quran-en',
     'tafsir:tafheem-al-quran-en',
 ]
+
+
+
+def _normalized_route_type(route: dict[str, object] | None) -> str:
+    return str((route or {}).get('route_type') or '').strip()
+
+
+def _attach_followup_resolution(route: dict[str, object], resolved: object) -> dict[str, object]:
+    payload = dict(route)
+    payload['resolved_followup_action_type'] = getattr(resolved, 'action_type', None)
+    payload['resolved_followup_target_domain'] = getattr(resolved, 'target_domain', None)
+    payload['resolved_followup_target_source_id'] = getattr(resolved, 'target_source_id', None)
+    payload['resolved_followup_target_ref'] = getattr(resolved, 'target_ref', None)
+    payload['resolved_followup_reason'] = getattr(resolved, 'reason', None)
+    payload['resolved_followup_rejected'] = bool(getattr(resolved, 'rejected', False))
+    return payload
+
+
+
+
+def _route_for_rejected_followup(*, query: str, resolved: object) -> dict[str, object]:
+    reason = str(getattr(resolved, 'reason', None) or 'followup_action_not_supported_for_scope').strip()
+    return {
+        'route_type': AskRouteType.UNSUPPORTED_FOR_NOW.value,
+        'action_type': AskActionType.UNKNOWN.value,
+        'reason': reason,
+        'normalized_query': query,
+    }
+
+def _route_for_resolved_followup(*, query: str, resolved: object, state: object) -> dict[str, object]:
+    action_type = getattr(resolved, 'action_type', None)
+    target_ref = getattr(resolved, 'target_ref', None)
+    target_source_id = getattr(resolved, 'target_source_id', None)
+    quran_ref = getattr(getattr(state, 'scope', None), 'quran_ref', None)
+    quran_span_ref = getattr(getattr(state, 'scope', None), 'quran_span_ref', None)
+    hadith_ref = getattr(getattr(state, 'scope', None), 'hadith_ref', None)
+    hadith_source_id = getattr(getattr(state, 'scope', None), 'hadith_source_id', None)
+
+    if action_type == FollowupAction.FOCUS_SOURCE:
+        return {
+            'route_type': AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
+            'action_type': AskActionType.EXPLAIN.value,
+            'confidence': 0.92,
+            'signals': ['session_state_followup_resolution', 'anchored_tafsir_followup', 'tafsir_source_focus'],
+            'secondary_intents': ['anchored_followup', 'tafsir_request'],
+            'reason': 'state_resolved_followup',
+            'normalized_query': query,
+            'anchor_refs': list(getattr(getattr(state, 'anchors', None), 'refs', []) or []),
+            'followup_quran_ref': _normalize_followup_quran_resolution({'canonical_ref': quran_ref or quran_span_ref, 'surah_no': int((quran_ref or quran_span_ref).split(':')[1]), 'ayah_start': int((quran_ref or quran_span_ref).split(':')[2].split('-')[0]), 'ayah_end': int((quran_ref or quran_span_ref).split(':')[2].split('-')[-1])}) if (quran_ref or quran_span_ref) else None,
+            'requested_tafsir_source_ids': [target_source_id] if target_source_id else [],
+            'compare_requested': False,
+            'show_only_requested': True,
+            'followup_kind': 'tafsir_source_followup',
+        }
+    if action_type in {FollowupAction.FOCUS_SECOND_VERSE, FollowupAction.REPEAT_EXACT_TEXT, FollowupAction.SIMPLIFY} and (quran_ref or quran_span_ref):
+        target = target_ref or quran_ref or quran_span_ref
+        parts = str(target).split(':')
+        ayah_part = parts[2] if len(parts) > 2 else '1'
+        ayah_start = int(ayah_part.split('-')[0])
+        ayah_end = int(ayah_part.split('-')[-1])
+        return {
+            'route_type': AskRouteType.ANCHORED_FOLLOWUP_QURAN.value if action_type != FollowupAction.SIMPLIFY or not getattr(state, 'has_tafsir_scope', lambda: False)() else AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
+            'action_type': AskActionType.FETCH_TEXT.value if action_type == FollowupAction.REPEAT_EXACT_TEXT else AskActionType.EXPLAIN.value,
+            'confidence': 0.9,
+            'signals': ['session_state_followup_resolution', 'anchored_quran_followup'],
+            'secondary_intents': ['anchored_followup'],
+            'reason': 'state_resolved_followup',
+            'normalized_query': query,
+            'anchor_refs': list(getattr(getattr(state, 'anchors', None), 'refs', []) or []),
+            'followup_quran_ref': {
+                'resolved': True,
+                'canonical_source_id': target,
+                'surah_no': int(parts[1]),
+                'ayah_start': ayah_start,
+                'ayah_end': ayah_end,
+                'parse_type': 'anchored_followup',
+            },
+            'followup_kind': 'simplify_followup' if action_type == FollowupAction.SIMPLIFY else ('anchored_scope_repeat' if action_type == FollowupAction.REPEAT_EXACT_TEXT else 'verse_within_anchor_span'),
+        }
+    if action_type in {FollowupAction.SUMMARIZE_HADITH, FollowupAction.EXTRACT_HADITH_LESSON, FollowupAction.REPEAT_EXACT_TEXT} and hadith_ref:
+        hadith_number = str(hadith_ref).rsplit(':', 1)[-1]
+        return {
+            'route_type': AskRouteType.ANCHORED_FOLLOWUP_HADITH.value,
+            'action_type': AskActionType.FETCH_TEXT.value if action_type == FollowupAction.REPEAT_EXACT_TEXT else AskActionType.EXPLAIN.value,
+            'confidence': 0.94,
+            'signals': ['session_state_followup_resolution', 'anchored_hadith_followup'],
+            'secondary_intents': ['anchored_followup'],
+            'reason': 'state_resolved_followup',
+            'normalized_query': query,
+            'anchor_refs': list(getattr(getattr(state, 'anchors', None), 'refs', []) or []),
+            'parsed_hadith_citation': {
+                'collection_source_id': hadith_source_id or target_source_id or 'hadith:sahih-al-bukhari-en',
+                'collection_slug': str((hadith_source_id or target_source_id or 'hadith:sahih-al-bukhari-en')).split(':')[-1],
+                'reference_type': 'collection_number',
+                'canonical_ref': target_ref or hadith_ref,
+                'hadith_number': hadith_number,
+                'book_number': None,
+                'chapter_number': None,
+            },
+            'followup_kind': 'hadith_followup',
+        }
+    return {
+        'route_type': AskRouteType.UNSUPPORTED_FOR_NOW.value,
+        'action_type': AskActionType.UNKNOWN.value,
+        'reason': 'state_followup_resolution_failed',
+        'normalized_query': query,
+    }
 
 
 def _response_mode_for_plan(*, route_type: str, action_type: str, use_tafsir: bool) -> ResponseMode:
@@ -441,11 +551,43 @@ def build_ask_plan(
     del request
     route_was_supplied = route is not None
     route = route or classify_ask_query(query, request_context=request_context)
+    session_state = hydrate_session_state_from_request_context(request_context)
+    resolved_followup = resolve_followup(query, session_state) if session_state.supports_followups() else None
+    if resolved_followup is not None and (getattr(resolved_followup, 'matched', False) or getattr(resolved_followup, 'rejected', False)):
+        route = _attach_followup_resolution(route, resolved_followup)
+        if getattr(resolved_followup, 'matched', False):
+            desired_route = _route_for_resolved_followup(query=query, resolved=resolved_followup, state=session_state)
+            desired_route_type = _normalized_route_type(desired_route)
+            current_route_type = _normalized_route_type(route)
+            current_action_type = str(route.get('action_type') or '').strip()
+            desired_action_type = str(desired_route.get('action_type') or '').strip()
+            current_target_domain = str(route.get('resolved_followup_target_domain') or '').strip()
+            desired_target_domain = str(getattr(resolved_followup, 'target_domain', None) or '').strip()
+            if (
+                current_route_type != desired_route_type
+                or current_action_type != desired_action_type
+                or (desired_target_domain and current_target_domain != desired_target_domain)
+            ):
+                route = _attach_followup_resolution(desired_route, resolved_followup)
+                route_was_supplied = True
+        elif getattr(resolved_followup, 'rejected', False) and _normalized_route_type(route) in {
+            AskRouteType.UNSUPPORTED_FOR_NOW.value,
+            AskRouteType.BROAD_SOURCE_GROUNDED_QUERY.value,
+        }:
+            route = _attach_followup_resolution(_route_for_rejected_followup(query=query, resolved=resolved_followup), resolved_followup)
+            route_was_supplied = True
     if not route_was_supplied and str(route.get('route_type')) == AskRouteType.UNSUPPORTED_FOR_NOW.value:
         topical_route = detect_topical_query_intent(query, allow_multi_source=True)
         if topical_route.get('matched'):
             route = topical_route
     plan = _base_plan(query=query, route=route, debug=debug, request_context=request_context, request_preferences=request_preferences, source_controls=source_controls, request_contract_version=request_contract_version)
+    plan.followup_action_type = str(route.get('resolved_followup_action_type') or '').strip() or None
+    plan.followup_target_domain = str(route.get('resolved_followup_target_domain') or '').strip() or None
+    plan.followup_target_source_id = str(route.get('resolved_followup_target_source_id') or '').strip() or None
+    plan.followup_target_ref = str(route.get('resolved_followup_target_ref') or '').strip() or None
+    plan.followup_reason = str(route.get('resolved_followup_reason') or '').strip() or None
+    plan.followup_rejected = bool(route.get('resolved_followup_rejected'))
+    plan.active_scope_summary = session_state.active_scope_summary() if hasattr(session_state, 'active_scope_summary') else {}
     route_type = plan.route_type
     action_type = plan.action_type
 
@@ -460,8 +602,13 @@ def build_ask_plan(
 
     if route_type in {AskRouteType.POLICY_RESTRICTED_REQUEST.value, AskRouteType.UNSUPPORTED_FOR_NOW.value}:
         plan.should_abstain = True
+        followup_reason = str(route.get('resolved_followup_reason') or route.get('reason') or '').strip()
         if route_type == AskRouteType.POLICY_RESTRICTED_REQUEST.value:
             plan.abstain_reason = AbstentionReason.POLICY_RESTRICTED
+        elif followup_reason in {'followup_action_not_supported_for_scope', 'followup_missing_anchor', 'followup_target_source_not_in_scope', 'followup_span_not_available'}:
+            plan.abstain_reason = AbstentionReason.UNSUPPORTED_CAPABILITY
+            plan.followup_rejected = True
+            plan.followup_reason = followup_reason
         else:
             plan.abstain_reason = infer_unsupported_abstention_reason(query, route)
         plan.response_mode = ResponseMode.ABSTAIN
@@ -560,7 +707,9 @@ def build_ask_plan(
         # unless the caller explicitly suppresses it (sources.tafsir.mode = off / include_tafsir=False).
         # Preserve query-driven tafsir intent semantics when the user explicitly asked for tafsir.
         effective_include_tafsir = include_tafsir
-        if include_tafsir is None:
+        if plan.followup_action_type == FollowupAction.REPEAT_EXACT_TEXT.value and plan.followup_target_domain == 'quran':
+            effective_include_tafsir = False
+        if include_tafsir is None and effective_include_tafsir is None:
             if route_type == AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value:
                 effective_include_tafsir = True
             elif route_type == AskRouteType.ANCHORED_FOLLOWUP_QURAN.value:
@@ -712,5 +861,11 @@ def build_ask_plan(
         )
 
     plan.response_mode = _response_mode_for_plan(route_type=route_type, action_type=action_type, use_tafsir=plan.use_tafsir)
+    if plan.followup_action_type:
+        plan.notes.append(f'followup_action:{plan.followup_action_type}')
+        if plan.followup_target_source_id:
+            plan.notes.append(f'followup_target_source:{plan.followup_target_source_id}')
+    if plan.followup_rejected and plan.followup_reason:
+        plan.notes.append(f'followup_rejected:{plan.followup_reason}')
     plan.terminal_state = TerminalState.ANSWERED
     return plan

@@ -235,7 +235,17 @@ def render_clarify(composition: dict[str, Any], *, fallback: str | None) -> str 
 def render_abstain(composition: dict[str, Any], *, fallback: str | None) -> str | None:
     abstention = dict(composition.get('abstention') or {})
     message = _collapse(abstention.get('safe_user_message'))
+    reason_code = _collapse(abstention.get('reason_code'))
     next_actions = [str(item).strip() for item in list(abstention.get('next_supported_actions') or []) if str(item).strip()]
+    if not message:
+        if reason_code == 'followup_target_source_not_in_scope':
+            message = 'That source is not part of the current answer scope, so I should not jump to it automatically.'
+        elif reason_code == 'followup_span_not_available':
+            message = 'There is no second verse available in the current active span.'
+        elif reason_code == 'followup_missing_anchor':
+            message = 'I do not have an active anchored source to continue from yet.'
+        elif reason_code == 'followup_action_not_supported_for_scope':
+            message = 'That follow-up action does not fit the current source scope.'
     if message and next_actions:
         return f"{message} Supported next steps: {'; '.join(next_actions)}."
     return message or fallback
@@ -247,14 +257,20 @@ def render_followup_tafsir(composition: dict[str, Any], *, fallback: str | None)
     tafsir_bundles = _bundles(composition, 'tafsir')
     if not tafsir_bundles:
         return fallback
+    active_followup = dict(composition.get('active_followup_action') or {})
     selected = tafsir_bundles[0]
+    requested_source_id = _collapse(active_followup.get('target_source_id'))
+    if requested_source_id:
+        selected = next((item for item in tafsir_bundles if _collapse(item.get('source_id')) == requested_source_id), selected)
     label = _source_label(selected)
     focused = _normalize_point_text(_bundle_extract(selected), limit=340)
     if not focused:
         return fallback
     if len(focused) > 1:
         focused = focused[0].lower() + focused[1:]
-    return f'For {span}, {label} explains that {focused}.'
+    if _collapse(active_followup.get('action_type')) == 'simplify':
+        return f'In simple words, for {span}, {label} is saying that {focused}.'
+    return f'Focusing just on {label} for {span}, it explains that {focused}.'
 
 
 def render_followup_quran(composition: dict[str, Any], *, fallback: str | None) -> str | None:
@@ -264,10 +280,36 @@ def render_followup_quran(composition: dict[str, Any], *, fallback: str | None) 
     focused = _collapse(quran_bundle.get('focused_extract') or quran_bundle.get('short_excerpt') or quran_bundle.get('full_text'))
     if not focused:
         return fallback
-    return f'Within {span}, the requested part says: {_truncate(focused, limit=340)}'
+    active_followup = dict(composition.get('active_followup_action') or {})
+    action_type = _collapse(active_followup.get('action_type'))
+    if action_type == 'repeat_exact_text':
+        return f'Here is the exact wording again for {span}: {_truncate(focused, limit=340)}'
+    if action_type == 'simplify':
+        return f'In simple words, {span} is saying: {_truncate(focused, limit=260)}'
+    return f'For {span}, the requested wording is: {_truncate(focused, limit=340)}'
 
 
 def render_followup_hadith(composition: dict[str, Any], *, fallback: str | None) -> str | None:
+    active_followup = dict(composition.get('active_followup_action') or {})
+    action_type = _collapse(active_followup.get('action_type'))
+    scope = dict(composition.get('resolved_scope') or {})
+    label = _collapse(scope.get('public_ref_label')) or 'this hadith'
+    hadith_bundle = _first_bundle(composition, 'hadith') or {}
+    full_text = _collapse(hadith_bundle.get('full_text') or hadith_bundle.get('focused_extract') or hadith_bundle.get('short_excerpt'))
+    lead = _clean_lead(_lead_from_seed(composition, fallback=''))
+    takeaways = [str(item).strip() for item in list((composition.get('answer_seed') or {}).get('key_takeaways') or []) if str(item).strip()]
+    if action_type == 'repeat_exact_text' and full_text:
+        return f'Here is the exact wording again for {label}: {full_text}'
+    if action_type == 'summarize_hadith':
+        if takeaways:
+            return f'In short, {label} can be summarized as: ' + '; '.join(_truncate(item, limit=100) for item in takeaways[:3]) + '.'
+        if lead:
+            return f'In short, {lead}'
+    if action_type == 'extract_hadith_lesson':
+        if takeaways:
+            return f'The main lesson from {label} is: ' + _truncate(takeaways[0], limit=180) + '.'
+        if lead:
+            return f'The main lesson from {label} is that {_truncate(lead, limit=180)}'
     return render_hadith_explanation(composition, fallback=fallback)
 
 

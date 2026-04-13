@@ -23,6 +23,8 @@ _ORDINAL_VERSE_RE = re.compile(r"\b(?P<ordinal>first|1st|second|2nd|third|3rd|fo
 _NEXT_PREV_VERSE_RE = re.compile(r"\b(?P<direction>next|previous|prev|before|after)\s+verse\b", re.IGNORECASE)
 _GENERIC_FOLLOWUP_RE = re.compile(r"\b(?:what\s+does\s+this\s+mean|what\s+about\s+this|what\s+about\s+that|explain\s+this|summarize\s+this|summarise\s+this|what\s+lesson|what\s+does\s+this\s+teach)\b", re.IGNORECASE)
 _HADITH_FOLLOWUP_RE = re.compile(r"\b(?:summari[sz]e\s+this\s+hadith|what\s+lesson\s+does\s+this\s+hadith\s+teach|what\s+does\s+this\s+hadith\s+mean|explain\s+this\s+hadith|summari[sz]e\s+this|what\s+lesson\s+does\s+this\s+teach)\b", re.IGNORECASE)
+_SIMPLIFY_FOLLOWUP_RE = re.compile(r"\b(?:say\s+it\s+more\s+simply|say\s+that\s+more\s+simply|simplify(?:\s+this)?|explain\s+it\s+simply|in\s+simple\s+words|in\s+plain\s+words)\b", re.IGNORECASE)
+_REPEAT_FOLLOWUP_RE = re.compile(r"\b(?:show\s+the\s+exact\s+wording\s+again|repeat\s+that|quote\s+that\s+again|show\s+it\s+again)\b", re.IGNORECASE)
 _COMPARE_RE = re.compile(r"\bcompare\b", re.IGNORECASE)
 _SHOW_ONLY_RE = re.compile(r"\bshow\s+only\b", re.IGNORECASE)
 _TAFSIR_SOURCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
@@ -258,6 +260,10 @@ def looks_like_anchored_followup_candidate(query: str) -> bool:
     if _HADITH_FOLLOWUP_RE.search(text):
         return True
     if _GENERIC_FOLLOWUP_RE.search(text):
+        return True
+    if _SIMPLIFY_FOLLOWUP_RE.search(text):
+        return True
+    if _REPEAT_FOLLOWUP_RE.search(text):
         return True
     if _ORDINAL_VERSE_RE.search(text) or _NEXT_PREV_VERSE_RE.search(text):
         return True

@@ -34,7 +34,32 @@ async def test_ask_route_abstains_for_public_topical_hadith_when_lane_is_disable
 
 
 @pytest.mark.anyio
-async def test_ask_route_returns_bounded_public_topical_tafsir_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_route_abstains_for_public_topical_tafsir_when_lane_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _unexpected_tafsir_search(*args, **kwargs):
+        raise AssertionError('Topical tafsir search should not be invoked when the public lane is disabled')
+
+    monkeypatch.setattr('domains.tafsir.service.TafsirService.search_topically', _unexpected_tafsir_search)
+
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+            response = await client.post('/ask', json={'query': 'What does the Quran say about patience?'})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['ok'] is False
+    assert payload['route_type'] == 'topical_tafsir_query'
+    assert payload['answer_mode'] == 'abstain'
+    assert payload['terminal_state'] == 'abstain'
+    assert payload['tafsir_support'] == []
+    assert payload['source_policy']['tafsir']['selected_capability'] == 'topical_retrieval'
+    assert payload['source_policy']['tafsir']['policy_reason'] == 'topical_tafsir_temporarily_disabled'
+    assert payload['answer_text'] == 'Topical Tafsir answers are temporarily disabled in this release. Explicit Quran requests such as “Explain 2:255” are still supported.'
+    assert payload['error'] == 'policy_restricted'
+
+
+@pytest.mark.anyio
+async def test_ask_route_can_reenable_public_topical_tafsir_with_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_tafsir_search(self, *, query_text: str, source_id: str | None = None, surah_no: int | None = None, limit: int = 5):
         assert query_text == 'patience'
         return [
@@ -59,6 +84,9 @@ async def test_ask_route_returns_bounded_public_topical_tafsir_answer(monkeypatc
             )
         ]
 
+    from infrastructure.config.settings import settings
+
+    monkeypatch.setattr(settings, 'public_topical_tafsir_enabled', True)
     monkeypatch.setattr('domains.tafsir.service.TafsirService.search_topically', _fake_tafsir_search)
 
     async with app.router.lifespan_context(app):

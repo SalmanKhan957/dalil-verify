@@ -14,16 +14,27 @@ def test_planner_abstains_for_topical_hadith_plan_when_public_lane_is_disabled()
     assert plan.source_policy.hadith.policy_reason == 'topical_hadith_temporarily_disabled'
 
 
-def test_planner_builds_topical_multi_source_plan_with_tafsir_only_when_hadith_lane_is_disabled() -> None:
-    plan = build_ask_plan('What does Islam say about patience?')
-    assert plan.response_mode == ResponseMode.TOPICAL_TAFSIR
-    assert plan.tafsir_plan is not None
-    assert plan.hadith_plan is None
-    assert plan.selected_domains == [EvidenceDomain.TAFSIR]
+def test_planner_abstains_for_topical_tafsir_plan_when_public_lane_is_disabled() -> None:
+    plan = build_ask_plan('What does the Quran say about patience?')
+    assert plan.response_mode == ResponseMode.ABSTAIN
+    assert plan.should_abstain is True
+    assert plan.abstain_reason == AbstentionReason.POLICY_RESTRICTED
+    assert plan.selected_domains == []
+    assert plan.tafsir_plan is None
     assert plan.topical_query == 'patience'
-    assert EvidenceRequirement.TAFSIR_LEXICAL_RETRIEVAL in plan.evidence_requirements
-    assert plan.source_policy.hadith is not None
-    assert plan.source_policy.hadith.policy_reason == 'topical_hadith_temporarily_disabled'
+    assert plan.source_policy.tafsir is not None
+    assert plan.source_policy.tafsir.policy_reason == 'topical_tafsir_temporarily_disabled'
+
+
+def test_planner_keeps_public_mixed_source_topics_restricted() -> None:
+    plan = build_ask_plan('What does Islam say about patience?')
+    assert plan.response_mode == ResponseMode.ABSTAIN
+    assert plan.should_abstain is True
+    assert plan.tafsir_plan is None
+    assert plan.hadith_plan is None
+    assert plan.selected_domains == []
+    assert plan.route_type == 'policy_restricted_request'
+    assert 'public_mixed_source_topic_requires_future_planner' in plan.notes
 
 
 def test_planner_keeps_explicit_quran_precedence_over_topical() -> None:

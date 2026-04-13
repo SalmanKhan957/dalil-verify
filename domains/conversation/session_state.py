@@ -21,6 +21,18 @@ class ActiveScope:
     hadith_ref: str | None = None
     hadith_source_id: str | None = None
 
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            'route_type': self.route_type,
+            'answer_mode': self.answer_mode,
+            'domains': list(self.domains),
+            'quran_ref': self.quran_ref,
+            'quran_span_ref': self.quran_span_ref,
+            'tafsir_source_ids': list(self.tafsir_source_ids),
+            'hadith_ref': self.hadith_ref,
+            'hadith_source_id': self.hadith_source_id,
+        }
+
 
 @dataclass(slots=True)
 class ConversationAnchorSet:
@@ -36,11 +48,14 @@ class ConversationAnchorSet:
                 continue
             ref = str(anchor.get("canonical_ref") or "").strip()
             domain = str(anchor.get("source_domain") or "").strip()
-            if ref:
+            if ref and ref not in refs:
                 refs.append(ref)
             if domain and domain not in domains:
                 domains.append(domain)
         return cls(refs=refs, domains=domains)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {'refs': list(self.refs), 'domains': list(self.domains)}
 
 
 @dataclass(slots=True)
@@ -77,3 +92,60 @@ class SessionState:
 
     def supports_followups(self) -> bool:
         return bool(self.followup_ready and self.anchors.refs)
+
+    def active_scope_summary(self) -> dict[str, Any]:
+        return {
+            'domains': list(self.scope.domains),
+            'quran_ref': self.scope.quran_ref,
+            'quran_span_ref': self.scope.quran_span_ref,
+            'tafsir_source_ids': list(self.scope.tafsir_source_ids),
+            'hadith_ref': self.scope.hadith_ref,
+            'hadith_source_id': self.scope.hadith_source_id,
+        }
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            'conversation_id': self.conversation_id,
+            'parent_turn_id': self.parent_turn_id,
+            'turn_id': self.turn_id,
+            'route_type': self.route_type,
+            'answer_mode': self.answer_mode,
+            'terminal_state': self.terminal_state,
+            'scope': self.scope.to_payload(),
+            'anchors': self.anchors.to_payload(),
+            'citations': list(self.citations),
+            'active_source_ids': list(self.active_source_ids),
+            'followup_ready': bool(self.followup_ready),
+        }
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any] | None, *, raw_context: dict[str, Any] | None = None) -> "SessionState":
+        payload = dict(payload or {})
+        scope_payload = payload.get('scope') if isinstance(payload.get('scope'), dict) else {}
+        anchors_payload = payload.get('anchors') if isinstance(payload.get('anchors'), dict) else {}
+        return cls(
+            conversation_id=str(payload.get('conversation_id') or '').strip() or None,
+            parent_turn_id=str(payload.get('parent_turn_id') or '').strip() or None,
+            turn_id=str(payload.get('turn_id') or '').strip() or None,
+            route_type=str(payload.get('route_type') or '').strip() or None,
+            answer_mode=str(payload.get('answer_mode') or '').strip() or None,
+            terminal_state=str(payload.get('terminal_state') or '').strip() or None,
+            scope=ActiveScope(
+                route_type=str(scope_payload.get('route_type') or '').strip() or None,
+                answer_mode=str(scope_payload.get('answer_mode') or '').strip() or None,
+                domains=[str(item).strip() for item in list(scope_payload.get('domains') or []) if str(item).strip()],
+                quran_ref=str(scope_payload.get('quran_ref') or '').strip() or None,
+                quran_span_ref=str(scope_payload.get('quran_span_ref') or '').strip() or None,
+                tafsir_source_ids=[str(item).strip() for item in list(scope_payload.get('tafsir_source_ids') or []) if str(item).strip()],
+                hadith_ref=str(scope_payload.get('hadith_ref') or '').strip() or None,
+                hadith_source_id=str(scope_payload.get('hadith_source_id') or '').strip() or None,
+            ),
+            anchors=ConversationAnchorSet(
+                refs=[str(item).strip() for item in list(anchors_payload.get('refs') or []) if str(item).strip()],
+                domains=[str(item).strip() for item in list(anchors_payload.get('domains') or []) if str(item).strip()],
+            ),
+            citations=[str(item).strip() for item in list(payload.get('citations') or []) if str(item).strip()],
+            active_source_ids=[str(item).strip() for item in list(payload.get('active_source_ids') or []) if str(item).strip()],
+            followup_ready=bool(payload.get('followup_ready')),
+            raw_context=dict(raw_context or {}),
+        )
