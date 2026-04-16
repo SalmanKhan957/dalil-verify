@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from typing import Any
 
 from domains.answer_engine.citation_renderer import render_citation_list
@@ -8,10 +9,11 @@ from domains.answer_engine.contracts import make_explain_answer_payload
 from domains.answer_engine.composition_builder import build_composition_packet
 from domains.answer_engine.conversational_renderer import render_bounded_conversational_answer
 from domains.answer_engine.evidence_pack import EvidencePack
+from domains.answer_engine.evidence_readiness import assess_evidence_readiness
 from domains.answer_engine.excerpting import build_tafsir_excerpt
 from domains.answer_engine.orchestration_contract import build_orchestration_envelope, serialize_contract
 from domains.tafsir.tafheem_notes import build_tafheem_render_payload
-from domains.ask.planner_types import AskPlan, ResponseMode, TerminalState
+from domains.ask.planner_types import AskPlan, AbstentionReason, ResponseMode, TerminalState
 
 
 def _clean_hadith_book_title(value: Any, *, language: str) -> str | None:
@@ -610,19 +612,42 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
     answer_text = _build_answer_text(plan, evidence)
     partial_success = _derive_partial_success(plan, evidence)
     source_policy = _build_source_policy(plan, evidence)
+    readiness = assess_evidence_readiness(
+        plan=plan,
+        quran_support=quran_support,
+        hadith_support=hadith_support,
+        tafsir_support=tafsir_support,
+        verifier_result=evidence.verifier_result,
+    )
+
+    effective_plan = plan
+    extra_warnings: list[str] = []
+    if readiness.force_abstain:
+        effective_plan = replace(
+            plan,
+            response_mode=ResponseMode.ABSTAIN,
+            terminal_state=TerminalState.ABSTAIN,
+            should_abstain=True,
+            abstain_reason=AbstentionReason.INSUFFICIENT_EVIDENCE,
+        )
+        answer_text = readiness.safe_user_message or answer_text
+        partial_success = partial_success or readiness.partial_evidence_present
+        extra_warnings.append('insufficient_evidence')
 
     error = None
-    if plan.should_abstain and not quran_support and not hadith_support and not tafsir_support:
-        error = plan.abstain_reason.value if plan.abstain_reason else None
-    elif plan.response_mode in {ResponseMode.TOPICAL_TAFSIR, ResponseMode.TOPICAL_HADITH, ResponseMode.TOPICAL_MULTI_SOURCE} and not quran_support and not hadith_support and not tafsir_support and evidence.errors:
+    if effective_plan.should_abstain and not quran_support and not hadith_support and not tafsir_support:
+        error = effective_plan.abstain_reason.value if effective_plan.abstain_reason else None
+    elif readiness.force_abstain:
+        error = readiness.reason_code or 'insufficient_evidence'
+    elif effective_plan.response_mode in {ResponseMode.TOPICAL_TAFSIR, ResponseMode.TOPICAL_HADITH, ResponseMode.TOPICAL_MULTI_SOURCE} and not quran_support and not hadith_support and not tafsir_support and evidence.errors:
         error = evidence.errors[0]
-    elif evidence.hadith is None and plan.hadith_plan is not None and evidence.errors:
+    elif evidence.hadith is None and effective_plan.hadith_plan is not None and evidence.errors:
         error = evidence.errors[0]
-    elif evidence.quran is None and evidence.errors and plan.quran_plan is not None:
+    elif evidence.quran is None and evidence.errors and effective_plan.quran_plan is not None:
         error = evidence.errors[0]
 
     pre_render_orchestration = _build_orchestration_payload(
-        plan,
+        effective_plan,
         evidence,
         answer_text=answer_text,
         tafsir_support=tafsir_support,
@@ -632,7 +657,7 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
 
     conversation_payload = pre_render_orchestration.get('conversation') if isinstance(pre_render_orchestration, dict) else None
     composition_payload = build_composition_packet(
-        plan=plan,
+        plan=effective_plan,
         evidence=evidence,
         answer_text=answer_text,
         quran_support=quran_support,
@@ -644,8 +669,8 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
 
     rendered_answer = render_bounded_conversational_answer(
         payload={
-            'route_type': plan.route_type,
-            'action_type': plan.action_type,
+            'route_type': effective_plan.route_type,
+            'action_type': effective_plan.action_type,
             'composition': composition_payload,
             'source_policy': source_policy,
             'conversation': conversation_payload,
@@ -657,21 +682,26 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
     if isinstance(conversation_payload, dict) and followup_suggestions:
         conversation_payload['suggested_followups'] = followup_suggestions
     if isinstance(composition_payload, dict):
+        abstention_packet = composition_payload.get('abstention')
+        if readiness.force_abstain and isinstance(abstention_packet, dict):
+            abstention_packet['reason_code'] = readiness.reason_code or abstention_packet.get('reason_code')
+            abstention_packet['safe_user_message'] = readiness.safe_user_message or abstention_packet.get('safe_user_message')
+            abstention_packet['next_supported_actions'] = list(readiness.next_supported_actions)
         followup_packet = composition_payload.get('followup')
         if isinstance(followup_packet, dict) and followup_suggestions:
             followup_packet['suggested_followups'] = followup_suggestions
-        if plan.followup_action_type or plan.followup_rejected:
+        if effective_plan.followup_action_type or effective_plan.followup_rejected:
             composition_payload['active_followup_action'] = {
-                'action_type': plan.followup_action_type,
-                'target_domain': plan.followup_target_domain,
-                'target_source_id': plan.followup_target_source_id,
-                'target_ref': plan.followup_target_ref,
-                'reason': plan.followup_reason,
-                'rejected': bool(plan.followup_rejected),
+                'action_type': effective_plan.followup_action_type,
+                'target_domain': effective_plan.followup_target_domain,
+                'target_source_id': effective_plan.followup_target_source_id,
+                'target_ref': effective_plan.followup_target_ref,
+                'reason': effective_plan.followup_reason,
+                'rejected': bool(effective_plan.followup_rejected),
             }
 
-    terminal_state = _terminal_state_for_plan(plan)
-    if plan.followup_rejected and terminal_state == TerminalState.ABSTAIN.value:
+    terminal_state = _terminal_state_for_plan(effective_plan)
+    if effective_plan.followup_rejected and terminal_state == TerminalState.ABSTAIN.value:
         followup_suggestions = []
         if isinstance(conversation_payload, dict):
             conversation_payload['followup_ready'] = False
@@ -683,11 +713,11 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
                 followup_packet['followup_ready'] = False
                 followup_packet['suggested_followups'] = []
             abstention_packet = composition_payload.get('abstention')
-            if isinstance(abstention_packet, dict) and plan.followup_reason:
-                abstention_packet['reason_code'] = plan.followup_reason
+            if isinstance(abstention_packet, dict) and effective_plan.followup_reason:
+                abstention_packet['reason_code'] = effective_plan.followup_reason
 
     orchestration_payload = _build_orchestration_payload(
-        plan,
+        effective_plan,
         evidence,
         answer_text=answer_text,
         tafsir_support=tafsir_support,
@@ -702,7 +732,7 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
             diagnostics['renderer_backend'] = rendered_answer.get('renderer_backend')
 
     debug_payload = _build_debug(
-        plan,
+        effective_plan,
         evidence,
         source_policy=source_policy,
         orchestration=orchestration_payload,
@@ -710,12 +740,12 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
     )
 
     payload = make_explain_answer_payload(
-        ok=bool(answer_text or quran_support or hadith_support or tafsir_support) and not bool(plan.should_abstain and not quran_support and not hadith_support and not tafsir_support),
-        query=plan.query,
-        answer_mode=plan.response_mode.value if hasattr(plan.response_mode, 'value') else str(plan.response_mode),
+        ok=(not effective_plan.should_abstain) and bool(answer_text or quran_support or hadith_support or tafsir_support),
+        query=effective_plan.query,
+        answer_mode=effective_plan.response_mode.value if hasattr(effective_plan.response_mode, 'value') else str(effective_plan.response_mode),
         terminal_state=terminal_state,
-        route_type=plan.route_type,
-        action_type=plan.action_type,
+        route_type=effective_plan.route_type,
+        action_type=effective_plan.action_type,
         answer_text=answer_text,
         citations=citations,
         quran_support=quran_support,
@@ -723,10 +753,10 @@ def build_explain_answer_payload(plan: AskPlan, evidence: EvidencePack) -> dict[
         tafsir_support=tafsir_support,
         resolution=evidence.resolution,
         partial_success=partial_success,
-        warnings=(['clarification_required'] if plan.response_mode == ResponseMode.CLARIFY else []) + list(evidence.warnings),
+        warnings=(['clarification_required'] if effective_plan.response_mode == ResponseMode.CLARIFY else []) + extra_warnings + list(evidence.warnings),
         debug=debug_payload,
         error=error,
-        quran_source_selection=_build_quran_source_selection(plan, evidence),
+        quran_source_selection=_build_quran_source_selection(effective_plan, evidence),
         source_policy=source_policy,
         orchestration=orchestration_payload,
         conversation=conversation_payload,

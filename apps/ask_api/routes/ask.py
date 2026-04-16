@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from apps.ask_api.schemas import AskRequest, AskResponse
 from domains.ask.dispatcher import dispatch_ask_query
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 
 
 @router.post("", response_model=AskResponse)
-def ask(payload: AskRequest, request: Request) -> AskResponse:
+def ask(payload: AskRequest, request: Request, response: Response) -> AskResponse:
     result = dispatch_ask_query(
         payload.query,
         request=request,
@@ -27,4 +27,12 @@ def ask(payload: AskRequest, request: Request) -> AskResponse:
         request_contract_version=payload.request_contract_version,
         debug=payload.effective_debug,
     )
+    request_id = None
+    orchestration = result.get('orchestration')
+    if isinstance(orchestration, dict):
+        diagnostics = orchestration.get('diagnostics')
+        if isinstance(diagnostics, dict):
+            request_id = diagnostics.get('request_id')
+    if request_id:
+        response.headers['X-Dalil-Request-Id'] = str(request_id)
     return AskResponse(**result)

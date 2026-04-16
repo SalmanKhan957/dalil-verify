@@ -42,3 +42,16 @@ def test_classifier_routes_noisy_topical_hadith_query() -> None:
     route = classify_ask_query('Gve ahadith about rizk')
     assert route['route_type'] == 'topical_hadith_query'
     assert route['topic_query'] == 'rizq'
+
+
+def test_scoped_tafsir_query_does_not_fall_into_topical_hadith() -> None:
+    route = detect_topical_query_intent('What does IbnKathir say about Surah al baqra?')
+    assert route['matched'] is False
+    assert route['reason'] == 'scoped_tafsir_query_detected'
+
+
+def test_classifier_routes_noisy_scoped_tafsir_query_to_explicit_reference() -> None:
+    route = classify_ask_query('What does IbnKathir say about Surah al baqra?')
+    assert route['route_type'] == 'explicit_quran_reference'
+    assert route['reference_text'] == 'surah al-baqarah'
+    assert route['secondary_intents'] == ['tafsir_request']

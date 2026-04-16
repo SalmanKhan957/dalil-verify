@@ -14,6 +14,8 @@ from domains.ask.route_types import AskActionType, AskRouteType
 from domains.ask.topical_query import detect_topical_query_intent
 from domains.query_intelligence.concept_linker import link_query_to_concepts
 from domains.query_intelligence.clarify_mode import build_clarify_instruction, serialize_clarify_instruction
+from domains.query_intelligence.hosted_normalization import normalize_query_for_routing
+from domains.query_intelligence.models import QueryNormalizationResult
 from domains.hadith.citations.parser import parse_hadith_citation
 
 
@@ -187,6 +189,18 @@ def _looks_like_broad_anchored_shift(text: str) -> bool:
     return bool(_BROAD_TOPIC_SHIFT_RE.search(text))
 
 
+def _looks_like_fresh_scoped_tafsir_query(text: str) -> bool:
+    if not text:
+        return False
+    tafsir_source_ids = _detect_tafsir_source_ids(text)
+    if not tafsir_source_ids and not detect_tafsir_intent(text)['matched']:
+        return False
+    if looks_like_explicit_quran_reference(text)['matched']:
+        return True
+    lowered = text.casefold()
+    return 'surah ' in lowered or 'surat ' in lowered or 'sura ' in lowered or 'chapter ' in lowered
+
+
 def _classify_anchored_followup(text: str, request_context: dict[str, Any] | None) -> dict[str, Any] | None:
     anchor_refs = _extract_anchor_refs(request_context)
     if not anchor_refs:
@@ -199,6 +213,7 @@ def _classify_anchored_followup(text: str, request_context: dict[str, Any] | Non
     tafsir_source_ids = _detect_tafsir_source_ids(text)
     compare_requested = bool(_COMPARE_RE.search(text))
     show_only_requested = bool(_SHOW_ONLY_RE.search(text))
+    fresh_scoped_tafsir_query = _looks_like_fresh_scoped_tafsir_query(text)
 
     if hadith_anchor is not None and _HADITH_FOLLOWUP_RE.search(text):
         return {
@@ -223,7 +238,7 @@ def _classify_anchored_followup(text: str, request_context: dict[str, Any] | Non
         }
 
     tafsir_intent = detect_tafsir_intent(text)['matched']
-    if quran_anchor is not None and not _looks_like_broad_anchored_shift(text) and (tafsir_source_ids or tafsir_intent or compare_requested or show_only_requested):
+    if quran_anchor is not None and not fresh_scoped_tafsir_query and not _looks_like_broad_anchored_shift(text) and (tafsir_source_ids or tafsir_intent or compare_requested or show_only_requested):
         return {
             'route_type': AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value,
             'action_type': AskActionType.EXPLAIN.value,
@@ -259,9 +274,11 @@ def _classify_anchored_followup(text: str, request_context: dict[str, Any] | Non
     return None
 
 
-def looks_like_anchored_followup_candidate(query: str) -> bool:
-    text = normalize_query_text(query)
+def looks_like_anchored_followup_candidate(query: str, *, normalized_query: str | None = None) -> bool:
+    text = normalize_query_text(normalized_query if normalized_query is not None else query)
     if not text:
+        return False
+    if _looks_like_fresh_scoped_tafsir_query(text):
         return False
     if _HADITH_FOLLOWUP_RE.search(text):
         return True
@@ -280,8 +297,14 @@ def looks_like_anchored_followup_candidate(query: str) -> bool:
     return False
 
 
-def classify_ask_query(query: str, request_context: dict[str, Any] | None = None) -> dict[str, Any]:
-    text = normalize_query_text(query)
+def classify_ask_query(
+    query: str,
+    request_context: dict[str, Any] | None = None,
+    *,
+    normalization_result: QueryNormalizationResult | None = None,
+) -> dict[str, Any]:
+    normalization = normalization_result or normalize_query_for_routing(query)
+    text = normalize_query_text(normalization.normalized_query)
     if not text:
         return {
             "route_type": AskRouteType.POLICY_RESTRICTED_REQUEST.value,
@@ -290,6 +313,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
             "signals": [],
             "reason": "empty_query",
             "normalized_query": "",
+            "query_normalization": normalization.to_payload(),
         }
 
     explicit = looks_like_explicit_quran_reference(text)
@@ -316,6 +340,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
             "arabic_letter_count": arabic_quote["arabic_letter_count"],
             "arabic_token_count": arabic_quote["arabic_token_count"],
             "quote_payload": arabic_quote["quote_payload"],
+            "query_normalization": normalization.to_payload(),
         }
 
     if explicit["matched"]:
@@ -335,6 +360,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
             "parsed_reference": explicit["parsed"],
             "reference_text": explicit["reference_text"],
             "reference_match_type": explicit["match_type"],
+            "query_normalization": normalization.to_payload(),
         }
 
     if hadith_citation is not None:
@@ -362,10 +388,12 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
                 "book_number": hadith_citation.book_number,
                 "chapter_number": hadith_citation.chapter_number,
             },
+            "query_normalization": normalization.to_payload(),
         }
 
     anchored_followup = _classify_anchored_followup(text, request_context)
     if anchored_followup is not None:
+        anchored_followup.setdefault("query_normalization", normalization.to_payload())
         return anchored_followup
 
     named_anchor = _resolve_named_quran_anchor(text)
@@ -386,6 +414,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
             "parsed_reference": named_anchor["parsed"],
             "reference_text": named_anchor["canonical_ref"].replace('quran:', '').replace(':', ':'),
             "reference_match_type": "named_anchor",
+            "query_normalization": normalization.to_payload(),
         }
 
     topical = detect_topical_query_intent(text, allow_multi_source=True)
@@ -402,6 +431,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
                 "normalized_query": text,
                 "topic_query": str(topical.get("topic_query") or text),
                 "restriction_reason": "public_mixed_source_topic_requires_future_planner",
+                "query_normalization": normalization.to_payload(),
             }
         return {
             "route_type": detected_route_type,
@@ -412,6 +442,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
             "reason": str(topical.get("reason") or "supported_topical_query_detected"),
             "normalized_query": text,
             "topic_query": str(topical.get("topic_query") or text),
+            "query_normalization": normalization.to_payload(),
         }
 
     if topical.get("needs_clarification"):
@@ -432,6 +463,7 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
         }
         if clarify is not None:
             payload['clarify'] = serialize_clarify_instruction(clarify)
+        payload['query_normalization'] = normalization.to_payload()
         return payload
 
     return {
@@ -442,4 +474,5 @@ def classify_ask_query(query: str, request_context: dict[str, Any] | None = None
         "reason": arabic_quote.get("reason") or str(topical.get("reason") or "unsupported_query_type_for_now"),
         "normalized_query": text,
         "restriction_reason": str(topical.get("reason") or "unsupported_query_type_for_now"),
+        "query_normalization": normalization.to_payload(),
     }

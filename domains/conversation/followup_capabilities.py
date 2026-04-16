@@ -43,7 +43,7 @@ class FollowupCapabilitySet:
 _SOURCE_LABEL_OVERRIDES = {
     'tafsir:tafheem-al-quran-en': 'Tafheem',
     'tafsir:ibn-kathir-en': 'Ibn Kathir',
-    'tafsir:maarif-al-quran-en': "Ma'arif",
+    'tafsir:maarif-al-quran-en': "Ma'arif al-Qur'an",
 }
 
 

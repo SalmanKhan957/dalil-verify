@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from domains.answer_engine.evidence_pack import EvidencePack
+from domains.answer_engine.evidence_readiness import assess_evidence_readiness
 from domains.ask.planner_types import AskPlan, ResponseMode, TerminalState
 from domains.conversation.followup_capabilities import FollowupAction, derive_followup_capabilities
 from domains.conversation.followup_phrasebook import render_suggested_followups
@@ -583,15 +584,15 @@ def _abstention_packet(plan: AskPlan, terminal_state: str, answer_text: str | No
         hadith_policy_reason = ((source_policy.get('hadith') or {}).get('policy_reason'))
     if hadith_policy_reason:
         reason_code = hadith_policy_reason
-    elif plan.followup_rejected and plan.followup_reason:
-        reason_code = plan.followup_reason
+    elif bool(getattr(plan, 'followup_rejected', False)) and getattr(plan, 'followup_reason', None):
+        reason_code = getattr(plan, 'followup_reason', None)
     elif plan.abstain_reason is not None:
         reason_code = plan.abstain_reason.value if hasattr(plan.abstain_reason, 'value') else str(plan.abstain_reason)
     else:
         reason_code = 'policy_restricted'
     next_supported_actions: list[str] = []
     safe_user_message = None
-    active_scope_summary = dict(plan.active_scope_summary or {})
+    active_scope_summary = dict(getattr(plan, 'active_scope_summary', {}) or {})
     scope_domains = {str(item).strip().lower() for item in list(active_scope_summary.get('domains') or []) if str(item).strip()}
     has_quran_scope = bool(active_scope_summary.get('quran_ref') or active_scope_summary.get('quran_span_ref') or 'quran' in scope_domains)
     has_hadith_scope = bool(active_scope_summary.get('hadith_ref') or 'hadith' in scope_domains)
@@ -627,7 +628,7 @@ def _abstention_packet(plan: AskPlan, terminal_state: str, answer_text: str | No
         else:
             safe_user_message = 'That follow-up action does not fit the current anchored scope.'
         next_supported_actions = ['Ask a direct Quran reference such as 2:255', 'Ask a direct hadith reference such as Bukhari 7']
-    elif plan.followup_rejected:
+    elif bool(getattr(plan, 'followup_rejected', False)):
         safe_user_message = 'I cannot continue that request inside the current anchored thread.'
     return {
         'reason_code': reason_code,
@@ -649,13 +650,20 @@ def _rendering_packet(plan: AskPlan) -> dict[str, Any]:
 def build_composition_packet(*, plan: AskPlan, evidence: EvidencePack, answer_text: str | None, quran_support: dict[str, Any] | None, hadith_support: dict[str, Any] | None, tafsir_support: list[dict[str, Any]], source_policy: dict[str, Any] | None, conversation: dict[str, Any] | None) -> dict[str, Any]:
     composition_mode = _composition_mode(plan)
     terminal_state = _terminal_state(plan)
+    readiness = assess_evidence_readiness(
+        plan=plan,
+        quran_support=quran_support,
+        hadith_support=hadith_support,
+        tafsir_support=tafsir_support,
+        verifier_result=evidence.verifier_result,
+    )
     quran_bundles = _quran_source_bundle(quran_support, evidence) if composition_mode in {'verification_only', 'verification_then_explain', 'quran_text', 'quran_explanation', 'quran_with_tafsir'} else []
     tafsir_bundles = _tafsir_source_bundles(tafsir_support)
     hadith_bundles = _hadith_source_bundle(hadith_support, composition_mode)
     source_bundles = quran_bundles + tafsir_bundles + hadith_bundles
     return {
         'contract_version': 'ask.composition.v1',
-        'llm_ready': True,
+        'llm_ready': readiness.llm_ready and terminal_state == TerminalState.ANSWERED.value,
         'composition_mode': composition_mode,
         'terminal_state': terminal_state,
         'resolved_scope': _resolved_scope(plan, evidence, quran_support, hadith_support),
@@ -670,12 +678,22 @@ def build_composition_packet(*, plan: AskPlan, evidence: EvidencePack, answer_te
             tafsir_support=tafsir_support,
             source_bundles=source_bundles,
             terminal_state=terminal_state,
-            followup_rejected=bool(plan.followup_rejected),
-            active_scope_summary=dict(plan.active_scope_summary or {}),
+            followup_rejected=bool(getattr(plan, 'followup_rejected', False)),
+            active_scope_summary=dict(getattr(plan, 'active_scope_summary', {}) or {}),
         ),
-        'active_scope_summary': dict(plan.active_scope_summary or {}),
+        'active_scope_summary': dict(getattr(plan, 'active_scope_summary', {}) or {}),
         'policy': _policy_packet(plan, source_policy, source_bundles, terminal_state),
         'clarification': _clarification_packet(plan, terminal_state),
         'abstention': _abstention_packet(plan, terminal_state, answer_text, source_policy),
         'rendering': _rendering_packet(plan),
+        'evidence_readiness': {
+            'answerable': readiness.answerable,
+            'llm_ready': readiness.llm_ready,
+            'force_abstain': readiness.force_abstain,
+            'reason_code': readiness.reason_code,
+            'missing_domains': list(readiness.missing_domains),
+            'safe_user_message': readiness.safe_user_message,
+            'next_supported_actions': list(readiness.next_supported_actions),
+            'partial_evidence_present': readiness.partial_evidence_present,
+        },
     }

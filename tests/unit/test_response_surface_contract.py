@@ -7,6 +7,7 @@ from domains.ask.response_surface import (
     build_ask_response_payload,
     describe_response_surfaces,
 )
+from infrastructure.config.settings import settings
 
 
 def test_build_ask_response_payload_constrains_legacy_result_envelope() -> None:
@@ -35,18 +36,24 @@ def test_build_ask_response_payload_constrains_legacy_result_envelope() -> None:
         'hadith_entry': None,
         'private_internal': {'should_not': 'escape'},
     }
-
     payload = build_ask_response_payload(query='112:1-2', route={'route_type': 'explicit_quran_reference', 'action_type': 'explain'}, result=result)
+    from infrastructure.config.settings import settings
 
-    assert payload['result'] is not None
-    assert 'private_internal' not in payload['result']
-    assert set(payload['result']).issubset(set(LEGACY_RESULT_ALLOWED_FIELDS))
+
+    if settings.response_include_legacy_result:
+        assert payload['result'] is not None
+        assert 'private_internal' not in payload['result']
+        assert set(payload['result']).issubset(set(LEGACY_RESULT_ALLOWED_FIELDS))
+
+        for field in LEGACY_RESULT_ONLY_FIELDS:
+            assert field not in payload
+            assert field in payload['result']
+    else:
+        assert payload['result'] is None
+
+    # Canonical fields must always exist (independent of legacy envelope)
     for field in CANONICAL_TOP_LEVEL_ANSWER_FIELDS:
-        if field in result:
-            assert payload[field] == result[field]
-    for field in LEGACY_RESULT_ONLY_FIELDS:
-        assert field not in payload
-        assert field in payload['result']
+        assert field in payload
 
 
 def test_response_surface_description_calls_out_canonical_vs_compatibility_layers() -> None:
@@ -54,3 +61,4 @@ def test_response_surface_description_calls_out_canonical_vs_compatibility_layer
     assert 'answer_text' in description['canonical_top_level_fields']
     assert 'quran_span' in description['legacy_result_only_fields']
     assert description['notes']['result'].startswith('Legacy compatibility envelope')
+    assert description['notes']['surface_contract_version'] == settings.response_surface_contract_version

@@ -35,6 +35,35 @@
       ]
     },
     {
+      "concept_id": "hadith.ethics.arrogance",
+      "slug": "arrogance",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "arrogance",
+      "surface_forms": [
+        "arrogance",
+        "pride",
+        "proud",
+        "kibr",
+        "boastful"
+      ],
+      "directive_biases": [
+        "warning",
+        "prohibition"
+      ],
+      "guidance_roles": [
+        "warning",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "arrogance",
+        "pride",
+        "proud",
+        "kibr",
+        "boastful"
+      ]
+    },
+    {
       "concept_id": "hadith.ethics.hasad",
       "slug": "hasad",
       "domain": "hadith",
@@ -92,6 +121,33 @@
       ]
     },
     {
+      "concept_id": "hadith.ethics.mercy",
+      "slug": "mercy",
+      "domain": "hadith",
+      "family": "akhlaq",
+      "label_en": "mercy",
+      "surface_forms": [
+        "mercy",
+        "rahmah",
+        "compassion",
+        "kindness"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "virtue_statement",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "mercy",
+        "rahmah",
+        "compassion",
+        "kindness"
+      ]
+    },
+    {
       "concept_id": "hadith.ethics.patience",
       "slug": "patience",
       "domain": "hadith",
@@ -121,32 +177,32 @@
       ]
     },
     {
-      "concept_id": "hadith.ethics.arrogance",
-      "slug": "arrogance",
+      "concept_id": "hadith.ethics.rizq",
+      "slug": "rizq",
       "domain": "hadith",
-      "family": "akhlaq",
-      "label_en": "arrogance",
+      "family": "wealth",
+      "label_en": "rizq",
       "surface_forms": [
-        "arrogance",
-        "pride",
-        "proud",
-        "kibr",
-        "boastful"
+        "rizq",
+        "rizk",
+        "provision",
+        "sustenance",
+        "livelihood"
       ],
       "directive_biases": [
-        "warning",
-        "prohibition"
+        "virtue",
+        "guidance"
       ],
       "guidance_roles": [
-        "warning",
+        "virtue_statement",
         "direct_moral_instruction"
       ],
       "artifact_surface_forms": [
-        "arrogance",
-        "pride",
-        "proud",
-        "kibr",
-        "boastful"
+        "rizq",
+        "rizk",
+        "provision",
+        "sustenance",
+        "livelihood"
       ]
     },
     {
@@ -179,6 +235,171 @@
       ]
     },
     {
+      "concept_id": "hadith.faith.taqwa",
+      "slug": "taqwa",
+      "domain": "hadith",
+      "family": "faith",
+      "label_en": "taqwa",
+      "surface_forms": [
+        "taqwa",
+        "piety",
+        "god consciousness",
+        "god-consciousness",
+        "fear of Allah"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "virtue_statement",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "taqwa",
+        "piety",
+        "god consciousness",
+        "god-consciousness"
+      ]
+    },
+    {
+      "concept_id": "hadith.faith.tawakkul",
+      "slug": "tawakkul",
+      "domain": "hadith",
+      "family": "faith",
+      "label_en": "tawakkul",
+      "surface_forms": [
+        "tawakkul",
+        "trust in Allah",
+        "reliance on Allah",
+        "reliance"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "virtue_statement",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "tawakkul",
+        "trust in Allah",
+        "reliance on Allah",
+        "reliance"
+      ]
+    },
+    {
+      "concept_id": "hadith.faith.tawbah",
+      "slug": "tawbah",
+      "domain": "hadith",
+      "family": "faith",
+      "label_en": "repentance",
+      "surface_forms": [
+        "repentance",
+        "tawbah",
+        "repent",
+        "seeking forgiveness",
+        "forgiveness"
+      ],
+      "directive_biases": [
+        "guidance",
+        "virtue"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "repentance",
+        "tawbah",
+        "repent",
+        "seeking forgiveness",
+        "forgiveness"
+      ]
+    },
+    {
+      "concept_id": "hadith.family.nikah",
+      "slug": "nikah",
+      "domain": "hadith",
+      "family": "family",
+      "label_en": "marriage",
+      "surface_forms": [
+        "marriage",
+        "nikah",
+        "marry",
+        "spouse",
+        "husband",
+        "wife"
+      ],
+      "directive_biases": [
+        "guidance",
+        "virtue"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "marriage",
+        "nikah",
+        "marry",
+        "spouse",
+        "husband",
+        "wife"
+      ]
+    },
+    {
+      "concept_id": "hadith.family.talaq",
+      "slug": "talaq",
+      "domain": "hadith",
+      "family": "family",
+      "label_en": "divorce",
+      "surface_forms": [
+        "divorce",
+        "talaq",
+        "separation"
+      ],
+      "directive_biases": [
+        "guidance",
+        "warning"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "warning"
+      ],
+      "artifact_surface_forms": [
+        "divorce",
+        "talaq",
+        "separation"
+      ]
+    },
+    {
+      "concept_id": "hadith.finance.riba",
+      "slug": "riba",
+      "domain": "hadith",
+      "family": "wealth",
+      "label_en": "riba",
+      "surface_forms": [
+        "riba",
+        "interest",
+        "usury"
+      ],
+      "directive_biases": [
+        "warning",
+        "prohibition"
+      ],
+      "guidance_roles": [
+        "warning",
+        "direct_moral_instruction"
+      ],
+      "artifact_surface_forms": [
+        "riba",
+        "interest",
+        "usury"
+      ]
+    },
+    {
       "concept_id": "hadith.virtue.self_improvement",
       "slug": "self_improvement",
       "domain": "hadith",
@@ -201,6 +422,118 @@
       ]
     },
     {
+      "concept_id": "hadith.worship.sadaqah",
+      "slug": "sadaqah",
+      "domain": "hadith",
+      "family": "wealth",
+      "label_en": "charity",
+      "surface_forms": [
+        "charity",
+        "sadaqah",
+        "sadqah",
+        "almsgiving",
+        "donation"
+      ],
+      "directive_biases": [
+        "virtue",
+        "guidance"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "charity",
+        "sadaqah",
+        "almsgiving",
+        "donation"
+      ]
+    },
+    {
+      "concept_id": "hadith.worship.salah",
+      "slug": "salah",
+      "domain": "hadith",
+      "family": "worship",
+      "label_en": "salah",
+      "surface_forms": [
+        "salah",
+        "salat",
+        "prayer",
+        "prayers",
+        "namaz"
+      ],
+      "directive_biases": [
+        "guidance",
+        "virtue"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "salah",
+        "salat",
+        "prayer",
+        "prayers",
+        "namaz"
+      ]
+    },
+    {
+      "concept_id": "hadith.worship.sawm",
+      "slug": "fasting",
+      "domain": "hadith",
+      "family": "worship",
+      "label_en": "fasting",
+      "surface_forms": [
+        "fasting",
+        "fast",
+        "sawm",
+        "roza",
+        "siyam"
+      ],
+      "directive_biases": [
+        "guidance",
+        "virtue"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "fasting",
+        "fast",
+        "sawm",
+        "roza",
+        "siyam"
+      ]
+    },
+    {
+      "concept_id": "hadith.worship.zakat",
+      "slug": "zakat",
+      "domain": "hadith",
+      "family": "wealth",
+      "label_en": "zakat",
+      "surface_forms": [
+        "zakat",
+        "charity due",
+        "obligatory charity",
+        "alms"
+      ],
+      "directive_biases": [
+        "guidance",
+        "virtue"
+      ],
+      "guidance_roles": [
+        "direct_moral_instruction",
+        "virtue_statement"
+      ],
+      "artifact_surface_forms": [
+        "zakat",
+        "obligatory charity",
+        "alms"
+      ]
+    },
+    {
       "concept_id": "quran.named_anchor.ayat_al_kursi",
       "slug": "ayat_al_kursi",
       "domain": "quran_anchor",
@@ -217,35 +550,6 @@
       "directive_biases": [],
       "guidance_roles": [],
       "canonical_ref": "quran:2:255"
-    },
-    {
-      "concept_id": "hadith.ethics.rizq",
-      "slug": "rizq",
-      "domain": "hadith",
-      "family": "wealth",
-      "label_en": "rizq",
-      "surface_forms": [
-        "rizq",
-        "rizk",
-        "provision",
-        "sustenance",
-        "livelihood"
-      ],
-      "directive_biases": [
-        "virtue",
-        "guidance"
-      ],
-      "guidance_roles": [
-        "virtue_statement",
-        "direct_moral_instruction"
-      ],
-      "artifact_surface_forms": [
-        "rizq",
-        "rizk",
-        "provision",
-        "sustenance",
-        "livelihood"
-      ]
     }
   ]
 }

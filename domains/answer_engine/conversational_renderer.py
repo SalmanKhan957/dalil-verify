@@ -71,7 +71,8 @@ def render_bounded_conversational_answer(*, payload: dict[str, Any], fallback_an
     deterministic = _deterministic_render(payload=payload, fallback_answer_text=fallback_answer_text)
     composition = dict(payload.get('composition') or {})
 
-    if settings.renderer_backend != 'openai' or not settings.openai_api_key.strip():
+    llm_ready = bool(composition.get('llm_ready'))
+    if settings.renderer_backend != 'openai' or not settings.openai_api_key.strip() or not llm_ready:
         return deterministic
 
     rendered = render_with_openai(composition=composition, deterministic_answer_text=deterministic.get('answer_text'))

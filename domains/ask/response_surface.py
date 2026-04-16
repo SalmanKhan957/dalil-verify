@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-# Canonical public answer fields intentionally surfaced at the top level on /ask and
-# /ask/explain. These are the contract fields clients should treat as the source of truth.
+from infrastructure.config.settings import settings
+
 CANONICAL_TOP_LEVEL_ANSWER_FIELDS: tuple[str, ...] = (
     'answer_mode',
     'terminal_state',
@@ -22,48 +22,33 @@ CANONICAL_TOP_LEVEL_ANSWER_FIELDS: tuple[str, ...] = (
     'composition',
     'debug',
 )
-
-# These fields are duplicated into the nested legacy `result` envelope strictly for
-# compatibility during the later response-contract / deprecation tranche.
 DUPLICATED_RESULT_FIELDS: tuple[str, ...] = CANONICAL_TOP_LEVEL_ANSWER_FIELDS + ('error',)
-
-# These fields remain available only inside the legacy nested `result` envelope for
-# backward compatibility and are intentionally excluded from the canonical top-level
-# Ask and Explain answer surfaces.
-LEGACY_RESULT_ONLY_FIELDS: tuple[str, ...] = (
-    'quran_span',
-    'verifier_result',
-    'quote_payload',
-    'hadith_entry',
-)
-
+LEGACY_RESULT_ONLY_FIELDS: tuple[str, ...] = ('quran_span', 'verifier_result', 'quote_payload', 'hadith_entry')
 RESULT_METADATA_FIELDS: tuple[str, ...] = ('ok', 'query', 'route_type', 'action_type')
-
 LEGACY_RESULT_ALLOWED_FIELDS: tuple[str, ...] = RESULT_METADATA_FIELDS + DUPLICATED_RESULT_FIELDS + LEGACY_RESULT_ONLY_FIELDS
-
 EXPLAIN_SURFACE_FIELDS: tuple[str, ...] = (
-    'ok',
-    'query',
-    'answer_mode',
-    'terminal_state',
-    'route_type',
-    'action_type',
-    'answer_text',
-    'citations',
-    'quran_support',
-    'hadith_support',
-    'tafsir_support',
-    'resolution',
-    'partial_success',
-    'warnings',
-    'quran_source_selection',
-    'source_policy',
-    'orchestration',
-    'conversation',
-    'composition',
-    'debug',
-    'error',
+    'ok', 'query', 'answer_mode', 'terminal_state', 'route_type', 'action_type', 'answer_text', 'citations',
+    'quran_support', 'hadith_support', 'tafsir_support', 'resolution', 'partial_success', 'warnings',
+    'quran_source_selection', 'source_policy', 'orchestration', 'conversation', 'composition', 'debug', 'error',
 )
+DEFAULT_CANONICAL_VALUES: dict[str, Any] = {
+    'answer_mode': None,
+    'terminal_state': None,
+    'answer_text': None,
+    'citations': [],
+    'quran_support': None,
+    'hadith_support': None,
+    'tafsir_support': [],
+    'resolution': None,
+    'partial_success': False,
+    'warnings': [],
+    'quran_source_selection': None,
+    'source_policy': None,
+    'orchestration': None,
+    'conversation': None,
+    'composition': None,
+    'debug': None,
+}
 
 
 def describe_response_surfaces() -> dict[str, Any]:
@@ -80,6 +65,8 @@ def describe_response_surfaces() -> dict[str, Any]:
             'orchestration': 'Canonical introspection contract for planner/evidence/debugging.',
             'conversation': 'Canonical surfaced follow-up anchors for compatible clients. Narrow anchored follow-up is active when anchors are supplied or hydrated from the current conversation/session.',
             'composition': 'Canonical LLM-facing composition packet for bounded source-grounded answer rendering.',
+            'surface_contract_version': settings.response_surface_contract_version,
+            'legacy_result_enabled': settings.response_include_legacy_result,
         },
     }
 
@@ -100,18 +87,17 @@ def _infer_terminal_state(payload: dict[str, Any] | None) -> str:
 
 
 def extract_answer_surface(result: dict[str, Any] | None) -> dict[str, Any]:
-    if not isinstance(result, dict):
-        return {}
-
-    payload: dict[str, Any] = {}
-    for field in CANONICAL_TOP_LEVEL_ANSWER_FIELDS:
-        if field in result:
-            payload[field] = result.get(field)
-
+    payload = dict(DEFAULT_CANONICAL_VALUES)
+    if isinstance(result, dict):
+        for field in CANONICAL_TOP_LEVEL_ANSWER_FIELDS:
+            if field in result:
+                payload[field] = result.get(field)
     return payload
 
 
 def build_legacy_result_payload(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not settings.response_include_legacy_result:
+        return None
     if not isinstance(result, dict):
         return None
     legacy_payload: dict[str, Any] = {}
@@ -123,7 +109,6 @@ def build_legacy_result_payload(result: dict[str, Any] | None) -> dict[str, Any]
 
 def build_ask_response_payload(*, query: str, route: dict[str, Any], result: dict[str, Any] | None) -> dict[str, Any]:
     result_dict = result or {}
-
     payload: dict[str, Any] = {
         'ok': bool(result_dict.get('ok')),
         'query': query,
@@ -134,6 +119,7 @@ def build_ask_response_payload(*, query: str, route: dict[str, Any], result: dic
         'error': result_dict.get('error'),
     }
     payload.update(extract_answer_surface(result_dict))
+    payload['terminal_state'] = _infer_terminal_state(payload)
     return payload
 
 
@@ -143,7 +129,6 @@ def build_explain_response_payload_from_ask_payload(ask_payload: dict[str, Any] 
     for field in EXPLAIN_SURFACE_FIELDS:
         if field in payload:
             explain_payload[field] = payload.get(field)
-
     explain_payload.setdefault('ok', False)
     explain_payload.setdefault('query', payload.get('query') if isinstance(payload, dict) else None)
     explain_payload.setdefault('answer_mode', None)

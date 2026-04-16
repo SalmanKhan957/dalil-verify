@@ -17,13 +17,13 @@ def test_routes_embedded_numeric_reference_question() -> None:
 def test_routes_ayah_of_surah_reference() -> None:
     result = classify_ask_query("Can you explain ayah 255 of Surah Baqarah?")
     assert result["route_type"] == AskRouteType.EXPLICIT_QURAN_REFERENCE.value
-    assert result["reference_text"] == "surah baqarah 255"
+    assert result["reference_text"] == "surah al-baqarah 255"
 
 
 def test_routes_surah_name_reference() -> None:
     result = classify_ask_query("Tafsir of Surah Ikhlas")
     assert result["route_type"] == AskRouteType.EXPLICIT_QURAN_REFERENCE.value
-    assert result["reference_text"] == "surah ikhlas"
+    assert result["reference_text"] == "surah al-ikhlas"
     assert result["action_type"] == AskActionType.EXPLAIN.value
 
 
@@ -115,3 +115,19 @@ def test_routes_anchored_hadith_followup_from_anchor_refs() -> None:
     assert result["route_type"] == AskRouteType.ANCHORED_FOLLOWUP_HADITH.value
     assert result["action_type"] == AskActionType.EXPLAIN.value
     assert result["parsed_hadith_citation"]["canonical_ref"] == "hadith:sahih-al-bukhari-en:7"
+
+
+def test_scoped_tafsir_query_beats_anchored_followup_bias() -> None:
+    result = classify_ask_query(
+        "What does IbnKathir say about Surah al baqra?",
+        request_context={
+            "anchor_refs": [
+                "quran:2:1-286",
+                "tafsir:ibn-kathir-en:82710",
+                "tafsir:maarif-al-quran-en:79625",
+            ]
+        },
+    )
+    assert result["route_type"] == AskRouteType.EXPLICIT_QURAN_REFERENCE.value
+    assert result["reference_text"] == "surah al-baqarah"
+    assert result["secondary_intents"] == ["tafsir_request"]

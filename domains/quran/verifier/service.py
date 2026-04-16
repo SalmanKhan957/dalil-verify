@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from domains.quran.verifier import bootstrap as verifier_runtime
+from infrastructure.config.release_lock import build_release_posture, get_startup_validation_info
 from infrastructure.telemetry.logging import append_jsonl_log
 from domains.quran.verifier.translation import attach_english_translation
 from domains.quran.verifier.long_span_fastpath import (
@@ -58,6 +59,8 @@ def build_health_payload() -> dict:
         "english_translation_rows_loaded": verifier_runtime.ENGLISH_TRANSLATION_INFO.get("row_count", 0),
         "runtime_artifacts": verifier_runtime.RUNTIME_ARTIFACT_INFO,
         "source_governance": verifier_runtime.SOURCE_GOVERNANCE_INFO,
+        "release_posture": build_release_posture(),
+        "startup_validation": get_startup_validation_info(),
     }
 
 

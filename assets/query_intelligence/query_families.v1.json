@@ -23,8 +23,20 @@
         "What did the Prophet say about anger?",
         "What did the Messenger say about jealousy?"
       ],
-      "domain_cues": ["prophet", "messenger", "rasul", "muhammad"],
-      "priority": 100
+      "domain_cues": [
+        "prophet",
+        "messenger",
+        "rasul",
+        "muhammad"
+      ],
+      "priority": 100,
+      "minimum_domain_cue_overlap": 1,
+      "anti_cues": [
+        "ibn kathir",
+        "tafsir",
+        "surah",
+        "quran"
+      ]
     },
     {
       "family_id": "hadith_topic_request",
@@ -49,8 +61,19 @@
         "Give me hadith about patience",
         "Any hadith about lying?"
       ],
-      "domain_cues": ["hadith", "sunnah", "ahadith"],
-      "priority": 90
+      "domain_cues": [
+        "hadith",
+        "sunnah",
+        "ahadith"
+      ],
+      "priority": 90,
+      "minimum_domain_cue_overlap": 1,
+      "anti_cues": [
+        "ibn kathir",
+        "tafsir",
+        "surah",
+        "quran"
+      ]
     },
     {
       "family_id": "hadith_broad_virtue",
@@ -71,8 +94,18 @@
         "How can I improve myself according to hadith?",
         "What hadith talk about being a good Muslim?"
       ],
-      "domain_cues": ["hadith", "prophet"],
-      "priority": 70
+      "domain_cues": [
+        "hadith",
+        "prophet"
+      ],
+      "priority": 70,
+      "minimum_domain_cue_overlap": 1,
+      "anti_cues": [
+        "ibn kathir",
+        "tafsir",
+        "surah",
+        "quran"
+      ]
     },
     {
       "family_id": "quran_topic_request",
@@ -90,8 +123,19 @@
       "example_queries": [
         "What does the Quran say about patience?"
       ],
-      "domain_cues": ["quran", "verses", "ayah", "ayahs", "allah"],
-      "priority": 80
+      "domain_cues": [
+        "quran",
+        "verses",
+        "ayah",
+        "ayahs",
+        "allah"
+      ],
+      "priority": 80,
+      "anti_cues": [
+        "hadith",
+        "sunnah"
+      ],
+      "minimum_domain_cue_overlap": 1
     },
     {
       "family_id": "tafsir_named_anchor_request",
@@ -108,7 +152,10 @@
       "example_queries": [
         "Explain Ayat al-Kursi with tafsir"
       ],
-      "domain_cues": ["tafsir", "explain"],
+      "domain_cues": [
+        "tafsir",
+        "explain"
+      ],
       "priority": 85
     }
   ]

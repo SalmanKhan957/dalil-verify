@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from domains.ask.route_types import AskActionType, AskRouteType
+from domains.ask.heuristics import detect_tafsir_intent, looks_like_explicit_quran_reference
 from domains.query_intelligence.concept_linker import link_query_to_concepts
 from domains.query_intelligence.normalization import normalize_topic_query, normalize_user_query
 from domains.query_intelligence.query_family_classifier import classify_query_family
@@ -45,6 +46,15 @@ def _topic_from_family(query: str, family, concept_matches) -> str:
     return topic or normalize_user_query(query)
 
 
+def _looks_like_scoped_tafsir_query(text: str) -> bool:
+    explicit_quran_scope = looks_like_explicit_quran_reference(text).get('matched', False)
+    tafsir_scope = detect_tafsir_intent(text).get('matched', False)
+    if explicit_quran_scope and tafsir_scope:
+        return True
+    lowered = text.casefold()
+    return tafsir_scope and 'surah ' in lowered
+
+
 def detect_topical_query_intent(query: str, *, allow_multi_source: bool = True) -> dict[str, Any]:
     text = normalize_user_query(query)
     if not text:
@@ -54,6 +64,16 @@ def detect_topical_query_intent(query: str, *, allow_multi_source: bool = True) 
             'topic_query': '',
             'signals': [],
             'reason': 'empty_query',
+            'action_type': AskActionType.EXPLAIN.value,
+        }
+
+    if _looks_like_scoped_tafsir_query(text):
+        return {
+            'matched': False,
+            'route_type': None,
+            'topic_query': normalize_topic_query(text) or text,
+            'signals': ['scoped_tafsir_query'],
+            'reason': 'scoped_tafsir_query_detected',
             'action_type': AskActionType.EXPLAIN.value,
         }
 

@@ -31,6 +31,8 @@ def load_query_family_definitions() -> tuple[QueryFamilyDefinition, ...]:
                 cue_phrases=tuple(str(value).casefold() for value in item.get('cue_phrases', [])),
                 example_queries=tuple(str(value) for value in item.get('example_queries', [])),
                 domain_cues=tuple(str(value).casefold() for value in item.get('domain_cues', [])),
+                anti_cues=tuple(str(value).casefold() for value in item.get('anti_cues', [])),
+                minimum_domain_cue_overlap=int(item.get('minimum_domain_cue_overlap') or 0),
                 priority=int(item.get('priority') or 0),
             )
         )

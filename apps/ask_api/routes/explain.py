@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from apps.ask_api.schemas import ExplainAnswerResponse, ExplainQuranReferenceRequest
 from domains.ask.dispatcher import dispatch_ask_query
 from domains.ask.response_surface import build_explain_response_payload_from_ask_payload
 
 router = APIRouter(prefix="/ask", tags=["ask"])
-
-# Compatibility contract: /ask/explain remains the legacy explain-shaped surface
-# and defaults to attaching Tafsir when the caller omits include_tafsir entirely.
-# /ask keeps the omission semantics route-driven. We preserve that difference
-# deliberately until a later response-contract/deprecation tranche.
 _EXPLAIN_DEFAULT_INCLUDE_TAFSIR = True
 
 
@@ -19,24 +14,7 @@ def _resolve_explain_include_tafsir(include_tafsir: bool | None) -> bool:
     return include_tafsir if include_tafsir is not None else _EXPLAIN_DEFAULT_INCLUDE_TAFSIR
 
 
-def explain_answer(
-    *,
-    query: str,
-    request: Request | None = None,
-    include_tafsir: bool | None = None,
-    tafsir_source_id: str | None = None,
-    tafsir_limit: int = 3,
-    quran_work_source_id: str | None = None,
-    translation_work_source_id: str | None = None,
-    quran_text_source_requested: bool = False,
-    quran_translation_source_requested: bool = False,
-    hadith_source_id: str | None = None,
-    request_context: dict[str, object] | None = None,
-    request_preferences: dict[str, object] | None = None,
-    source_controls: dict[str, object] | None = None,
-    request_contract_version: str = 'ask.vnext',
-    debug: bool = False,
-) -> dict[str, object]:
+def explain_answer(*, query: str, request: Request | None = None, include_tafsir: bool | None = None, tafsir_source_id: str | None = None, tafsir_limit: int = 3, quran_work_source_id: str | None = None, translation_work_source_id: str | None = None, quran_text_source_requested: bool = False, quran_translation_source_requested: bool = False, hadith_source_id: str | None = None, request_context: dict[str, object] | None = None, request_preferences: dict[str, object] | None = None, source_controls: dict[str, object] | None = None, request_contract_version: str = 'ask.vnext', debug: bool = False,) -> dict[str, object]:
     ask_payload = dispatch_ask_query(
         query,
         request=request,
@@ -58,7 +36,7 @@ def explain_answer(
 
 
 @router.post("/explain", response_model=ExplainAnswerResponse)
-def explain(payload: ExplainQuranReferenceRequest, request: Request) -> ExplainAnswerResponse:
+def explain(payload: ExplainQuranReferenceRequest, request: Request, response: Response) -> ExplainAnswerResponse:
     response_payload = explain_answer(
         query=payload.query,
         request=request,
@@ -76,4 +54,9 @@ def explain(payload: ExplainQuranReferenceRequest, request: Request) -> ExplainA
         request_contract_version=payload.request_contract_version,
         debug=payload.effective_debug,
     )
+    orchestration = response_payload.get('orchestration')
+    if isinstance(orchestration, dict):
+        diagnostics = orchestration.get('diagnostics')
+        if isinstance(diagnostics, dict) and diagnostics.get('request_id'):
+            response.headers['X-Dalil-Request-Id'] = str(diagnostics['request_id'])
     return ExplainAnswerResponse(**response_payload)

@@ -8,6 +8,8 @@ import warnings
 
 from fastapi import FastAPI
 
+from infrastructure.config.release_lock import validate_startup_configuration
+
 from domains.quran.repositories.context import inspect_quran_repository_runtime
 from domains.quran.repositories.runtime_assets_repository import (
     DEFAULT_QURAN_ARABIC_PATH,
@@ -119,6 +121,7 @@ def _resolve_runtime_artifacts() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     del app
+    validate_startup_configuration()
     ensure_runtime_state_loaded()
     yield
 

@@ -43,3 +43,8 @@ def test_classifier_prefers_explicit_hadith_reference_over_named_quran_anchor() 
     route = classify_ask_query('Sahih al-Bukhari 20')
     assert route['route_type'] == 'explicit_hadith_reference'
     assert route['parsed_hadith_citation']['canonical_ref'] == 'hadith:sahih-al-bukhari-en:20'
+
+
+def test_query_family_classifier_rejects_hadith_family_for_scoped_tafsir_query() -> None:
+    family = classify_query_family('What does IbnKathir say about Surah al baqra?')
+    assert family is None or family.domain != 'hadith'
