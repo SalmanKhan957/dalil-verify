@@ -27,13 +27,31 @@ _GENERIC_FOLLOWUP_RE = re.compile(r"\b(?:what\s+does\s+this\s+mean|what\s+about\
 _HADITH_FOLLOWUP_RE = re.compile(r"\b(?:summari[sz]e\s+this\s+hadith|what\s+lesson\s+does\s+this\s+hadith\s+teach|what\s+does\s+this\s+hadith\s+mean|explain\s+this\s+hadith|summari[sz]e\s+this|what\s+lesson\s+does\s+this\s+teach)\b", re.IGNORECASE)
 _SIMPLIFY_FOLLOWUP_RE = re.compile(r"\b(?:say\s+it\s+more\s+simply|say\s+that\s+more\s+simply|simplify(?:\s+(?:this|that|it))?|explain\s+(?:it|this|that)\s+simply|explain\s+(?:it|this|that)\s+in\s+(?:simple|plain)\s+words|(?:in|using)\s+(?:simple|plain)\s+words)\b", re.IGNORECASE)
 _REPEAT_FOLLOWUP_RE = re.compile(r"\b(?:show\s+the\s+exact\s+wording\s+again|repeat\s+that|quote\s+that\s+again|show\s+it\s+again)\b", re.IGNORECASE)
+_CONTINUE_RE = re.compile(r"^\s*(?:yes|agree|yep|sure|continue|go\s+on|read\s+more|keep\s+reading|what\'?s\s+next|next(?:\s+part|\s+section|\s+page)?)\b", re.IGNORECASE)
+_PREVIOUS_SECTION_RE = re.compile(r"^\s*(?:go\s+back|previous(?:\s+part|\s+section|\s+page)?|back(?:\s+up)?|read\s+(?:the\s+)?previous)\b", re.IGNORECASE)
+
+# Quran surah ayah counts (1-indexed by surah number). Canonical truth: Tanzil.net mushaf.
+_SURAH_AYAH_COUNTS: dict[int, int] = {
+    1: 7, 2: 286, 3: 200, 4: 176, 5: 120, 6: 165, 7: 206, 8: 75, 9: 129, 10: 109,
+    11: 112, 12: 111, 13: 43, 14: 52, 15: 99, 16: 128, 17: 111, 18: 110, 19: 98, 20: 135,
+    21: 112, 22: 78, 23: 118, 24: 64, 25: 77, 26: 227, 27: 93, 28: 88, 29: 69, 30: 60,
+    31: 34, 32: 30, 33: 73, 34: 54, 35: 45, 36: 83, 37: 182, 38: 88, 39: 75, 40: 85,
+    41: 54, 42: 53, 43: 89, 44: 59, 45: 37, 46: 35, 47: 38, 48: 29, 49: 18, 50: 45,
+    51: 60, 52: 49, 53: 62, 54: 55, 55: 78, 56: 96, 57: 29, 58: 22, 59: 24, 60: 13,
+    61: 14, 62: 11, 63: 11, 64: 18, 65: 12, 66: 12, 67: 30, 68: 52, 69: 52, 70: 44,
+    71: 28, 72: 28, 73: 20, 74: 56, 75: 40, 76: 31, 77: 50, 78: 40, 79: 46, 80: 42,
+    81: 29, 82: 19, 83: 36, 84: 25, 85: 22, 86: 17, 87: 19, 88: 26, 89: 30, 90: 20,
+    91: 15, 92: 21, 93: 11, 94: 8, 95: 8, 96: 19, 97: 5, 98: 8, 99: 8, 100: 11,
+    101: 11, 102: 8, 103: 3, 104: 9, 105: 5, 106: 4, 107: 7, 108: 3, 109: 6, 110: 3,
+    111: 5, 112: 4, 113: 5, 114: 6,
+}
 _COMPARE_RE = re.compile(r"\bcompare\b", re.IGNORECASE)
 _SHOW_ONLY_RE = re.compile(r"\bshow\s+only\b", re.IGNORECASE)
 _BROAD_TOPIC_SHIFT_RE = re.compile(r"\b(?:what does islam say about|generally|in general|theme|topical tafsir|about this theme|give me ahadith|give me hadith)\b", re.IGNORECASE)
 _TAFSIR_SOURCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\btafheem\b", re.IGNORECASE), 'tafsir:tafheem-al-quran-en'),
     (re.compile(r"\bma['’]?arif\b", re.IGNORECASE), 'tafsir:maarif-al-quran-en'),
-    (re.compile(r"\bibn\s+kathir\b", re.IGNORECASE), 'tafsir:ibn-kathir-en'),
+    (re.compile(r"\bibn\s*kathir\b", re.IGNORECASE), 'tafsir:ibn-kathir-en'),
     (re.compile(r"\bkathir\b", re.IGNORECASE), 'tafsir:ibn-kathir-en'),
 ]
 _ORDINAL_MAP = {
@@ -201,6 +219,124 @@ def _looks_like_fresh_scoped_tafsir_query(text: str) -> bool:
     return 'surah ' in lowered or 'surat ' in lowered or 'sura ' in lowered or 'chapter ' in lowered
 
 
+def _build_continuation_route(
+    *,
+    continuation_state: dict[str, Any],
+    hydrated_state: dict[str, Any] | None,
+    quran_anchor: dict[str, Any] | None,
+    anchor_refs: set[str] | frozenset[str] | list[str],
+    text: str,
+    direction: str,
+) -> dict[str, Any] | None:
+    """Build a continuation route with surah clamping and cross-surah auto-advance."""
+    continuation_mode = continuation_state.get('continuation_mode')
+    scope = (hydrated_state or {}).get('scope', {})
+
+    if continuation_mode == 'quran_with_tafsir':
+        route_type = AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value
+        requested_tafsir: list[str] = list(scope.get('tafsir_source_ids') or scope.get('comparative_tafsir_source_ids') or [])
+    else:
+        route_type = AskRouteType.ANCHORED_FOLLOWUP_QURAN.value
+        requested_tafsir = []
+
+    cont_ref = str(continuation_state.get('reference') or '')
+    cont_parsed = _parse_quran_anchor(cont_ref) if cont_ref else None
+    if cont_parsed is None and quran_anchor is not None:
+        cont_parsed = quran_anchor
+
+    followup_quran_ref = None
+    parsed_reference = None
+    continuation_signals: list[str] = ['anchor_refs_present', 'continuation_intent']
+
+    if cont_parsed:
+        surah_no = int(cont_parsed['surah_no'])
+        ayah_count = _SURAH_AYAH_COUNTS.get(surah_no, 0)
+
+        if direction == 'forward':
+            prev_end = int(cont_parsed['ayah_end'])
+            next_start = prev_end + 1
+            next_end = next_start + 4  # 5-verse window
+
+            if next_start > ayah_count:
+                # Current surah is completed — auto-advance to next surah
+                if surah_no >= 114:
+                    continuation_signals.append('quran_completed')
+                    # Return a graceful termination route
+                    return {
+                        'route_type': route_type,
+                        'action_type': AskActionType.EXPLAIN.value,
+                        'confidence': 0.95,
+                        'signals': continuation_signals,
+                        'secondary_intents': ['anchored_followup', 'continuation'],
+                        'reason': 'quran_reading_completed',
+                        'normalized_query': text,
+                        'anchor_refs': list(anchor_refs),
+                        'requested_tafsir_source_ids': requested_tafsir,
+                        'followup_kind': 'continuation',
+                        'surah_completed': True,
+                        'quran_completed': True,
+                    }
+                # Advance to surah N+1, verses 1-5
+                surah_no = surah_no + 1
+                next_start = 1
+                new_ayah_count = _SURAH_AYAH_COUNTS.get(surah_no, 0)
+                next_end = min(5, new_ayah_count) if new_ayah_count else 5
+                continuation_signals.append('cross_surah_advance')
+            else:
+                # Clamp ayah_end to actual surah length
+                if ayah_count and next_end > ayah_count:
+                    next_end = ayah_count
+                    if next_end == ayah_count:
+                        continuation_signals.append('surah_boundary_reached')
+        else:
+            # Backward navigation
+            prev_start = int(cont_parsed['ayah_start'])
+            next_end = prev_start - 1
+            next_start = max(1, next_end - 4)  # 5-verse window backwards
+
+            if next_end < 1:
+                # Already at the beginning of the surah
+                continuation_signals.append('surah_start_reached')
+                next_start = 1
+                next_end = min(5, ayah_count) if ayah_count else 5
+
+        canonical = f"quran:{surah_no}:{next_start}-{next_end}" if next_end != next_start else f"quran:{surah_no}:{next_start}"
+        followup_quran_ref = {
+            'resolved': True,
+            'canonical_source_id': canonical,
+            'surah_no': surah_no,
+            'ayah_start': next_start,
+            'ayah_end': next_end,
+            'parse_type': 'continuation',
+        }
+        parsed_reference = {
+            'surah_no': surah_no,
+            'ayah_start': next_start,
+            'ayah_end': next_end,
+            'parse_type': 'continuation',
+        }
+
+    result: dict[str, Any] = {
+        'route_type': route_type,
+        'action_type': AskActionType.EXPLAIN.value,
+        'confidence': 0.95,
+        'signals': continuation_signals,
+        'secondary_intents': ['anchored_followup', 'continuation'],
+        'reason': 'continuous_reading_intent_detected',
+        'normalized_query': text,
+        'anchor_refs': list(anchor_refs),
+        'requested_tafsir_source_ids': requested_tafsir,
+        'followup_kind': 'continuation',
+        'continuation_direction': direction,
+    }
+    if followup_quran_ref:
+        result['followup_quran_ref'] = followup_quran_ref
+    if parsed_reference:
+        result['parsed_reference'] = parsed_reference
+        result['reference_text'] = followup_quran_ref['canonical_source_id'] if followup_quran_ref else ''
+    return result
+
+
 def _classify_anchored_followup(text: str, request_context: dict[str, Any] | None) -> dict[str, Any] | None:
     anchor_refs = _extract_anchor_refs(request_context)
     if not anchor_refs:
@@ -214,6 +350,20 @@ def _classify_anchored_followup(text: str, request_context: dict[str, Any] | Non
     compare_requested = bool(_COMPARE_RE.search(text))
     show_only_requested = bool(_SHOW_ONLY_RE.search(text))
     fresh_scoped_tafsir_query = _looks_like_fresh_scoped_tafsir_query(text)
+
+    hydrated_state = request_context.get('_hydrated_session_state') if request_context else None
+    continuation_state = (hydrated_state or {}).get('scope', {}).get('continuation')
+    is_forward = bool(continuation_state and _CONTINUE_RE.search(text))
+    is_backward = bool(continuation_state and _PREVIOUS_SECTION_RE.search(text))
+    if continuation_state and (is_forward or is_backward):
+        return _build_continuation_route(
+            continuation_state=continuation_state,
+            hydrated_state=hydrated_state,
+            quran_anchor=quran_anchor,
+            anchor_refs=anchor_refs,
+            text=text,
+            direction='forward' if is_forward else 'backward',
+        )
 
     if hadith_anchor is not None and _HADITH_FOLLOWUP_RE.search(text):
         return {
@@ -288,6 +438,8 @@ def looks_like_anchored_followup_candidate(query: str, *, normalized_query: str 
         return True
     if _REPEAT_FOLLOWUP_RE.search(text):
         return True
+    if _CONTINUE_RE.search(text) or _PREVIOUS_SECTION_RE.search(text):
+        return True
     if _ORDINAL_VERSE_RE.search(text) or _NEXT_PREV_VERSE_RE.search(text):
         return True
     if _detect_tafsir_source_ids(text):
@@ -295,6 +447,12 @@ def looks_like_anchored_followup_candidate(query: str, *, normalized_query: str 
     if _COMPARE_RE.search(text) or _SHOW_ONLY_RE.search(text):
         return True
     return False
+
+
+def _apply_surah_bounds(parsed: dict[str, Any]) -> dict[str, Any]:
+    if parsed.get("ayah_start") is None and parsed.get("ayah_end") is None:
+        return {**parsed, "ayah_start": 1, "ayah_end": 5}
+    return parsed
 
 
 def classify_ask_query(
@@ -357,7 +515,7 @@ def classify_ask_query(
             "secondary_intents": ["tafsir_request"] if tafsir_intent["matched"] else [],
             "reason": "explicit_quran_reference_detected",
             "normalized_query": explicit["normalized_query"],
-            "parsed_reference": explicit["parsed"],
+            "parsed_reference": _apply_surah_bounds(explicit["parsed"]),
             "reference_text": explicit["reference_text"],
             "reference_match_type": explicit["match_type"],
             "query_normalization": normalization.to_payload(),
@@ -411,7 +569,7 @@ def classify_ask_query(
             "secondary_intents": ["tafsir_request"] if tafsir_intent["matched"] else [],
             "reason": "named_quran_anchor_detected",
             "normalized_query": text,
-            "parsed_reference": named_anchor["parsed"],
+            "parsed_reference": _apply_surah_bounds(named_anchor["parsed"]),
             "reference_text": named_anchor["canonical_ref"].replace('quran:', '').replace(':', ':'),
             "reference_match_type": "named_anchor",
             "query_normalization": normalization.to_payload(),

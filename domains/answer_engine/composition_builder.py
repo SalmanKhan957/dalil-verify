@@ -637,6 +637,48 @@ def _abstention_packet(plan: AskPlan, terminal_state: str, answer_text: str | No
     }
 
 
+def _continuation_controls(plan: AskPlan, quran_support: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    if quran_support is None:
+        return None
+    request_context = dict(getattr(plan, 'request_context', {}) or {})
+    hydrated_state = request_context.get('_hydrated_session_state') if isinstance(request_context, dict) else None
+    continuation_state = hydrated_state.get('scope', {}).get('continuation') if isinstance(hydrated_state, dict) else None
+
+    cursor = 0
+    total = 12
+    if isinstance(continuation_state, dict):
+        cursor = int(continuation_state.get('cursor_position') or 0)
+        total = int(continuation_state.get('total_chunks') or 12)
+
+    # Advance/retreat cursor based on continuation direction
+    route = getattr(plan, 'route', {}) or {}
+    if route.get('followup_kind') == 'continuation':
+        direction = route.get('continuation_direction', 'forward')
+        if direction == 'backward':
+            cursor = max(0, cursor - 1)
+        else:
+            cursor += 1
+        # Reset total_chunks on cross-surah advance
+        if 'cross_surah_advance' in (route.get('signals') or []):
+            surah_no = int((route.get('parsed_reference') or {}).get('surah_no') or 0)
+            if surah_no > 0:
+                from domains.ask.classifier import _SURAH_AYAH_COUNTS
+                ayah_count = _SURAH_AYAH_COUNTS.get(surah_no, 0)
+                total = max(1, (ayah_count + 4) // 5) if ayah_count else 12
+                cursor = 0
+
+    return {
+        'source_id': str(plan.quran_work_source_id or 'quran:tanzil-simple'),
+        'reference': f"quran:{quran_support.get('surah_no')}:{quran_support.get('ayah_start')}-{quran_support.get('ayah_end')}",
+        'cursor_position': cursor,
+        'total_chunks': total,
+        'remaining_chunks': max(0, total - cursor),
+        'continuation_mode': plan.response_mode.value,
+        'truncate_large_responses': True,
+        'max_allowed_paragraphs': 5,
+        'offered_continuation_hook': "Would you like to continue reading the next section?",
+    }
+
 def _rendering_packet(plan: AskPlan) -> dict[str, Any]:
     preferences = dict(plan.request_preferences or {})
     return {
@@ -683,6 +725,7 @@ def build_composition_packet(*, plan: AskPlan, evidence: EvidencePack, answer_te
         ),
         'active_scope_summary': dict(getattr(plan, 'active_scope_summary', {}) or {}),
         'policy': _policy_packet(plan, source_policy, source_bundles, terminal_state),
+        'continuation_controls': _continuation_controls(plan, quran_support),
         'clarification': _clarification_packet(plan, terminal_state),
         'abstention': _abstention_packet(plan, terminal_state, answer_text, source_policy),
         'rendering': _rendering_packet(plan),

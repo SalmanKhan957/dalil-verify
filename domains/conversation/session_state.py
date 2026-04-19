@@ -5,6 +5,24 @@ from typing import Any, Iterable
 
 
 @dataclass(slots=True)
+class ContinuationState:
+    """Tracks position inside a long-form document or multi-page response."""
+    source_id: str
+    reference: str
+    cursor_position: int
+    total_chunks: int
+    continuation_mode: str
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            'source_id': self.source_id,
+            'reference': self.reference,
+            'cursor_position': self.cursor_position,
+            'total_chunks': self.total_chunks,
+            'continuation_mode': self.continuation_mode,
+        }
+
+@dataclass(slots=True)
 class ActiveScope:
     """Bounded conversational scope for the current /ask thread.
 
@@ -22,6 +40,7 @@ class ActiveScope:
     current_tafsir_source_id: str | None = None
     hadith_ref: str | None = None
     hadith_source_id: str | None = None
+    continuation: ContinuationState | None = None
 
     def effective_tafsir_source_ids(self) -> list[str]:
         return list(self.comparative_tafsir_source_ids or self.tafsir_source_ids)
@@ -38,6 +57,7 @@ class ActiveScope:
             'current_tafsir_source_id': self.current_tafsir_source_id,
             'hadith_ref': self.hadith_ref,
             'hadith_source_id': self.hadith_source_id,
+            'continuation': self.continuation.to_payload() if self.continuation else None,
         }
 
 
@@ -132,6 +152,19 @@ class SessionState:
         payload = dict(payload or {})
         scope_payload = payload.get('scope') if isinstance(payload.get('scope'), dict) else {}
         anchors_payload = payload.get('anchors') if isinstance(payload.get('anchors'), dict) else {}
+        
+        cont_payload = scope_payload.get('continuation')
+        if isinstance(cont_payload, dict):
+            continuation = ContinuationState(
+                source_id=str(cont_payload.get('source_id') or ''),
+                reference=str(cont_payload.get('reference') or ''),
+                cursor_position=int(cont_payload.get('cursor_position') or 0),
+                total_chunks=int(cont_payload.get('total_chunks') or 0),
+                continuation_mode=str(cont_payload.get('continuation_mode') or '')
+            )
+        else:
+            continuation = None
+
         return cls(
             conversation_id=str(payload.get('conversation_id') or '').strip() or None,
             parent_turn_id=str(payload.get('parent_turn_id') or '').strip() or None,
@@ -150,6 +183,7 @@ class SessionState:
                 current_tafsir_source_id=str(scope_payload.get('current_tafsir_source_id') or '').strip() or None,
                 hadith_ref=str(scope_payload.get('hadith_ref') or '').strip() or None,
                 hadith_source_id=str(scope_payload.get('hadith_source_id') or '').strip() or None,
+                continuation=continuation,
             ),
             anchors=ConversationAnchorSet(
                 refs=[str(item).strip() for item in list(anchors_payload.get('refs') or []) if str(item).strip()],

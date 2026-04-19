@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .quran_followup import contains_ref, parse_quran_ref
-from .session_state import ActiveScope, ConversationAnchorSet, SessionState
+from .session_state import ActiveScope, ContinuationState, ConversationAnchorSet, SessionState
 
 
 _QURAN_PREFIX = "quran:"
@@ -141,6 +141,19 @@ def _derive_scope(response_payload: dict[str, Any], *, previous_scope: ActiveSco
     current_tafsir_source_id = displayed_tafsir_source_ids[0] if len(displayed_tafsir_source_ids) == 1 else None
     quran_span_ref = _derive_quran_span_ref(quran_ref=quran_ref, previous_scope=previous_scope)
 
+    cont_payload = response_payload.get('composition', {}).get('continuation_controls') if isinstance(response_payload.get('composition'), dict) else None
+    continuation = None
+    if isinstance(cont_payload, dict):
+        continuation = ContinuationState(
+            source_id=_clean(cont_payload.get('source_id')) or '',
+            reference=_clean(cont_payload.get('reference')) or '',
+            cursor_position=int(cont_payload.get('cursor_position') or 0),
+            total_chunks=int(cont_payload.get('total_chunks') or 0),
+            continuation_mode=_clean(cont_payload.get('continuation_mode')) or '',
+        )
+    elif previous_scope is not None and previous_scope.continuation is not None:
+        continuation = previous_scope.continuation
+
     return ActiveScope(
         route_type=route_type,
         answer_mode=answer_mode,
@@ -152,6 +165,7 @@ def _derive_scope(response_payload: dict[str, Any], *, previous_scope: ActiveSco
         current_tafsir_source_id=current_tafsir_source_id,
         hadith_ref=hadith_ref,
         hadith_source_id=hadith_source_id,
+        continuation=continuation,
     )
 
 

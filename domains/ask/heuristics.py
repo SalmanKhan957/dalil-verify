@@ -373,8 +373,13 @@ def detect_action_type(query: str, *, route_hint: str | None = None) -> dict[str
         return {"action_type": AskActionType.VERIFY_SOURCE.value, "signals": signals}
 
     prefers_fetch = bool(WHAT_DOES_SAY_RE.search(lower_text))
+    has_tafsir = detect_tafsir_intent(query)["matched"]
+    if has_tafsir:
+        has_explain = True
+        if "tafsir_intent" not in signals:
+            signals.append("tafsir_intent")
 
-    if prefers_fetch and has_fetch and not has_verify:
+    if prefers_fetch and has_fetch and not has_verify and not has_tafsir:
         return {"action_type": AskActionType.FETCH_TEXT.value, "signals": signals}
     if has_explain:
         return {"action_type": AskActionType.EXPLAIN.value, "signals": signals}
@@ -392,7 +397,13 @@ def detect_tafsir_intent(query: str) -> dict[str, Any]:
 
     patterns = [
         re.compile(r"\btafsir\b", re.IGNORECASE),
-        re.compile(r"\bibn\s+kathir\b", re.IGNORECASE),
+        re.compile(r"\bibn\s*kathir\b", re.IGNORECASE),
+        re.compile(r"\btafheem\b", re.IGNORECASE),
+        re.compile(r"\bma['’]?arif\b", re.IGNORECASE),
+        re.compile(r"\bmaududi\b", re.IGNORECASE),
+        re.compile(r"\bqurtubi\b", re.IGNORECASE),
+        re.compile(r"\btabari\b", re.IGNORECASE),
+        re.compile(r"\bjalalayn\b", re.IGNORECASE),
         re.compile(r"\bcommentary\b", re.IGNORECASE),
         re.compile(r"\bcommentators?\b", re.IGNORECASE),
         re.compile(r"\bmufassir\b", re.IGNORECASE),

@@ -138,3 +138,22 @@ def build_default_bukhari_meeatif_ingestion_service(
         database_url=database_url,
         replace_existing_work_data=replace_existing_work_data,
     )
+
+
+def build_bukhari_enriched_v2_ingestion_service(
+    *,
+    database_url: str | None = None,
+    replace_existing_work_data: bool = False,
+    arabic_source_file: str | None = None,
+) -> HadithCollectionIngestionService:
+    from domains.hadith.ingestion.normalizer_meeatif_v2 import (
+        MeeAtifEnrichedV2Normalizer,
+        MeeAtifEnrichedV2NormalizerConfig,
+    )
+
+    config = MeeAtifEnrichedV2NormalizerConfig(arabic_source_file=arabic_source_file)
+    return HadithCollectionIngestionService(
+        normalizer=MeeAtifEnrichedV2Normalizer(config=config),
+        database_url=database_url,
+        replace_existing_work_data=replace_existing_work_data,
+    )

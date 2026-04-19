@@ -1,0 +1,5 @@
+﻿old records: 7277
+old keys: ['Arabic_Text', 'Book', 'Chapter_Number', 'Chapter_Title_Arabic', 'Chapter_Title_English', 'English_Text', 'Grade', 'In-book reference', 'Reference']
+Arabic_Text present: 7277
+Reference present: 7277
+sample Reference: https://sunnah.com/bukhari:1

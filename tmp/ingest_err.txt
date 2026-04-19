@@ -1,0 +1,104 @@
+﻿.venv\Scripts\python.exe
+ : Traceback (most 
+recent call last):
+At line:1 char:1
++ .venv\Scripts\python.e
+xe -m scripts.ingestion.
+ingest_bukhari_v2 --sou 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified: 
+(Trace    back (most 
+recent call     
+last)::String) [], Remo 
+   teException
+    + 
+FullyQualifiedErrorId   
+  : NativeCommandError
+ 
+  File "<frozen 
+runpy>", line 198, in 
+_run_module_as_main
+  File "<frozen 
+runpy>", line 88, in 
+_run_code
+  File "C:\Projects\dali
+l-verify\scripts\ingesti
+on\ingest_bukhari_v2.py"
+, line 45, in <module>
+    main()
+    ~~~~^^
+  File "C:\Projects\dali
+l-verify\scripts\ingesti
+on\ingest_bukhari_v2.py"
+, line 28, in main
+    summary = service.in
+gest_file(args.source_fi
+le)
+  File "C:\Projects\dali
+l-verify\domains\hadith\
+ingestion\ingest_collect
+ion.py", line 36, in 
+ingest_file
+    return self.ingest_p
+ayload(payload, 
+source_root=source_path)
+           ~~~~~~~~~~~~~
+~~~~~~^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+  File "C:\Projects\dali
+l-verify\domains\hadith\
+ingestion\ingest_collect
+ion.py", line 42, in 
+ingest_payload
+    with get_session(dat
+abase_url=self.database_
+url) as session:
+         ~~~~~~~~~~~^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^
+  File "C:\Program Files
+\Python313\Lib\contextli
+b.py", line 141, in 
+__enter__
+    return 
+next(self.gen)
+  File "C:\Projects\dali
+l-verify\infrastructure\
+db\session.py", line 
+35, in get_session
+    engine = make_engine
+(database_url=database_u
+rl, echo=echo)
+  File "C:\Projects\dali
+l-verify\infrastructure\
+db\session.py", line 
+25, in make_engine
+    resolved = 
+database_url or 
+get_database_url()
+                        
+       
+~~~~~~~~~~~~~~~~^^
+  File "C:\Projects\dali
+l-verify\infrastructure\
+db\session.py", line 
+19, in get_database_url
+    raise RuntimeError(
+        "No database 
+URL configured. Set 
+DALIL_DATABASE_URL or 
+DATABASE_URL before 
+running tafsir 
+ingestion."
+    )
+RuntimeError: No 
+database URL 
+configured. Set 
+DALIL_DATABASE_URL or 
+DATABASE_URL before 
+running tafsir 
+ingestion.

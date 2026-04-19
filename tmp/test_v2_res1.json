@@ -1,0 +1,1682 @@
+{
+  "ok": false,
+  "query": "Tafsir of surah baqarah",
+  "route_type": "explicit_quran_reference",
+  "action_type": "explain",
+  "route": {
+    "route_type": "explicit_quran_reference",
+    "action_type": "explain",
+    "confidence": 0.98,
+    "signals": [
+      "explicit_reference_parse",
+      "explain_language",
+      "tafsir_intent",
+      "tafsir_intent"
+    ],
+    "secondary_intents": [
+      "tafsir_request"
+    ],
+    "reason": "explicit_quran_reference_detected",
+    "normalized_query": "surah al-baqarah",
+    "parsed_reference": {
+      "surah_no": 2,
+      "ayah_start": 1,
+      "ayah_end": 5,
+      "parse_type": "surah_name_with_optional_ayah"
+    },
+    "reference_text": "surah al-baqarah",
+    "reference_match_type": "whole_query_parse",
+    "query_normalization": {
+      "raw_query": "Tafsir of surah baqarah",
+      "normalized_query": "Tafsir of surah al-baqarah",
+      "backend": "deterministic",
+      "changed": true,
+      "confidence": 1.0,
+      "normalization_type": "canonicalization",
+      "did_change_meaning": false,
+      "safe_for_routing": true,
+      "used_hosted_model": false,
+      "attempted_hosted_model": false
+    }
+  },
+  "result": {
+    "ok": false,
+    "query": "Tafsir of surah baqarah",
+    "route_type": "explicit_quran_reference",
+    "action_type": "explain",
+    "answer_mode": "abstain",
+    "terminal_state": "abstain",
+    "answer_text": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+    "citations": [
+      {
+        "source_id": "quran:tanzil-simple",
+        "citation_text": "Quran 2:1-5",
+        "canonical_ref": "quran:2:1-5",
+        "source_domain": "quran"
+      }
+    ],
+    "quran_support": {
+      "citation_string": "Quran 2:1-5",
+      "surah_no": 2,
+      "ayah_start": 1,
+      "ayah_end": 5,
+      "surah_name_en": "al-baqarah",
+      "surah_name_ar": "\u0627\u0644\u0628\u0642\u0631\u0629",
+      "arabic_text": "\u0627\u0644\u0645 \u0630\u064e\u0670\u0644\u0650\u0643\u064e \u0627\u0644\u0652\u0643\u0650\u062a\u064e\u0627\u0628\u064f \u0644\u064e\u0627 \u0631\u064e\u064a\u0652\u0628\u064e \u06db \u0641\u0650\u064a\u0647\u0650 \u06db \u0647\u064f\u062f\u064b\u0649 \u0644\u0651\u0650\u0644\u0652\u0645\u064f\u062a\u0651\u064e\u0642\u0650\u064a\u0646\u064e \u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0627\u0644\u0652\u063a\u064e\u064a\u0652\u0628\u0650 \u0648\u064e\u064a\u064f\u0642\u0650\u064a\u0645\u064f\u0648\u0646\u064e \u0627\u0644\u0635\u0651\u064e\u0644\u064e\u0627\u0629\u064e \u0648\u064e\u0645\u0650\u0645\u0651\u064e\u0627 \u0631\u064e\u0632\u064e\u0642\u0652\u0646\u064e\u0627\u0647\u064f\u0645\u0652 \u064a\u064f\u0646\u0641\u0650\u0642\u064f\u0648\u0646\u064e \u0648\u064e\u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0625\u0650\u0644\u064e\u064a\u0652\u0643\u064e \u0648\u064e\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0645\u0650\u0646 \u0642\u064e\u0628\u0652\u0644\u0650\u0643\u064e \u0648\u064e\u0628\u0650\u0627\u0644\u0652\u0622\u062e\u0650\u0631\u064e\u0629\u0650 \u0647\u064f\u0645\u0652 \u064a\u064f\u0648\u0642\u0650\u0646\u064f\u0648\u0646\u064e \u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0639\u064e\u0644\u064e\u0649\u0670 \u0647\u064f\u062f\u064b\u0649 \u0645\u0651\u0650\u0646 \u0631\u0651\u064e\u0628\u0651\u0650\u0647\u0650\u0645\u0652 \u06d6 \u0648\u064e\u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0647\u064f\u0645\u064f \u0627\u0644\u0652\u0645\u064f\u0641\u0652\u0644\u0650\u062d\u064f\u0648\u0646\u064e",
+      "translation_text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e. the Qur'an) and in the Books sent down before you, and firmly believe in the Hereafter. Such people are on the right way from their Lord and such are truly successful.",
+      "canonical_source_id": "quran:2:1-5",
+      "quran_source_id": "quran:tanzil-simple",
+      "translation_source_id": "quran:towards-understanding-en"
+    },
+    "hadith_support": null,
+    "tafsir_support": [],
+    "resolution": {
+      "resolved": true,
+      "source_type": "quran",
+      "resolution_type": "explicit_reference",
+      "canonical_source_id": "quran:2:1-5",
+      "surah_no": 2,
+      "ayah_start": 1,
+      "ayah_end": 5,
+      "confidence": 1.0,
+      "normalized_query": "surah al-baqarah",
+      "parse_type": "surah_name_with_optional_ayah",
+      "error": null,
+      "citation_string": "Quran 2:1-5"
+    },
+    "partial_success": true,
+    "warnings": [
+      "insufficient_evidence",
+      "Tafsir retrieval failed for tafsir:ibn-kathir-en; returned without that Tafsir support. Cause: No database URL configured. Set DALIL_DATABASE_URL or DATABASE_URL before running tafsir ingestion."
+    ],
+    "quran_source_selection": {
+      "repository_mode": "csv",
+      "source_resolution_strategy": "registry",
+      "requested_quran_text_source_id": "quran:tanzil-simple",
+      "requested_quran_translation_source_id": "quran:towards-understanding-en",
+      "selected_quran_text_source_id": "quran:tanzil-simple",
+      "selected_quran_translation_source_id": "quran:towards-understanding-en"
+    },
+    "source_policy": {
+      "quran": {
+        "domain": "quran",
+        "allowed": true,
+        "included": true,
+        "policy_reason": "selected",
+        "selected_capability": "explain_from_source",
+        "available_capabilities": [
+          "explicit_lookup",
+          "explain_from_source",
+          "quote_verification",
+          "conversation_followup_anchor"
+        ],
+        "requested_text_source_id": "quran:tanzil-simple",
+        "requested_translation_source_id": "quran:towards-understanding-en",
+        "selected_text_source_id": "quran:tanzil-simple",
+        "selected_translation_source_id": "quran:towards-understanding-en",
+        "text_source_origin": "implicit_default",
+        "translation_source_origin": "implicit_default"
+      },
+      "tafsir": {
+        "domain": "tafsir",
+        "selected_capability": "explain_from_source",
+        "available_capabilities": [
+          "composition_allowed",
+          "conversation_followup_anchor",
+          "explain_from_source",
+          "explicit_lookup",
+          "topical_retrieval"
+        ],
+        "requested": true,
+        "request_origin": "query_intent",
+        "requested_source_id": "tafsir:ibn-kathir-en",
+        "requested_source_ids": [
+          "tafsir:ibn-kathir-en"
+        ],
+        "selected_source_id": "tafsir:ibn-kathir-en",
+        "selected_source_ids": [
+          "tafsir:ibn-kathir-en"
+        ],
+        "request_mode": "auto",
+        "mode_enforced": false,
+        "allowed": true,
+        "included": true,
+        "policy_reason": "selected"
+      },
+      "hadith": {
+        "domain": "hadith",
+        "selected_capability": null,
+        "available_capabilities": [],
+        "requested": false,
+        "request_origin": null,
+        "requested_source_id": null,
+        "selected_source_id": null,
+        "request_mode": "auto",
+        "mode_enforced": false,
+        "allowed": false,
+        "included": false,
+        "approved_for_answering": false,
+        "answer_capability": null,
+        "public_response_scope": null,
+        "policy_reason": "not_requested_for_route"
+      }
+    },
+    "orchestration": {
+      "request": {
+        "contract_version": "ask.vnext",
+        "query": "Tafsir of surah baqarah",
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "context": {
+          "conversation_id": "test_conv_3",
+          "_anchor_session_key": "conversation:test_conv_3",
+          "_anchor_resolution_mode": "none"
+        },
+        "preferences": {},
+        "sources": {},
+        "control_honesty": {
+          "context": {
+            "conversation_id": {
+              "status": "advisory_only",
+              "notes": "Accepted and surfaced for follow-up support. Latest-anchor hydration is available for narrow anchored follow-up when a conversation id or stable client session is present."
+            },
+            "parent_turn_id": {
+              "status": "advisory_only",
+              "notes": "Accepted and surfaced for follow-up support. Parent-turn hydration is available when the caller supplies a prior turn id emitted by the conversation surface."
+            },
+            "anchor_refs": {
+              "status": "advisory_only",
+              "notes": "Accepted and surfaced for future follow-up support, but not yet used by the planner/runtime to resolve follow-up questions."
+            }
+          },
+          "preferences": {
+            "language": {
+              "status": "advisory_only",
+              "notes": "Accepted as an answer-shaping hint, but bounded answer rendering does not yet guarantee language switching."
+            },
+            "verbosity": {
+              "status": "advisory_only",
+              "notes": "Accepted as an answer-shaping hint, but bounded answer rendering does not yet guarantee verbosity changes."
+            },
+            "citations": {
+              "status": "advisory_only",
+              "notes": "Accepted as an answer-shaping hint, but bounded answer rendering does not yet guarantee citation-layout changes."
+            }
+          },
+          "sources": {
+            "quran": {
+              "text_source_id": {
+                "status": "enforced"
+              },
+              "translation_source_id": {
+                "status": "enforced"
+              }
+            },
+            "tafsir": {
+              "mode": {
+                "status": "enforced"
+              },
+              "limit": {
+                "status": "enforced",
+                "notes": "Used only when Tafsir retrieval is eligible and selected for the request."
+              },
+              "source_ids": {
+                "status": "enforced",
+                "notes": "Current public contract supports up to three Tafsir source ids for source-separated comparative Quran commentary selection."
+              }
+            },
+            "hadith": {
+              "mode": {
+                "status": "enforced",
+                "notes": "Current public contract supports bounded explicit Hadith lookup/explain lanes and bounded topical Hadith retrieval. This mode is enforced within that public bounded scope; unrestricted multi-source Hadith answering remains unsupported."
+              },
+              "collection_ids": {
+                "status": "enforced",
+                "notes": "Current public contract supports at most one Hadith collection id; multi-collection selection is deferred."
+              }
+            }
+          },
+          "diagnostics": {
+            "debug": {
+              "status": "enforced"
+            }
+          },
+          "legacy_aliases": {
+            "include_tafsir": {
+              "status": "compatibility_alias",
+              "canonical_field": "sources.tafsir.mode",
+              "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+            },
+            "tafsir_source_id": {
+              "status": "compatibility_alias",
+              "canonical_field": "sources.tafsir.source_ids[0]",
+              "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+            },
+            "tafsir_limit": {
+              "status": "compatibility_alias",
+              "canonical_field": "sources.tafsir.limit",
+              "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+            },
+            "quran_text_source_id": {
+              "status": "compatibility_alias",
+              "canonical_field": "sources.quran.text_source_id",
+              "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+            },
+            "quran_translation_source_id": {
+              "status": "compatibility_alias",
+              "canonical_field": "sources.quran.translation_source_id",
+              "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+            },
+            "hadith_source_id": {
+              "status": "compatibility_alias",
+              "canonical_field": "sources.hadith.collection_ids[0]",
+              "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+            },
+            "debug": {
+              "status": "compatibility_alias",
+              "canonical_field": "diagnostics.debug",
+              "notes": "Legacy flat compatibility field translated into canonical diagnostics controls."
+            }
+          }
+        }
+      },
+      "interpretation": {
+        "primary_intent": "abstain",
+        "secondary_intents": [
+          "reference_resolution",
+          "tafsir_request"
+        ],
+        "query_class": "explicit_reference_with_modifier",
+        "confidence": 0.98,
+        "signals": [
+          "explicit_reference_parse",
+          "explain_language",
+          "tafsir_intent",
+          "tafsir_intent"
+        ],
+        "route_reason": "explicit_quran_reference_detected",
+        "normalized_query": "surah al-baqarah",
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain"
+      },
+      "plan": {
+        "plan_type": "abstain",
+        "eligible_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "selected_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "domain_decisions": [
+          {
+            "domain": "quran",
+            "eligible": true,
+            "selected": true,
+            "requested": true,
+            "policy_reason": "selected",
+            "source_id": "quran:tanzil-simple",
+            "request_origin": "implicit_default",
+            "selected_capability": "explain_from_source",
+            "available_capabilities": [
+              "explicit_lookup",
+              "explain_from_source",
+              "quote_verification",
+              "conversation_followup_anchor"
+            ]
+          },
+          {
+            "domain": "tafsir",
+            "eligible": true,
+            "selected": true,
+            "requested": true,
+            "policy_reason": "selected",
+            "source_id": "tafsir:ibn-kathir-en",
+            "request_origin": "query_intent",
+            "selected_capability": "explain_from_source",
+            "available_capabilities": [
+              "composition_allowed",
+              "conversation_followup_anchor",
+              "explain_from_source",
+              "explicit_lookup",
+              "topical_retrieval"
+            ]
+          },
+          {
+            "domain": "hadith",
+            "eligible": false,
+            "selected": false,
+            "requested": false,
+            "policy_reason": "not_requested_for_route",
+            "source_id": null,
+            "request_origin": null,
+            "selected_capability": null,
+            "available_capabilities": []
+          }
+        ],
+        "abstain_reason": "insufficient_evidence",
+        "notes": [
+          "tafsir_source:tafsir:ibn-kathir-en"
+        ],
+        "planner_version": "v1.6"
+      },
+      "answer": {
+        "mode": "abstain",
+        "terminal_state": "abstain",
+        "summary_text": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+        "blocks": [
+          {
+            "block_type": "quran_quote",
+            "domain": "quran",
+            "text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e. the Qur'an) and in the Books sent down before you, and firmly believe in the Hereafter. Such people are on the right way from their Lord and such are truly successful.",
+            "title": "Quran 2:1-5",
+            "citations": [
+              "quran:2:1-5"
+            ],
+            "source_id": "quran:tanzil-simple"
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "evidence_type": "quran_span",
+          "domain": "quran",
+          "source_id": "quran:tanzil-simple",
+          "canonical_ref": "quran:2:1-5",
+          "citation_text": "Quran 2:1-5",
+          "payload": {
+            "surah_no": 2,
+            "ayah_start": 1,
+            "ayah_end": 5,
+            "surah_name_en": "al-baqarah",
+            "surah_name_ar": "\u0627\u0644\u0628\u0642\u0631\u0629",
+            "translation_source_id": "quran:towards-understanding-en"
+          }
+        }
+      ],
+      "conversation": {
+        "followup_ready": true,
+        "anchors": [
+          {
+            "anchor_type": "quran_ref",
+            "source_domain": "quran",
+            "canonical_ref": "quran:2:1-5",
+            "display_text": "Quran 2:1-5"
+          }
+        ]
+      },
+      "policy": {
+        "source_policy": {
+          "quran": {
+            "domain": "quran",
+            "allowed": true,
+            "included": true,
+            "policy_reason": "selected",
+            "selected_capability": "explain_from_source",
+            "available_capabilities": [
+              "explicit_lookup",
+              "explain_from_source",
+              "quote_verification",
+              "conversation_followup_anchor"
+            ],
+            "requested_text_source_id": "quran:tanzil-simple",
+            "requested_translation_source_id": "quran:towards-understanding-en",
+            "selected_text_source_id": "quran:tanzil-simple",
+            "selected_translation_source_id": "quran:towards-understanding-en",
+            "text_source_origin": "implicit_default",
+            "translation_source_origin": "implicit_default"
+          },
+          "tafsir": {
+            "domain": "tafsir",
+            "selected_capability": "explain_from_source",
+            "available_capabilities": [
+              "composition_allowed",
+              "conversation_followup_anchor",
+              "explain_from_source",
+              "explicit_lookup",
+              "topical_retrieval"
+            ],
+            "requested": true,
+            "request_origin": "query_intent",
+            "requested_source_id": "tafsir:ibn-kathir-en",
+            "requested_source_ids": [
+              "tafsir:ibn-kathir-en"
+            ],
+            "selected_source_id": "tafsir:ibn-kathir-en",
+            "selected_source_ids": [
+              "tafsir:ibn-kathir-en"
+            ],
+            "request_mode": "auto",
+            "mode_enforced": false,
+            "allowed": true,
+            "included": true,
+            "policy_reason": "selected"
+          },
+          "hadith": {
+            "domain": "hadith",
+            "selected_capability": null,
+            "available_capabilities": [],
+            "requested": false,
+            "request_origin": null,
+            "requested_source_id": null,
+            "selected_source_id": null,
+            "request_mode": "auto",
+            "mode_enforced": false,
+            "allowed": false,
+            "included": false,
+            "approved_for_answering": false,
+            "answer_capability": null,
+            "public_response_scope": null,
+            "policy_reason": "not_requested_for_route"
+          }
+        },
+        "warnings": [
+          "Tafsir retrieval failed for tafsir:ibn-kathir-en; returned without that Tafsir support. Cause: No database URL configured. Set DALIL_DATABASE_URL or DATABASE_URL before running tafsir ingestion."
+        ],
+        "errors": [],
+        "partial_success": true
+      },
+      "diagnostics": {
+        "selected_domains": [
+          "quran",
+          "tafsir"
+        ],
+        "response_mode": "quran_with_tafsir",
+        "has_resolution": true,
+        "has_verifier_result": false,
+        "has_hadith": false,
+        "response_surface_contract": {
+          "canonical_top_level_fields": [
+            "answer_mode",
+            "terminal_state",
+            "answer_text",
+            "citations",
+            "quran_support",
+            "hadith_support",
+            "tafsir_support",
+            "resolution",
+            "partial_success",
+            "warnings",
+            "quran_source_selection",
+            "source_policy",
+            "orchestration",
+            "conversation",
+            "composition",
+            "debug"
+          ],
+          "legacy_result_allowed_fields": [
+            "ok",
+            "query",
+            "route_type",
+            "action_type",
+            "answer_mode",
+            "terminal_state",
+            "answer_text",
+            "citations",
+            "quran_support",
+            "hadith_support",
+            "tafsir_support",
+            "resolution",
+            "partial_success",
+            "warnings",
+            "quran_source_selection",
+            "source_policy",
+            "orchestration",
+            "conversation",
+            "composition",
+            "debug",
+            "error",
+            "quran_span",
+            "verifier_result",
+            "quote_payload",
+            "hadith_entry"
+          ],
+          "duplicated_result_fields": [
+            "answer_mode",
+            "terminal_state",
+            "answer_text",
+            "citations",
+            "quran_support",
+            "hadith_support",
+            "tafsir_support",
+            "resolution",
+            "partial_success",
+            "warnings",
+            "quran_source_selection",
+            "source_policy",
+            "orchestration",
+            "conversation",
+            "composition",
+            "debug",
+            "error"
+          ],
+          "legacy_result_only_fields": [
+            "quran_span",
+            "verifier_result",
+            "quote_payload",
+            "hadith_entry"
+          ],
+          "notes": {
+            "top_level_answer": "Canonical public answer surface for /ask and /ask/explain.",
+            "result": "Legacy compatibility envelope retained temporarily; not the canonical truth layer.",
+            "source_policy": "Canonical source-selection / capability truth layer.",
+            "quran_source_selection": "Legacy compatibility object; source_policy.quran is the truth layer for source-origin semantics.",
+            "orchestration": "Canonical introspection contract for planner/evidence/debugging.",
+            "conversation": "Canonical surfaced follow-up anchors for compatible clients. Narrow anchored follow-up is active when anchors are supplied or hydrated from the current conversation/session.",
+            "composition": "Canonical LLM-facing composition packet for bounded source-grounded answer rendering.",
+            "surface_contract_version": "ask.surface.v1",
+            "legacy_result_enabled": true
+          }
+        },
+        "render_mode": "abstain",
+        "renderer_version": "bounded_conversational_renderer.v2",
+        "renderer_backend": "deterministic",
+        "request_id": "dalil-26d6658c86c54566",
+        "request_contract_version": "ask.vnext",
+        "surface_contract_version": "ask.surface.v1",
+        "timings_ms": {
+          "normalize_query": 0.059,
+          "classify_route": 1.142,
+          "build_answer": 139.445,
+          "build_payload": 0.01,
+          "persist_anchors": 0.063,
+          "total": 140.773
+        },
+        "feature_flags": {
+          "observability_enabled": true,
+          "legacy_result_envelope_enabled": true,
+          "query_normalization_backend": "deterministic",
+          "renderer_backend": "deterministic",
+          "anchor_store_backend": "memory",
+          "anchor_store_ttl_seconds": 21600,
+          "release_mode": "development",
+          "startup_validation_strict": false
+        },
+        "context": {
+          "anchor_session_key": "conversation:test_conv_3",
+          "anchor_resolution_mode": "none",
+          "hydrated_anchor_count": 0
+        },
+        "query_normalization": {
+          "attempted_hosted_model": false,
+          "safe_for_routing": true,
+          "backend": "deterministic",
+          "did_change_meaning": false,
+          "used_hosted_model": false,
+          "normalization_type": "canonicalization",
+          "confidence": 1.0,
+          "changed": true,
+          "normalized_query": "Tafsir of surah al-baqarah"
+        }
+      }
+    },
+    "conversation": {
+      "followup_ready": true,
+      "anchors": [
+        {
+          "anchor_type": "quran_ref",
+          "source_domain": "quran",
+          "canonical_ref": "quran:2:1-5",
+          "display_text": "Quran 2:1-5"
+        }
+      ],
+      "turn_id": "fa9bf5ab38c040ffad7edd7d36d53ead"
+    },
+    "composition": {
+      "contract_version": "ask.composition.v1",
+      "llm_ready": false,
+      "composition_mode": "abstain",
+      "terminal_state": "abstain",
+      "resolved_scope": {
+        "primary_domain": "quran",
+        "route_type": "explicit_quran_reference",
+        "action_type": "explain",
+        "canonical_refs": [
+          "quran:2:1-5"
+        ],
+        "query_normalized": "surah al-baqarah",
+        "surah_no": 2,
+        "ayah_start": 1,
+        "ayah_end": 5,
+        "span_label": "Quran 2:1-5"
+      },
+      "answer_seed": {
+        "lead_text": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+        "summary_style": "source_grounded",
+        "must_preserve_boundaries": true,
+        "base_quote": {
+          "domain": "quran",
+          "canonical_ref": "quran:2:1-5",
+          "text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e\u2026"
+        }
+      },
+      "source_bundles": [],
+      "comparative": null,
+      "followup": {
+        "followup_ready": false,
+        "runtime_statefulness": "anchored_only",
+        "active_anchor_refs": [
+          "quran:2:1-5"
+        ],
+        "source_specific_followups_supported": [],
+        "span_specific_followups_supported": [],
+        "capabilities": [
+          {
+            "action_type": "select_quran_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:1",
+            "display_priority": 20,
+            "phrase_params": {
+              "ordinal": "first"
+            }
+          },
+          {
+            "action_type": "select_quran_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:2",
+            "display_priority": 21,
+            "phrase_params": {
+              "ordinal": "second"
+            }
+          },
+          {
+            "action_type": "select_quran_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:3",
+            "display_priority": 22,
+            "phrase_params": {
+              "ordinal": "third"
+            }
+          },
+          {
+            "action_type": "select_quran_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:4",
+            "display_priority": 23,
+            "phrase_params": {
+              "ordinal": "fourth"
+            }
+          },
+          {
+            "action_type": "select_quran_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:5",
+            "display_priority": 24,
+            "phrase_params": {
+              "ordinal": "last"
+            }
+          },
+          {
+            "action_type": "navigate_previous_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:1",
+            "display_priority": 30,
+            "phrase_params": {
+              "direction": "previous"
+            }
+          },
+          {
+            "action_type": "navigate_next_verse",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:6",
+            "display_priority": 31,
+            "phrase_params": {
+              "direction": "next"
+            }
+          },
+          {
+            "action_type": "simplify",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:1-5",
+            "display_priority": 40,
+            "phrase_params": {}
+          },
+          {
+            "action_type": "repeat_exact_text",
+            "target_domain": "quran",
+            "target_source_id": null,
+            "target_ref": "quran:2:1-5",
+            "display_priority": 50,
+            "phrase_params": {}
+          }
+        ],
+        "suggested_followups": [],
+        "active_scope_summary": {
+          "domains": [
+            "quran"
+          ],
+          "quran_ref": "quran:2:1-5",
+          "quran_span_ref": "quran:2:1-5",
+          "tafsir_source_ids": [],
+          "comparative_tafsir_source_ids": [],
+          "current_tafsir_source_id": null,
+          "hadith_ref": null,
+          "hadith_source_id": null
+        }
+      },
+      "active_scope_summary": {
+        "domains": [],
+        "quran_ref": null,
+        "quran_span_ref": null,
+        "tafsir_source_ids": [],
+        "comparative_tafsir_source_ids": [],
+        "current_tafsir_source_id": null,
+        "hadith_ref": null,
+        "hadith_source_id": null
+      },
+      "policy": {
+        "must_preserve_domain_boundaries": true,
+        "domains_included": [],
+        "domains_excluded": [
+          "quran",
+          "tafsir",
+          "hadith"
+        ],
+        "source_ids_allowed_for_composition": [],
+        "public_scope": "bounded_source_grounded",
+        "source_public_scope": null,
+        "composition_allowed": false
+      },
+      "continuation_controls": {
+        "source_id": "quran:tanzil-simple",
+        "reference": "quran:2:1-5",
+        "cursor_position": 0,
+        "total_chunks": 12,
+        "remaining_chunks": 12,
+        "continuation_mode": "abstain",
+        "truncate_large_responses": true,
+        "max_allowed_paragraphs": 5,
+        "offered_continuation_hook": "Would you like to continue reading the next section?"
+      },
+      "clarification": null,
+      "abstention": {
+        "reason_code": "insufficient_evidence",
+        "safe_user_message": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+        "next_supported_actions": [
+          "Try a direct Quran reference such as 2:255",
+          "Ask for the verse text only"
+        ]
+      },
+      "rendering": {
+        "preferred_language": "en",
+        "verbosity": "standard",
+        "citation_style": "inline",
+        "quote_length_policy": "short_quote_plus_summary"
+      },
+      "evidence_readiness": {
+        "answerable": false,
+        "llm_ready": false,
+        "force_abstain": false,
+        "reason_code": null,
+        "missing_domains": [],
+        "safe_user_message": null,
+        "next_supported_actions": [],
+        "partial_evidence_present": false
+      }
+    },
+    "debug": null,
+    "error": "insufficient_evidence",
+    "quran_span": {
+      "source_type": "quran_span",
+      "source_id": "quran:tanzil-simple",
+      "canonical_source_id": "quran:2:1-5",
+      "citation_string": "Quran 2:1-5",
+      "surah_no": 2,
+      "ayah_start": 1,
+      "ayah_end": 5,
+      "surah_name_ar": "\u0627\u0644\u0628\u0642\u0631\u0629",
+      "surah_name_en": "al-baqarah",
+      "ayah_count_in_surah": 286,
+      "arabic_text": "\u0627\u0644\u0645 \u0630\u064e\u0670\u0644\u0650\u0643\u064e \u0627\u0644\u0652\u0643\u0650\u062a\u064e\u0627\u0628\u064f \u0644\u064e\u0627 \u0631\u064e\u064a\u0652\u0628\u064e \u06db \u0641\u0650\u064a\u0647\u0650 \u06db \u0647\u064f\u062f\u064b\u0649 \u0644\u0651\u0650\u0644\u0652\u0645\u064f\u062a\u0651\u064e\u0642\u0650\u064a\u0646\u064e \u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0627\u0644\u0652\u063a\u064e\u064a\u0652\u0628\u0650 \u0648\u064e\u064a\u064f\u0642\u0650\u064a\u0645\u064f\u0648\u0646\u064e \u0627\u0644\u0635\u0651\u064e\u0644\u064e\u0627\u0629\u064e \u0648\u064e\u0645\u0650\u0645\u0651\u064e\u0627 \u0631\u064e\u0632\u064e\u0642\u0652\u0646\u064e\u0627\u0647\u064f\u0645\u0652 \u064a\u064f\u0646\u0641\u0650\u0642\u064f\u0648\u0646\u064e \u0648\u064e\u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0625\u0650\u0644\u064e\u064a\u0652\u0643\u064e \u0648\u064e\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0645\u0650\u0646 \u0642\u064e\u0628\u0652\u0644\u0650\u0643\u064e \u0648\u064e\u0628\u0650\u0627\u0644\u0652\u0622\u062e\u0650\u0631\u064e\u0629\u0650 \u0647\u064f\u0645\u0652 \u064a\u064f\u0648\u0642\u0650\u0646\u064f\u0648\u0646\u064e \u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0639\u064e\u0644\u064e\u0649\u0670 \u0647\u064f\u062f\u064b\u0649 \u0645\u0651\u0650\u0646 \u0631\u0651\u064e\u0628\u0651\u0650\u0647\u0650\u0645\u0652 \u06d6 \u0648\u064e\u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0647\u064f\u0645\u064f \u0627\u0644\u0652\u0645\u064f\u0641\u0652\u0644\u0650\u062d\u064f\u0648\u0646\u064e",
+      "translation": {
+        "language": "en",
+        "translation_name": "Towards Understanding the Quran",
+        "translator": "Abul Ala Maududi",
+        "source_id": "quran:towards-understanding-en",
+        "underlying_source_id": "local:tanzil:maududi",
+        "source_name": "tanzil_local_file",
+        "text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e. the Qur'an) and in the Books sent down before you, and firmly believe in the Hereafter. Such people are on the right way from their Lord and such are truly successful."
+      },
+      "ayah_rows": [
+        {
+          "surah_no": 2,
+          "ayah_no": 1,
+          "citation_string": "Quran 2:1",
+          "arabic_text": "\u0627\u0644\u0645",
+          "arabic_canonical_source_id": "quran:2:1:ar",
+          "translation_text": "Alif. Lam. Mim.",
+          "translation_source_id": "quran:towards-understanding-en"
+        },
+        {
+          "surah_no": 2,
+          "ayah_no": 2,
+          "citation_string": "Quran 2:2",
+          "arabic_text": "\u0630\u064e\u0670\u0644\u0650\u0643\u064e \u0627\u0644\u0652\u0643\u0650\u062a\u064e\u0627\u0628\u064f \u0644\u064e\u0627 \u0631\u064e\u064a\u0652\u0628\u064e \u06db \u0641\u0650\u064a\u0647\u0650 \u06db \u0647\u064f\u062f\u064b\u0649 \u0644\u0651\u0650\u0644\u0652\u0645\u064f\u062a\u0651\u064e\u0642\u0650\u064a\u0646\u064e",
+          "arabic_canonical_source_id": "quran:2:2:ar",
+          "translation_text": "This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people,",
+          "translation_source_id": "quran:towards-understanding-en"
+        },
+        {
+          "surah_no": 2,
+          "ayah_no": 3,
+          "citation_string": "Quran 2:3",
+          "arabic_text": "\u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0627\u0644\u0652\u063a\u064e\u064a\u0652\u0628\u0650 \u0648\u064e\u064a\u064f\u0642\u0650\u064a\u0645\u064f\u0648\u0646\u064e \u0627\u0644\u0635\u0651\u064e\u0644\u064e\u0627\u0629\u064e \u0648\u064e\u0645\u0650\u0645\u0651\u064e\u0627 \u0631\u064e\u0632\u064e\u0642\u0652\u0646\u064e\u0627\u0647\u064f\u0645\u0652 \u064a\u064f\u0646\u0641\u0650\u0642\u064f\u0648\u0646\u064e",
+          "arabic_canonical_source_id": "quran:2:3:ar",
+          "translation_text": "who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them;",
+          "translation_source_id": "quran:towards-understanding-en"
+        },
+        {
+          "surah_no": 2,
+          "ayah_no": 4,
+          "citation_string": "Quran 2:4",
+          "arabic_text": "\u0648\u064e\u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0625\u0650\u0644\u064e\u064a\u0652\u0643\u064e \u0648\u064e\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0645\u0650\u0646 \u0642\u064e\u0628\u0652\u0644\u0650\u0643\u064e \u0648\u064e\u0628\u0650\u0627\u0644\u0652\u0622\u062e\u0650\u0631\u064e\u0629\u0650 \u0647\u064f\u0645\u0652 \u064a\u064f\u0648\u0642\u0650\u0646\u064f\u0648\u0646\u064e",
+          "arabic_canonical_source_id": "quran:2:4:ar",
+          "translation_text": "who believe in the Book We have sent down to you (i.e. the Qur'an) and in the Books sent down before you, and firmly believe in the Hereafter.",
+          "translation_source_id": "quran:towards-understanding-en"
+        },
+        {
+          "surah_no": 2,
+          "ayah_no": 5,
+          "citation_string": "Quran 2:5",
+          "arabic_text": "\u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0639\u064e\u0644\u064e\u0649\u0670 \u0647\u064f\u062f\u064b\u0649 \u0645\u0651\u0650\u0646 \u0631\u0651\u064e\u0628\u0651\u0650\u0647\u0650\u0645\u0652 \u06d6 \u0648\u064e\u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0647\u064f\u0645\u064f \u0627\u0644\u0652\u0645\u064f\u0641\u0652\u0644\u0650\u062d\u064f\u0648\u0646\u064e",
+          "arabic_canonical_source_id": "quran:2:5:ar",
+          "translation_text": "Such people are on the right way from their Lord and such are truly successful.",
+          "translation_source_id": "quran:towards-understanding-en"
+        }
+      ]
+    },
+    "verifier_result": null,
+    "quote_payload": null,
+    "hadith_entry": null
+  },
+  "error": "insufficient_evidence",
+  "answer_mode": "abstain",
+  "terminal_state": "abstain",
+  "answer_text": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+  "citations": [
+    {
+      "source_id": "quran:tanzil-simple",
+      "citation_text": "Quran 2:1-5",
+      "canonical_ref": "quran:2:1-5",
+      "source_domain": "quran"
+    }
+  ],
+  "quran_support": {
+    "citation_string": "Quran 2:1-5",
+    "surah_no": 2,
+    "ayah_start": 1,
+    "ayah_end": 5,
+    "surah_name_en": "al-baqarah",
+    "surah_name_ar": "\u0627\u0644\u0628\u0642\u0631\u0629",
+    "arabic_text": "\u0627\u0644\u0645 \u0630\u064e\u0670\u0644\u0650\u0643\u064e \u0627\u0644\u0652\u0643\u0650\u062a\u064e\u0627\u0628\u064f \u0644\u064e\u0627 \u0631\u064e\u064a\u0652\u0628\u064e \u06db \u0641\u0650\u064a\u0647\u0650 \u06db \u0647\u064f\u062f\u064b\u0649 \u0644\u0651\u0650\u0644\u0652\u0645\u064f\u062a\u0651\u064e\u0642\u0650\u064a\u0646\u064e \u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0627\u0644\u0652\u063a\u064e\u064a\u0652\u0628\u0650 \u0648\u064e\u064a\u064f\u0642\u0650\u064a\u0645\u064f\u0648\u0646\u064e \u0627\u0644\u0635\u0651\u064e\u0644\u064e\u0627\u0629\u064e \u0648\u064e\u0645\u0650\u0645\u0651\u064e\u0627 \u0631\u064e\u0632\u064e\u0642\u0652\u0646\u064e\u0627\u0647\u064f\u0645\u0652 \u064a\u064f\u0646\u0641\u0650\u0642\u064f\u0648\u0646\u064e \u0648\u064e\u0627\u0644\u0651\u064e\u0630\u0650\u064a\u0646\u064e \u064a\u064f\u0624\u0652\u0645\u0650\u0646\u064f\u0648\u0646\u064e \u0628\u0650\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0625\u0650\u0644\u064e\u064a\u0652\u0643\u064e \u0648\u064e\u0645\u064e\u0627 \u0623\u064f\u0646\u0632\u0650\u0644\u064e \u0645\u0650\u0646 \u0642\u064e\u0628\u0652\u0644\u0650\u0643\u064e \u0648\u064e\u0628\u0650\u0627\u0644\u0652\u0622\u062e\u0650\u0631\u064e\u0629\u0650 \u0647\u064f\u0645\u0652 \u064a\u064f\u0648\u0642\u0650\u0646\u064f\u0648\u0646\u064e \u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0639\u064e\u0644\u064e\u0649\u0670 \u0647\u064f\u062f\u064b\u0649 \u0645\u0651\u0650\u0646 \u0631\u0651\u064e\u0628\u0651\u0650\u0647\u0650\u0645\u0652 \u06d6 \u0648\u064e\u0623\u064f\u0648\u0644\u064e\u0640\u0670\u0626\u0650\u0643\u064e \u0647\u064f\u0645\u064f \u0627\u0644\u0652\u0645\u064f\u0641\u0652\u0644\u0650\u062d\u064f\u0648\u0646\u064e",
+    "translation_text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e. the Qur'an) and in the Books sent down before you, and firmly believe in the Hereafter. Such people are on the right way from their Lord and such are truly successful.",
+    "canonical_source_id": "quran:2:1-5",
+    "quran_source_id": "quran:tanzil-simple",
+    "translation_source_id": "quran:towards-understanding-en"
+  },
+  "hadith_support": null,
+  "tafsir_support": [],
+  "resolution": {
+    "resolved": true,
+    "source_type": "quran",
+    "resolution_type": "explicit_reference",
+    "canonical_source_id": "quran:2:1-5",
+    "surah_no": 2,
+    "ayah_start": 1,
+    "ayah_end": 5,
+    "confidence": 1.0,
+    "normalized_query": "surah al-baqarah",
+    "parse_type": "surah_name_with_optional_ayah",
+    "error": null,
+    "citation_string": "Quran 2:1-5"
+  },
+  "partial_success": true,
+  "warnings": [
+    "insufficient_evidence",
+    "Tafsir retrieval failed for tafsir:ibn-kathir-en; returned without that Tafsir support. Cause: No database URL configured. Set DALIL_DATABASE_URL or DATABASE_URL before running tafsir ingestion."
+  ],
+  "quran_source_selection": {
+    "repository_mode": "csv",
+    "source_resolution_strategy": "registry",
+    "requested_quran_text_source_id": "quran:tanzil-simple",
+    "requested_quran_translation_source_id": "quran:towards-understanding-en",
+    "selected_quran_text_source_id": "quran:tanzil-simple",
+    "selected_quran_translation_source_id": "quran:towards-understanding-en"
+  },
+  "source_policy": {
+    "quran": {
+      "domain": "quran",
+      "allowed": true,
+      "included": true,
+      "policy_reason": "selected",
+      "selected_capability": "explain_from_source",
+      "available_capabilities": [
+        "explicit_lookup",
+        "explain_from_source",
+        "quote_verification",
+        "conversation_followup_anchor"
+      ],
+      "requested_text_source_id": "quran:tanzil-simple",
+      "requested_translation_source_id": "quran:towards-understanding-en",
+      "selected_text_source_id": "quran:tanzil-simple",
+      "selected_translation_source_id": "quran:towards-understanding-en",
+      "text_source_origin": "implicit_default",
+      "translation_source_origin": "implicit_default"
+    },
+    "tafsir": {
+      "domain": "tafsir",
+      "selected_capability": "explain_from_source",
+      "available_capabilities": [
+        "composition_allowed",
+        "conversation_followup_anchor",
+        "explain_from_source",
+        "explicit_lookup",
+        "topical_retrieval"
+      ],
+      "requested": true,
+      "request_origin": "query_intent",
+      "requested_source_id": "tafsir:ibn-kathir-en",
+      "requested_source_ids": [
+        "tafsir:ibn-kathir-en"
+      ],
+      "selected_source_id": "tafsir:ibn-kathir-en",
+      "selected_source_ids": [
+        "tafsir:ibn-kathir-en"
+      ],
+      "request_mode": "auto",
+      "mode_enforced": false,
+      "allowed": true,
+      "included": true,
+      "policy_reason": "selected"
+    },
+    "hadith": {
+      "domain": "hadith",
+      "selected_capability": null,
+      "available_capabilities": [],
+      "requested": false,
+      "request_origin": null,
+      "requested_source_id": null,
+      "selected_source_id": null,
+      "request_mode": "auto",
+      "mode_enforced": false,
+      "allowed": false,
+      "included": false,
+      "approved_for_answering": false,
+      "answer_capability": null,
+      "public_response_scope": null,
+      "policy_reason": "not_requested_for_route"
+    }
+  },
+  "orchestration": {
+    "request": {
+      "contract_version": "ask.vnext",
+      "query": "Tafsir of surah baqarah",
+      "route_type": "explicit_quran_reference",
+      "action_type": "explain",
+      "context": {
+        "conversation_id": "test_conv_3",
+        "_anchor_session_key": "conversation:test_conv_3",
+        "_anchor_resolution_mode": "none"
+      },
+      "preferences": {},
+      "sources": {},
+      "control_honesty": {
+        "context": {
+          "conversation_id": {
+            "status": "advisory_only",
+            "notes": "Accepted and surfaced for follow-up support. Latest-anchor hydration is available for narrow anchored follow-up when a conversation id or stable client session is present."
+          },
+          "parent_turn_id": {
+            "status": "advisory_only",
+            "notes": "Accepted and surfaced for follow-up support. Parent-turn hydration is available when the caller supplies a prior turn id emitted by the conversation surface."
+          },
+          "anchor_refs": {
+            "status": "advisory_only",
+            "notes": "Accepted and surfaced for future follow-up support, but not yet used by the planner/runtime to resolve follow-up questions."
+          }
+        },
+        "preferences": {
+          "language": {
+            "status": "advisory_only",
+            "notes": "Accepted as an answer-shaping hint, but bounded answer rendering does not yet guarantee language switching."
+          },
+          "verbosity": {
+            "status": "advisory_only",
+            "notes": "Accepted as an answer-shaping hint, but bounded answer rendering does not yet guarantee verbosity changes."
+          },
+          "citations": {
+            "status": "advisory_only",
+            "notes": "Accepted as an answer-shaping hint, but bounded answer rendering does not yet guarantee citation-layout changes."
+          }
+        },
+        "sources": {
+          "quran": {
+            "text_source_id": {
+              "status": "enforced"
+            },
+            "translation_source_id": {
+              "status": "enforced"
+            }
+          },
+          "tafsir": {
+            "mode": {
+              "status": "enforced"
+            },
+            "limit": {
+              "status": "enforced",
+              "notes": "Used only when Tafsir retrieval is eligible and selected for the request."
+            },
+            "source_ids": {
+              "status": "enforced",
+              "notes": "Current public contract supports up to three Tafsir source ids for source-separated comparative Quran commentary selection."
+            }
+          },
+          "hadith": {
+            "mode": {
+              "status": "enforced",
+              "notes": "Current public contract supports bounded explicit Hadith lookup/explain lanes and bounded topical Hadith retrieval. This mode is enforced within that public bounded scope; unrestricted multi-source Hadith answering remains unsupported."
+            },
+            "collection_ids": {
+              "status": "enforced",
+              "notes": "Current public contract supports at most one Hadith collection id; multi-collection selection is deferred."
+            }
+          }
+        },
+        "diagnostics": {
+          "debug": {
+            "status": "enforced"
+          }
+        },
+        "legacy_aliases": {
+          "include_tafsir": {
+            "status": "compatibility_alias",
+            "canonical_field": "sources.tafsir.mode",
+            "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+          },
+          "tafsir_source_id": {
+            "status": "compatibility_alias",
+            "canonical_field": "sources.tafsir.source_ids[0]",
+            "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+          },
+          "tafsir_limit": {
+            "status": "compatibility_alias",
+            "canonical_field": "sources.tafsir.limit",
+            "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+          },
+          "quran_text_source_id": {
+            "status": "compatibility_alias",
+            "canonical_field": "sources.quran.text_source_id",
+            "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+          },
+          "quran_translation_source_id": {
+            "status": "compatibility_alias",
+            "canonical_field": "sources.quran.translation_source_id",
+            "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+          },
+          "hadith_source_id": {
+            "status": "compatibility_alias",
+            "canonical_field": "sources.hadith.collection_ids[0]",
+            "notes": "Legacy flat compatibility field translated into canonical nested source controls."
+          },
+          "debug": {
+            "status": "compatibility_alias",
+            "canonical_field": "diagnostics.debug",
+            "notes": "Legacy flat compatibility field translated into canonical diagnostics controls."
+          }
+        }
+      }
+    },
+    "interpretation": {
+      "primary_intent": "abstain",
+      "secondary_intents": [
+        "reference_resolution",
+        "tafsir_request"
+      ],
+      "query_class": "explicit_reference_with_modifier",
+      "confidence": 0.98,
+      "signals": [
+        "explicit_reference_parse",
+        "explain_language",
+        "tafsir_intent",
+        "tafsir_intent"
+      ],
+      "route_reason": "explicit_quran_reference_detected",
+      "normalized_query": "surah al-baqarah",
+      "route_type": "explicit_quran_reference",
+      "action_type": "explain"
+    },
+    "plan": {
+      "plan_type": "abstain",
+      "eligible_domains": [
+        "quran",
+        "tafsir"
+      ],
+      "selected_domains": [
+        "quran",
+        "tafsir"
+      ],
+      "domain_decisions": [
+        {
+          "domain": "quran",
+          "eligible": true,
+          "selected": true,
+          "requested": true,
+          "policy_reason": "selected",
+          "source_id": "quran:tanzil-simple",
+          "request_origin": "implicit_default",
+          "selected_capability": "explain_from_source",
+          "available_capabilities": [
+            "explicit_lookup",
+            "explain_from_source",
+            "quote_verification",
+            "conversation_followup_anchor"
+          ]
+        },
+        {
+          "domain": "tafsir",
+          "eligible": true,
+          "selected": true,
+          "requested": true,
+          "policy_reason": "selected",
+          "source_id": "tafsir:ibn-kathir-en",
+          "request_origin": "query_intent",
+          "selected_capability": "explain_from_source",
+          "available_capabilities": [
+            "composition_allowed",
+            "conversation_followup_anchor",
+            "explain_from_source",
+            "explicit_lookup",
+            "topical_retrieval"
+          ]
+        },
+        {
+          "domain": "hadith",
+          "eligible": false,
+          "selected": false,
+          "requested": false,
+          "policy_reason": "not_requested_for_route",
+          "source_id": null,
+          "request_origin": null,
+          "selected_capability": null,
+          "available_capabilities": []
+        }
+      ],
+      "abstain_reason": "insufficient_evidence",
+      "notes": [
+        "tafsir_source:tafsir:ibn-kathir-en"
+      ],
+      "planner_version": "v1.6"
+    },
+    "answer": {
+      "mode": "abstain",
+      "terminal_state": "abstain",
+      "summary_text": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+      "blocks": [
+        {
+          "block_type": "quran_quote",
+          "domain": "quran",
+          "text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e. the Qur'an) and in the Books sent down before you, and firmly believe in the Hereafter. Such people are on the right way from their Lord and such are truly successful.",
+          "title": "Quran 2:1-5",
+          "citations": [
+            "quran:2:1-5"
+          ],
+          "source_id": "quran:tanzil-simple"
+        }
+      ]
+    },
+    "evidence": [
+      {
+        "evidence_type": "quran_span",
+        "domain": "quran",
+        "source_id": "quran:tanzil-simple",
+        "canonical_ref": "quran:2:1-5",
+        "citation_text": "Quran 2:1-5",
+        "payload": {
+          "surah_no": 2,
+          "ayah_start": 1,
+          "ayah_end": 5,
+          "surah_name_en": "al-baqarah",
+          "surah_name_ar": "\u0627\u0644\u0628\u0642\u0631\u0629",
+          "translation_source_id": "quran:towards-understanding-en"
+        }
+      }
+    ],
+    "conversation": {
+      "followup_ready": true,
+      "anchors": [
+        {
+          "anchor_type": "quran_ref",
+          "source_domain": "quran",
+          "canonical_ref": "quran:2:1-5",
+          "display_text": "Quran 2:1-5"
+        }
+      ]
+    },
+    "policy": {
+      "source_policy": {
+        "quran": {
+          "domain": "quran",
+          "allowed": true,
+          "included": true,
+          "policy_reason": "selected",
+          "selected_capability": "explain_from_source",
+          "available_capabilities": [
+            "explicit_lookup",
+            "explain_from_source",
+            "quote_verification",
+            "conversation_followup_anchor"
+          ],
+          "requested_text_source_id": "quran:tanzil-simple",
+          "requested_translation_source_id": "quran:towards-understanding-en",
+          "selected_text_source_id": "quran:tanzil-simple",
+          "selected_translation_source_id": "quran:towards-understanding-en",
+          "text_source_origin": "implicit_default",
+          "translation_source_origin": "implicit_default"
+        },
+        "tafsir": {
+          "domain": "tafsir",
+          "selected_capability": "explain_from_source",
+          "available_capabilities": [
+            "composition_allowed",
+            "conversation_followup_anchor",
+            "explain_from_source",
+            "explicit_lookup",
+            "topical_retrieval"
+          ],
+          "requested": true,
+          "request_origin": "query_intent",
+          "requested_source_id": "tafsir:ibn-kathir-en",
+          "requested_source_ids": [
+            "tafsir:ibn-kathir-en"
+          ],
+          "selected_source_id": "tafsir:ibn-kathir-en",
+          "selected_source_ids": [
+            "tafsir:ibn-kathir-en"
+          ],
+          "request_mode": "auto",
+          "mode_enforced": false,
+          "allowed": true,
+          "included": true,
+          "policy_reason": "selected"
+        },
+        "hadith": {
+          "domain": "hadith",
+          "selected_capability": null,
+          "available_capabilities": [],
+          "requested": false,
+          "request_origin": null,
+          "requested_source_id": null,
+          "selected_source_id": null,
+          "request_mode": "auto",
+          "mode_enforced": false,
+          "allowed": false,
+          "included": false,
+          "approved_for_answering": false,
+          "answer_capability": null,
+          "public_response_scope": null,
+          "policy_reason": "not_requested_for_route"
+        }
+      },
+      "warnings": [
+        "Tafsir retrieval failed for tafsir:ibn-kathir-en; returned without that Tafsir support. Cause: No database URL configured. Set DALIL_DATABASE_URL or DATABASE_URL before running tafsir ingestion."
+      ],
+      "errors": [],
+      "partial_success": true
+    },
+    "diagnostics": {
+      "selected_domains": [
+        "quran",
+        "tafsir"
+      ],
+      "response_mode": "quran_with_tafsir",
+      "has_resolution": true,
+      "has_verifier_result": false,
+      "has_hadith": false,
+      "response_surface_contract": {
+        "canonical_top_level_fields": [
+          "answer_mode",
+          "terminal_state",
+          "answer_text",
+          "citations",
+          "quran_support",
+          "hadith_support",
+          "tafsir_support",
+          "resolution",
+          "partial_success",
+          "warnings",
+          "quran_source_selection",
+          "source_policy",
+          "orchestration",
+          "conversation",
+          "composition",
+          "debug"
+        ],
+        "legacy_result_allowed_fields": [
+          "ok",
+          "query",
+          "route_type",
+          "action_type",
+          "answer_mode",
+          "terminal_state",
+          "answer_text",
+          "citations",
+          "quran_support",
+          "hadith_support",
+          "tafsir_support",
+          "resolution",
+          "partial_success",
+          "warnings",
+          "quran_source_selection",
+          "source_policy",
+          "orchestration",
+          "conversation",
+          "composition",
+          "debug",
+          "error",
+          "quran_span",
+          "verifier_result",
+          "quote_payload",
+          "hadith_entry"
+        ],
+        "duplicated_result_fields": [
+          "answer_mode",
+          "terminal_state",
+          "answer_text",
+          "citations",
+          "quran_support",
+          "hadith_support",
+          "tafsir_support",
+          "resolution",
+          "partial_success",
+          "warnings",
+          "quran_source_selection",
+          "source_policy",
+          "orchestration",
+          "conversation",
+          "composition",
+          "debug",
+          "error"
+        ],
+        "legacy_result_only_fields": [
+          "quran_span",
+          "verifier_result",
+          "quote_payload",
+          "hadith_entry"
+        ],
+        "notes": {
+          "top_level_answer": "Canonical public answer surface for /ask and /ask/explain.",
+          "result": "Legacy compatibility envelope retained temporarily; not the canonical truth layer.",
+          "source_policy": "Canonical source-selection / capability truth layer.",
+          "quran_source_selection": "Legacy compatibility object; source_policy.quran is the truth layer for source-origin semantics.",
+          "orchestration": "Canonical introspection contract for planner/evidence/debugging.",
+          "conversation": "Canonical surfaced follow-up anchors for compatible clients. Narrow anchored follow-up is active when anchors are supplied or hydrated from the current conversation/session.",
+          "composition": "Canonical LLM-facing composition packet for bounded source-grounded answer rendering.",
+          "surface_contract_version": "ask.surface.v1",
+          "legacy_result_enabled": true
+        }
+      },
+      "render_mode": "abstain",
+      "renderer_version": "bounded_conversational_renderer.v2",
+      "renderer_backend": "deterministic",
+      "request_id": "dalil-26d6658c86c54566",
+      "request_contract_version": "ask.vnext",
+      "surface_contract_version": "ask.surface.v1",
+      "timings_ms": {
+        "normalize_query": 0.059,
+        "classify_route": 1.142,
+        "build_answer": 139.445,
+        "build_payload": 0.01,
+        "persist_anchors": 0.063,
+        "total": 140.773
+      },
+      "feature_flags": {
+        "observability_enabled": true,
+        "legacy_result_envelope_enabled": true,
+        "query_normalization_backend": "deterministic",
+        "renderer_backend": "deterministic",
+        "anchor_store_backend": "memory",
+        "anchor_store_ttl_seconds": 21600,
+        "release_mode": "development",
+        "startup_validation_strict": false
+      },
+      "context": {
+        "anchor_session_key": "conversation:test_conv_3",
+        "anchor_resolution_mode": "none",
+        "hydrated_anchor_count": 0
+      },
+      "query_normalization": {
+        "attempted_hosted_model": false,
+        "safe_for_routing": true,
+        "backend": "deterministic",
+        "did_change_meaning": false,
+        "used_hosted_model": false,
+        "normalization_type": "canonicalization",
+        "confidence": 1.0,
+        "changed": true,
+        "normalized_query": "Tafsir of surah al-baqarah"
+      }
+    }
+  },
+  "conversation": {
+    "followup_ready": true,
+    "anchors": [
+      {
+        "anchor_type": "quran_ref",
+        "source_domain": "quran",
+        "canonical_ref": "quran:2:1-5",
+        "display_text": "Quran 2:1-5"
+      }
+    ],
+    "turn_id": "fa9bf5ab38c040ffad7edd7d36d53ead"
+  },
+  "composition": {
+    "contract_version": "ask.composition.v1",
+    "llm_ready": false,
+    "composition_mode": "abstain",
+    "terminal_state": "abstain",
+    "resolved_scope": {
+      "primary_domain": "quran",
+      "route_type": "explicit_quran_reference",
+      "action_type": "explain",
+      "canonical_refs": [
+        "quran:2:1-5"
+      ],
+      "query_normalized": "surah al-baqarah",
+      "surah_no": 2,
+      "ayah_start": 1,
+      "ayah_end": 5,
+      "span_label": "Quran 2:1-5"
+    },
+    "answer_seed": {
+      "lead_text": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+      "summary_style": "source_grounded",
+      "must_preserve_boundaries": true,
+      "base_quote": {
+        "domain": "quran",
+        "canonical_ref": "quran:2:1-5",
+        "text": "Alif. Lam. Mim. This is the Book of Allah: there is no doubt about it. It is guidance to Godfearing people, who believe in the unseen, establish the Salats and expend (in Our way) out of what We have bestowed on them; who believe in the Book We have sent down to you (i.e\u2026"
+      }
+    },
+    "source_bundles": [],
+    "comparative": null,
+    "followup": {
+      "followup_ready": false,
+      "runtime_statefulness": "anchored_only",
+      "active_anchor_refs": [
+        "quran:2:1-5"
+      ],
+      "source_specific_followups_supported": [],
+      "span_specific_followups_supported": [],
+      "capabilities": [
+        {
+          "action_type": "select_quran_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:1",
+          "display_priority": 20,
+          "phrase_params": {
+            "ordinal": "first"
+          }
+        },
+        {
+          "action_type": "select_quran_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:2",
+          "display_priority": 21,
+          "phrase_params": {
+            "ordinal": "second"
+          }
+        },
+        {
+          "action_type": "select_quran_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:3",
+          "display_priority": 22,
+          "phrase_params": {
+            "ordinal": "third"
+          }
+        },
+        {
+          "action_type": "select_quran_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:4",
+          "display_priority": 23,
+          "phrase_params": {
+            "ordinal": "fourth"
+          }
+        },
+        {
+          "action_type": "select_quran_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:5",
+          "display_priority": 24,
+          "phrase_params": {
+            "ordinal": "last"
+          }
+        },
+        {
+          "action_type": "navigate_previous_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:1",
+          "display_priority": 30,
+          "phrase_params": {
+            "direction": "previous"
+          }
+        },
+        {
+          "action_type": "navigate_next_verse",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:6",
+          "display_priority": 31,
+          "phrase_params": {
+            "direction": "next"
+          }
+        },
+        {
+          "action_type": "simplify",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:1-5",
+          "display_priority": 40,
+          "phrase_params": {}
+        },
+        {
+          "action_type": "repeat_exact_text",
+          "target_domain": "quran",
+          "target_source_id": null,
+          "target_ref": "quran:2:1-5",
+          "display_priority": 50,
+          "phrase_params": {}
+        }
+      ],
+      "suggested_followups": [],
+      "active_scope_summary": {
+        "domains": [
+          "quran"
+        ],
+        "quran_ref": "quran:2:1-5",
+        "quran_span_ref": "quran:2:1-5",
+        "tafsir_source_ids": [],
+        "comparative_tafsir_source_ids": [],
+        "current_tafsir_source_id": null,
+        "hadith_ref": null,
+        "hadith_source_id": null
+      }
+    },
+    "active_scope_summary": {
+      "domains": [],
+      "quran_ref": null,
+      "quran_span_ref": null,
+      "tafsir_source_ids": [],
+      "comparative_tafsir_source_ids": [],
+      "current_tafsir_source_id": null,
+      "hadith_ref": null,
+      "hadith_source_id": null
+    },
+    "policy": {
+      "must_preserve_domain_boundaries": true,
+      "domains_included": [],
+      "domains_excluded": [
+        "quran",
+        "tafsir",
+        "hadith"
+      ],
+      "source_ids_allowed_for_composition": [],
+      "public_scope": "bounded_source_grounded",
+      "source_public_scope": null,
+      "composition_allowed": false
+    },
+    "continuation_controls": {
+      "source_id": "quran:tanzil-simple",
+      "reference": "quran:2:1-5",
+      "cursor_position": 0,
+      "total_chunks": 12,
+      "remaining_chunks": 12,
+      "continuation_mode": "abstain",
+      "truncate_large_responses": true,
+      "max_allowed_paragraphs": 5,
+      "offered_continuation_hook": "Would you like to continue reading the next section?"
+    },
+    "clarification": null,
+    "abstention": {
+      "reason_code": "insufficient_evidence",
+      "safe_user_message": "I found the Quran passage, but I do not have enough approved tafsir evidence to explain it reliably.",
+      "next_supported_actions": [
+        "Try a direct Quran reference such as 2:255",
+        "Ask for the verse text only"
+      ]
+    },
+    "rendering": {
+      "preferred_language": "en",
+      "verbosity": "standard",
+      "citation_style": "inline",
+      "quote_length_policy": "short_quote_plus_summary"
+    },
+    "evidence_readiness": {
+      "answerable": false,
+      "llm_ready": false,
+      "force_abstain": false,
+      "reason_code": null,
+      "missing_domains": [],
+      "safe_user_message": null,
+      "next_supported_actions": [],
+      "partial_evidence_present": false
+    }
+  },
+  "debug": null
+}

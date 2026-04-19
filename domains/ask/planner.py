@@ -722,6 +722,19 @@ def build_ask_plan(
                     work_source_id=repository_context.quran_work_source_id,
                 ),
             )
+            parsed_ref = route.get('parsed_reference')
+            if isinstance(parsed_ref, dict) and resolution.get('resolved'):
+                p_start = parsed_ref.get('ayah_start')
+                p_end = parsed_ref.get('ayah_end')
+                r_start = resolution.get('ayah_start')
+                r_end = resolution.get('ayah_end')
+                if p_start and p_end and r_start and r_end:
+                    if (int(p_end) - int(p_start)) < (int(r_end) - int(r_start)):
+                        resolution['ayah_start'] = int(p_start)
+                        resolution['ayah_end'] = int(p_end)
+                        surah_no = resolution['surah_no']
+                        resolution['canonical_source_id'] = f"quran:{surah_no}:{p_start}-{p_end}" if p_end != p_start else f"quran:{surah_no}:{p_start}"
+                        resolution['citation_string'] = f"Quran {surah_no}:{p_start}-{p_end}" if p_end != p_start else f"Quran {surah_no}:{p_start}"
         plan.resolved_quran_ref = resolution
         tafsir_signal = detect_tafsir_intent(query)
         tafsir_intent_detected = bool(tafsir_signal['matched']) or route_type == AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value

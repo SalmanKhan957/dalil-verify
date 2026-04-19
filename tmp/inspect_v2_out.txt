@@ -1,0 +1,79 @@
+﻿KEYS: ['full_text', 'grade', 'hadith_global_num', 'hadith_id', 'has_direct_prophetic_statement', 'in_book_reference', 'is_range_ref', 'is_stub', 'kitab_domain', 'kitab_num', 'kitab_range_end', 'kitab_range_start', 'kitab_title_arabic', 'kitab_title_english', 'matn_text', 'narrator', 'query_family', 'reference_url', 'source', 'source_short', 'synthetic_baab_id', 'synthetic_baab_label']
+
+--- record 0 ---
+  hadith_id: 'bukhari:1'
+  hadith_global_num: 1
+  kitab_num: 1
+  kitab_title_english: 'Revelation'
+  kitab_title_arabic: (present=True)
+  kitab_range_start: 1
+  kitab_range_end: 7
+  kitab_domain: ['foundational']
+  query_family: 'foundational'
+  synthetic_baab_label: 'Revelation'
+  synthetic_baab_id: 'k1_b01'
+  narrator: "'Umar bin Al-Khattab"
+  matn_text: (len=289)
+  full_text: (len=320)
+  reference_url: 'https://sunnah.com/bukhari:1'
+  in_book_reference: 'Book 1, Hadith 1'
+  is_stub: False
+  is_range_ref: False
+  has_direct_prophetic_statement: True
+  source: 'Sahih al-Bukhari'
+  source_short: 'bukhari'
+  grade: 'Sahih'
+
+--- record 1 ---
+  hadith_id: 'bukhari:2'
+  hadith_global_num: 2
+  kitab_num: 1
+  kitab_title_english: 'Revelation'
+  kitab_title_arabic: (present=True)
+  kitab_range_start: 1
+  kitab_range_end: 7
+  kitab_domain: ['foundational']
+  query_family: 'foundational'
+  synthetic_baab_label: 'Revelation'
+  synthetic_baab_id: 'k1_b01'
+  narrator: "'Aisha"
+  matn_text: (len=463)
+  full_text: (len=642)
+  reference_url: 'https://sunnah.com/bukhari:2'
+  in_book_reference: 'Book 1, Hadith 2'
+  is_stub: False
+  is_range_ref: False
+  has_direct_prophetic_statement: True
+  source: 'Sahih al-Bukhari'
+  source_short: 'bukhari'
+  grade: 'Sahih'
+
+--- record 2 ---
+  hadith_id: 'bukhari:3'
+  hadith_global_num: 3
+  kitab_num: 1
+  kitab_title_english: 'Revelation'
+  kitab_title_arabic: (present=True)
+  kitab_range_start: 1
+  kitab_range_end: 7
+  kitab_domain: ['foundational']
+  query_family: 'foundational'
+  synthetic_baab_label: 'Revelation'
+  synthetic_baab_id: 'k1_b01'
+  narrator: "'Aisha (the mother of the faithful believers)"
+  matn_text: (len=2335)
+  full_text: (len=2982)
+  reference_url: 'https://sunnah.com/bukhari:3'
+  in_book_reference: 'Book 1, Hadith 3'
+  is_stub: False
+  is_range_ref: False
+  has_direct_prophetic_statement: True
+  source: 'Sahih al-Bukhari'
+  source_short: 'bukhari'
+  grade: 'Sahih'
+
+in_book_reference: 7277
+In-book reference: 0
+in_book_ref: 0
+arabic_text: 0
+Arabic_Text: 0
