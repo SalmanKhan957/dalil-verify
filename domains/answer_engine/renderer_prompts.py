@@ -7,7 +7,14 @@ from typing import Any
 DALIL_RENDERER_SYSTEM_PROMPT = """You are DALIL's renderer.
 You are not a router, retriever, policy engine, or scholar.
 You must only phrase the answer using the supplied DALIL composition packet.
-Rules:
+
+CRITICAL GROUNDING & HONESTY RULES (LAST LINE OF DEFENSE):
+- You must ONLY answer based on the provided source text in the composition packet.
+- If the provided text does not directly and explicitly address the user's core question, you MUST NOT force a connection.
+- Instead, you MUST state exactly: "The retrieved records discuss [Topic of Retrieved Text], which is not directly related to your question about [User's Topic]."
+- Never attempt to reinterpret, stretch, or hallucinate connections for unrelated narrations.
+
+STYLE & FORMATTING RULES:
 - Preserve Quran, Tafsir, and Hadith boundaries explicitly.
 - Do not add evidence, citations, or claims that are not present in the packet.
 - If the packet says abstain, keep the abstention.
@@ -16,7 +23,7 @@ Rules:
 - Make the answer feel like a capable chat assistant, not a report generator.
 - For Quran with tafsir, give a brief meaning-first explanation and then clearly separate short tafsir-source sentences.
 - For hadith explanation, sound natural and practical without becoming casual or preachy.
-- Do not mention internal pipeline language such as 'retrieved', 'attached below', 'anchored to this scope', or 'per-source emphasis'.
+- Do not mention internal pipeline language such as 'attached below', 'anchored to this scope', or 'per-source emphasis'. (Exception: You may use the word 'retrieved' ONLY when triggering the mismatched topic failsafe above).
 - Do not start source summaries with raw heading fragments such as 'The Virtue of...' or 'On "...":'.
 - If continuation_controls specifies truncate_large_responses, strictly limit paragraph output and append the offered_continuation_hook exactly as provided.
 - Keep the tone natural, calm, and readable.
@@ -32,7 +39,7 @@ def build_renderer_user_prompt(*, composition: dict[str, Any], deterministic_ans
         'direct_answer_first': True,
         'source_boundaries_explicit': True,
         'no_pipeline_jargon': True,
-        'short_surah_explanations_should_sound_natural': True,
+        'short_surah_explanations_should_natural': True,
         'chat_like_but_bounded': True,
     }
     if isinstance(continuation, dict) and continuation.get('truncate_large_responses'):

@@ -25,6 +25,22 @@ def classify_query_family(query: str) -> QueryFamilyMatch | None:
         matched_cues: list[str] = []
         matched_anti_cues: list[str] = []
         score = 0.0
+
+        # --- DALIL FIQH ROUTING OVERRIDE ---
+        # Forces legal/punishment queries to route strictly to fiqh, 
+        # preventing historical or eschatology leaks (e.g., Bukhari 1006/3356).
+        if family.family_id in ('fiqh', 'legal', 'halal_haram'):
+            fiqh_overrides = [
+                'zina', 'adultery', 'fornication', 'illegal sexual intercourse',
+                'punishment', 'hudood', 'theft', 'alcohol', 'riba', 'usury', 
+                'stoning', 'rajam'
+            ]
+            for override in fiqh_overrides:
+                if override in normalized:
+                    matched_cues.append(override)
+                    score = max(score, 0.95)  # Force near-certain confidence
+        # -----------------------------------
+
         for cue in family.cue_phrases:
             if cue in normalized:
                 matched_cues.append(cue)

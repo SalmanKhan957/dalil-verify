@@ -59,7 +59,7 @@ class Settings(BaseModel):
         in {"1", "true", "yes", "on"}
     )
     public_topical_hadith_enabled: bool = Field(
-        default_factory=lambda: os.getenv("DALIL_PUBLIC_TOPICAL_HADITH_ENABLED", "false").strip().lower()
+        default_factory=lambda: os.getenv("DALIL_PUBLIC_TOPICAL_HADITH_ENABLED", "true").strip().lower()
         in {"1", "true", "yes", "on"}
     )
     renderer_backend: str = Field(

@@ -85,8 +85,7 @@ def collect_startup_validation_issues(config: Settings = settings) -> list[dict[
             issues.append(_issue(severity='error', code='hosted_query_normalization_required_for_production', message='Production mode requires DALIL_QUERY_NORMALIZATION_BACKEND=openai for messy-query robustness.'))
         if posture['public_topical_tafsir_enabled']:
             issues.append(_issue(severity='error', code='topical_tafsir_not_in_current_mvp', message='DALIL_PUBLIC_TOPICAL_TAFSIR_ENABLED must remain false for the current bounded MVP production lock.'))
-        if posture['public_topical_hadith_enabled']:
-            issues.append(_issue(severity='error', code='topical_hadith_not_in_current_mvp', message='DALIL_PUBLIC_TOPICAL_HADITH_ENABLED must remain false for the current bounded MVP production lock.'))
+
         if not posture['response_surface_contract_version']:
             issues.append(_issue(severity='error', code='missing_response_surface_contract_version', message='DALIL_RESPONSE_SURFACE_CONTRACT_VERSION must be set in production mode.'))
 

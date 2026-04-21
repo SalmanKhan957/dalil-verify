@@ -1,3 +1,23 @@
+"""Topical hadith candidate generation — Bukhari hybrid + legacy enriched-index paths.
+
+Retrieval architecture:
+    Bukhari queries  →  BM25 + kNN on hadith_topical_bukhari, fused via RRF
+    All other collections  →  Lexical DB + optional enriched OpenSearch index
+
+Key design principles:
+    - RRF normalised against _RRF_MAX_DUAL_LIST: forces lexical + semantic
+      agreement for maximum scores; prevents pure-kNN hallucinations from
+      clearing the evidence gate on their own.
+    - Lexical anchor penalty: candidates with no textual match to the query
+      (pure vector guesses) receive a -0.20 central_topic_score penalty,
+      ensuring they fail the selector's minimum_centrality threshold rather
+      than producing hallucinated answers.
+    - Narrator field is never searched: prevents narrator-name substring
+      collisions (e.g. "Abu Az-Zinad" matching a "zina" query).
+    - Citation fields (reference_url, in_book_reference, kitab_domain) are
+      always propagated through metadata so the renderer can produce correct
+      source attribution.
+"""
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -11,10 +31,125 @@ from domains.hadith_topical.contracts import (
     HadithTopicalCandidateGenerationResult,
 )
 from domains.hadith_topical.enricher import build_enriched_document
-from infrastructure.search.index_names import HADITH_TOPICAL_INDEX
+from infrastructure.search.index_names import HADITH_BUKHARI_TOPICAL_INDEX, HADITH_TOPICAL_INDEX
+from infrastructure.search.opensearch.hadith_bukhari_queries import (
+    build_bukhari_bm25_query,
+    build_bukhari_knn_query,
+    normalise_family,
+)
 from infrastructure.search.opensearch.hadith_topical_queries import build_hadith_topical_bm25_query
 from infrastructure.search.opensearch_client import OpenSearchClient
 
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_BUKHARI_SOURCE_ID = 'hadith:bukhari'
+
+# RRF constant k=60 is the standard choice (Robertson et al.)
+# Score for rank-1 in a single list:  1/(60+1) ≈ 0.0164
+# Score for rank-1 in both lists:     2/(60+1) ≈ 0.0328
+# Normalising against DUAL_LIST maps [0, 0.0328] → [0, 1.0].
+# A BM25-only rank-1 hit achieves ≈0.50 of max; appearing in both at rank-1
+# achieves 1.00.  This penalises pure-kNN hallucinations automatically.
+_RRF_K = 60
+_RRF_MAX_SINGLE_LIST = 1.0 / (_RRF_K + 1)   # kept for documentation / future use
+_RRF_MAX_DUAL_LIST   = 2.0 / (_RRF_K + 1)
+
+# Families eligible for the 1.3× prophetic-statement boost.
+# Eschatology is included: direct prophetic statements such as
+# "The Hour will not come until…" are primary evidence for that family.
+_PROPHETIC_BOOST_FAMILIES: frozenset[str] = frozenset({
+    'akhlaq',
+    'foundational',
+    'aqeedah',
+    'eschatology',
+})
+
+
+# ---------------------------------------------------------------------------
+# Bukhari collection detection
+# ---------------------------------------------------------------------------
+
+def _is_bukhari_collection(collection_source_id: str | None) -> bool:
+    """Return True when the request targets the Sahih al-Bukhari corpus."""
+    return bool(collection_source_id and 'bukhari' in str(collection_source_id).lower())
+
+
+# ---------------------------------------------------------------------------
+# Embedding — lazy import, graceful fallback
+# ---------------------------------------------------------------------------
+
+def _get_query_embedding(text: str) -> list[float] | None:
+    """Attempt to obtain a dense embedding for query text.
+
+    Tries known DALIL embedding infrastructure import paths.  Returns None if
+    the embedding layer is unavailable or errors — kNN retrieval is then
+    silently skipped and BM25 results are used alone.
+    """
+    try:
+        from infrastructure.embeddings.client import embed_text  # type: ignore[import]
+        result = embed_text(text)
+        return list(result) if result else None
+    except Exception:
+        pass
+    try:
+        from infrastructure.embeddings import get_embedding  # type: ignore[import]
+        result = get_embedding(text)
+        return list(result) if result else None
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Reciprocal Rank Fusion
+# ---------------------------------------------------------------------------
+
+def _rrf_combine(
+    *ranked_hit_lists: list[dict[str, Any]],
+    k: int = _RRF_K,
+    id_field: str = 'hadith_id',
+) -> list[tuple[float, dict[str, Any]]]:
+    """Combine ranked OpenSearch hit lists via Reciprocal Rank Fusion.
+
+    Standard RRF formula:  score(d) = Σ  1 / (k + rank(d, list_i))
+    where rank is 1-indexed and summation is over all lists that contain d.
+
+    Args:
+        *ranked_hit_lists:  Each list is a sequence of OpenSearch hit dicts
+                            (the elements of response['hits']['hits']).
+        k:                  RRF constant (default 60, standard choice).
+        id_field:           Field in _source used as the document identity key.
+
+    Returns:
+        List of (rrf_score, hit) tuples, sorted by rrf_score descending.
+        BM25 hit takes precedence over kNN hit for each document ID so that
+        the richer _source payload is retained from the lexical lane.
+    """
+    scores: dict[str, float] = {}
+    primary_hits: dict[str, dict[str, Any]] = {}
+
+    for ranked_list in ranked_hit_lists:
+        for rank, hit in enumerate(ranked_list, start=1):
+            source = hit.get('_source') or {}
+            doc_id = str(source.get(id_field) or '').strip()
+            if not doc_id:
+                continue
+            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)
+            if doc_id not in primary_hits:
+                primary_hits[doc_id] = hit
+
+    return sorted(
+        [(scores[doc_id], primary_hits[doc_id]) for doc_id in scores],
+        key=lambda pair: pair[0],
+        reverse=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Candidate construction — existing enriched OpenSearch index (legacy path)
+# ---------------------------------------------------------------------------
 
 def _collection_slug_from_source_id(source_id: str) -> str:
     return source_id.replace('hadith:', '')
@@ -60,7 +195,10 @@ def candidate_from_lexical_hit(query_topics: tuple[str, ...], hit: HadithLexical
         book_title_en=hit.book_title,
         chapter_title_en=hit.chapter_title,
     )
-    matched_topics = tuple(topic for topic in query_topics if topic in set(enriched.topic_tags) | set(enriched.normalized_topic_terms))
+    matched_topics = tuple(
+        topic for topic in query_topics
+        if topic in set(enriched.topic_tags) | set(enriched.normalized_topic_terms)
+    )
     matched_terms = tuple(dict.fromkeys(tuple(hit.matched_terms or ()) + tuple(matched_topics)))
     score = float(hit.rank_score if hit.rank_score is not None else hit.score)
     return HadithTopicalCandidate(
@@ -100,12 +238,23 @@ def candidate_from_lexical_hit(query_topics: tuple[str, ...], hit: HadithLexical
     )
 
 
-def _candidate_from_opensearch_source(query_topics: tuple[str, ...], source: dict[str, Any], *, score: float, retrieval_origin: str) -> HadithTopicalCandidate:
+def _candidate_from_opensearch_source(
+    query_topics: tuple[str, ...],
+    source: dict[str, Any],
+    *,
+    score: float,
+    retrieval_origin: str,
+) -> HadithTopicalCandidate:
     topic_tags = tuple(source.get('topic_tags') or ())
     normalized_topic_terms = tuple(source.get('normalized_topic_terms') or ())
     incidental_flags = tuple(source.get('incidental_topic_flags') or ())
-    matched_topics = tuple(topic for topic in query_topics if topic in set(topic_tags) | set(normalized_topic_terms))
-    matched_terms = tuple(dict.fromkeys(tuple(source.get('normalized_alias_terms') or ()) + tuple(matched_topics)))
+    matched_topics = tuple(
+        topic for topic in query_topics
+        if topic in set(topic_tags) | set(normalized_topic_terms)
+    )
+    matched_terms = tuple(dict.fromkeys(
+        tuple(source.get('normalized_alias_terms') or ()) + tuple(matched_topics)
+    ))
     return HadithTopicalCandidate(
         canonical_ref=str(source.get('canonical_ref') or ''),
         source_id=str(source.get('collection_source_id') or ''),
@@ -140,10 +289,286 @@ def _candidate_from_opensearch_source(query_topics: tuple[str, ...], source: dic
     )
 
 
+# ---------------------------------------------------------------------------
+# Candidate construction — Bukhari hybrid index
+# ---------------------------------------------------------------------------
+
+def _derive_guidance_role_from_bukhari(
+    *,
+    is_prophetic: bool,
+    synthetic_baab_label: str,
+) -> str:
+    """Derive a guidance_role value from Bukhari index fields.
+
+    Direct prophetic statements use 'direct_moral_instruction' — the strongest
+    signal for the reranker and selector.  Non-prophetic records are classified
+    from the chapter label rather than left as a flat 'narrative_incident'.
+    """
+    if is_prophetic:
+        return 'direct_moral_instruction'
+    label_lower = synthetic_baab_label.lower()
+    if any(kw in label_lower for kw in ('warning', 'forbidden', 'prohibit', 'punishment', 'forbade')):
+        return 'warning'
+    if any(kw in label_lower for kw in ('virtue', 'excellence', 'merit', 'reward', 'best', 'good manners')):
+        return 'virtue_statement'
+    return 'narrative_incident'
+
+
+def _derive_matched_topics_from_bukhari(
+    query_topics: tuple[str, ...],
+    *,
+    matn_text: str,
+    synthetic_baab_label: str,
+    kitab_title_english: str,
+    kitab_domain: list[str],
+    source_query_family: str | None,
+    dalil_family: str | None,
+) -> tuple[str, ...]:
+    """Derive matched_topics for a Bukhari candidate.
+
+    Matching passes in priority order:
+
+    1. Literal substring match in (matn_text + synthetic_baab_label + kitab_title).
+       Most precise — the query concept is directly present in the text.
+
+    2. kitab_domain alignment.
+       A topic_candidate that matches a domain tag on the record (e.g. 'akhlaq',
+       'eschatology') counts as a domain-level match.
+
+    3. Family-level alignment.
+       When the record's query_family matches DALIL's resolved family for the
+       current query, the top topic_candidate is treated as matched.  This
+       prevents valid eschatology / ritual / aqeedah hits from being rejected
+       solely because their matn does not literally repeat the query keyword
+       (e.g. "Dajjal" queries against hadiths describing his traits).
+    """
+    if not query_topics:
+        return ()
+
+    search_text = ' '.join(
+        part for part in (matn_text, synthetic_baab_label, kitab_title_english) if part
+    ).lower()
+
+    # Pass 1 — literal substring
+    matched: list[str] = [
+        topic for topic in query_topics
+        if str(topic).strip().lower() in search_text
+    ]
+    if matched:
+        return tuple(dict.fromkeys(matched))
+
+    # Pass 2 — kitab_domain alignment
+    domain_set = {str(d).strip().lower() for d in kitab_domain if d}
+    domain_matched: list[str] = [
+        topic for topic in query_topics
+        if str(topic).strip().lower() in domain_set
+        or any(str(topic).strip().lower() in d for d in domain_set)
+    ]
+    if domain_matched:
+        return tuple(dict.fromkeys(domain_matched))
+
+    # Pass 3 — family-level alignment
+    if source_query_family and dalil_family and query_topics:
+        resolved_bukhari_family = normalise_family(dalil_family)
+        if resolved_bukhari_family and resolved_bukhari_family == source_query_family:
+            return (query_topics[0],)
+
+    return ()
+
+
+def _derive_proxy_scores_from_bukhari(
+    *,
+    is_prophetic: bool,
+    rrf_score: float,
+    has_matched_topics: bool,
+    hit_family: str | None = None,
+) -> tuple[float, float, float]:
+    """Derive (central_topic_score, answerability_score, narrative_specificity_score).
+
+    Normalisation:
+        RRF score is normalised against _RRF_MAX_DUAL_LIST (≈0.0328).
+        A document at rank-1 in BM25 only achieves ≈0.50 of normalised max.
+        A document at rank-1 in both BM25 and kNN achieves 1.00.
+        This design ensures pure-kNN hallucinations never reach the highest
+        proxy scores because they cannot contribute a BM25 rank.
+
+    Lexical anchor penalty (-0.20):
+        Applied when has_matched_topics is False — the retrieved hadith has no
+        textual or domain alignment with the query (pure vector guess).
+        The penalty drops central_topic_score below the selector's
+        minimum_centrality threshold (0.42), causing a safe abstain rather
+        than a hallucinated answer.
+
+    Family-specific floors:
+        eschatology: 0.58  (higher gate threshold for that family)
+        all others:  0.44  (general floor, well above minimum_centrality 0.42)
+
+    Selector thresholds this must satisfy:
+        minimum_centrality:    0.42 (general), 0.48 (ritual), 0.58 (eschatology)
+        minimum_answerability: 0.48 (general), 0.58 (prophetic_guidance)
+    """
+    rrf_normalised = min(rrf_score / _RRF_MAX_DUAL_LIST, 1.0)
+    topic_bonus    = 0.12 if has_matched_topics else 0.0
+    # Lexical anchor penalty: pure kNN guesses with no textual grounding.
+    # Floored at 0.0 — negative scores must not reach the selector.
+    lexical_penalty = 0.0 if has_matched_topics else -0.20
+
+    family_floor = 0.58 if hit_family == 'eschatology' else 0.44
+
+    central_topic_score = round(
+        min(max(family_floor + rrf_normalised * 0.38 + topic_bonus + lexical_penalty, 0.0), 0.95),
+        4,
+    )
+
+    if is_prophetic:
+        answerability_score          = 0.72
+        narrative_specificity_score  = 0.08
+    else:
+        # Eschatology: non-prophetic narrations describing end-times entities /
+        # events need a higher answerability floor so they pass the eschatology gate.
+        answerability_score          = 0.70 if hit_family == 'eschatology' else 0.52
+        narrative_specificity_score  = 0.35
+
+    return central_topic_score, answerability_score, narrative_specificity_score
+
+
+def _candidate_from_bukhari_hit(
+    query_topics: tuple[str, ...],
+    rrf_score: float,
+    source: dict[str, Any],
+    *,
+    retrieval_origin: str,
+    dalil_family: str | None = None,
+) -> HadithTopicalCandidate | None:
+    """Map a Bukhari OpenSearch hit _source to a HadithTopicalCandidate.
+
+    Returns None for stub records that escaped index-level filtering (double
+    guard; should be a no-op in production since the query already applies
+    is_stub = false).
+    """
+    # Guard: never surface stub records regardless of index state
+    if source.get('is_stub'):
+        return None
+
+    hadith_id = str(source.get('hadith_id') or '').strip()
+    if not hadith_id:
+        return None
+
+    # Extract all fields explicitly so metadata is fully populated for the
+    # renderer, reranker, and citation pipeline.
+    matn_text            = str(source.get('matn_text') or '').strip()
+    synthetic_baab_label = str(source.get('synthetic_baab_label') or '').strip()
+    kitab_title_english  = str(source.get('kitab_title_english') or '').strip()
+    narrator             = str(source.get('narrator') or '').strip() or None
+    is_prophetic         = bool(source.get('has_direct_prophetic_statement'))
+    source_query_family  = str(source.get('query_family') or '').strip() or None
+    kitab_domain         = [str(d) for d in (source.get('kitab_domain') or []) if d]
+    in_book_reference    = str(source.get('in_book_reference') or '').strip() or None
+    reference_url        = str(source.get('reference_url') or '').strip() or None
+
+    guidance_role = _derive_guidance_role_from_bukhari(
+        is_prophetic=is_prophetic,
+        synthetic_baab_label=synthetic_baab_label,
+    )
+
+    matched_topics = _derive_matched_topics_from_bukhari(
+        query_topics,
+        matn_text=matn_text,
+        synthetic_baab_label=synthetic_baab_label,
+        kitab_title_english=kitab_title_english,
+        kitab_domain=kitab_domain,
+        source_query_family=source_query_family,
+        dalil_family=dalil_family,
+    )
+
+    central_topic_score, answerability_score, narrative_specificity_score = (
+        _derive_proxy_scores_from_bukhari(
+            is_prophetic=is_prophetic,
+            rrf_score=rrf_score,
+            has_matched_topics=bool(matched_topics),
+            hit_family=source_query_family,
+        )
+    )
+
+    # Eschatology passages: records from query_family='eschatology' retrieved
+    # for an eschatology query are functionally thematic passages for the topic.
+    # The selector checks metadata['thematic_passage'] for this family.
+    is_thematic_passage = bool(
+        source_query_family == 'eschatology'
+        and normalise_family(dalil_family) == 'eschatology'
+    )
+
+    return HadithTopicalCandidate(
+        canonical_ref=hadith_id,
+        source_id=_BUKHARI_SOURCE_ID,
+        retrieval_origin=retrieval_origin,
+        lexical_score=rrf_score,
+        vector_score=None,
+        fusion_score=rrf_score,
+        rerank_score=None,
+        central_topic_score=central_topic_score,
+        answerability_score=answerability_score,
+        narrative_specificity_score=narrative_specificity_score,
+        incidental_topic_penalty=0.0,
+        guidance_role=guidance_role,
+        topic_family=source_query_family,
+        matched_topics=matched_topics,
+        matched_terms=matched_topics,   # reranker refines via text overlap
+        metadata={
+            # ── Fields expected by the reranker (_heuristic_rerank_score) ──
+            'chapter_title_en':  synthetic_baab_label,
+            'book_title_en':     kitab_title_english,
+            'english_text':      matn_text,
+            'english_narrator':  narrator,
+            'contextual_summary': matn_text,
+            'snippet':           matn_text[:400] if matn_text else None,
+            # ── Bukhari-specific enrichment ──
+            'synthetic_baab_label': synthetic_baab_label,
+            'synthetic_baab_id':    source.get('synthetic_baab_id'),
+            'kitab_num':            source.get('kitab_num'),
+            'hadith_global_num':    source.get('hadith_global_num'),
+            'has_direct_prophetic_statement': is_prophetic,
+            # ── Citation fields — required by the renderer ──
+            'reference_url':     reference_url,
+            'in_book_reference': in_book_reference,
+            'kitab_domain':      kitab_domain,
+            'query_family':      source_query_family,
+            # ── Selector flags ──
+            'thematic_passage':  is_thematic_passage,
+            # ── Proxy score audit trail (debug / acceptance failure diagnosis) ──
+            'rrf_score':                    round(rrf_score, 6),
+            'guidance_role':                guidance_role,
+            'topic_family':                 source_query_family,
+            'answerability_score':          answerability_score,
+            'narrative_specificity_score':  narrative_specificity_score,
+            'central_topic_score':          central_topic_score,
+            # ── Empty collections — compatible with reranker / composition ──
+            'topic_tags':              [],
+            'directive_labels':        [],
+            'normalized_topic_terms':  [],
+            'incidental_topic_flags':  [],
+            'moral_concepts':          [],
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Candidate generator
+# ---------------------------------------------------------------------------
+
 class HadithTopicalCandidateGenerator:
-    def __init__(self, *, database_url: str | None = None, opensearch_client: OpenSearchClient | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        database_url: str | None = None,
+        opensearch_client: OpenSearchClient | None = None,
+    ) -> None:
         self.database_url = database_url
         self.opensearch_client = opensearch_client or OpenSearchClient.from_environment()
+
+    # ------------------------------------------------------------------
+    # Public entry point
+    # ------------------------------------------------------------------
 
     def generate(
         self,
@@ -154,17 +579,34 @@ class HadithTopicalCandidateGenerator:
         warnings: list[str] = []
         debug: dict[str, Any] = {
             'candidate_limit': request.candidate_limit,
-            'lexical_limit': request.lexical_limit,
+            'lexical_limit':   request.lexical_limit,
             'collection_source_id': request.collection_source_id,
-            'topic_family': request.query.topic_family,
+            'topic_family':    request.query.topic_family,
             'directive_biases': list(request.query.directive_biases),
+            'retrieval_path':  'unknown',
         }
+
+        # -----------------------------------------------------------------
+        # Bukhari hybrid path — replaces both lexical DB and legacy BM25
+        # -----------------------------------------------------------------
+        if _is_bukhari_collection(request.collection_source_id) and self.opensearch_client.is_enabled:
+            return self._generate_bukhari(request, warnings=warnings, debug=debug)
+
+        # -----------------------------------------------------------------
+        # Legacy enriched-index path (all other collections)
+        # -----------------------------------------------------------------
+        debug['retrieval_path'] = 'enriched_index'
+
         if lexical_hits is None:
             lexical_hits = self._load_lexical_hits(request)
             debug['lexical_hits_source'] = 'runtime_lookup'
         else:
             debug['lexical_hits_source'] = 'prefetched_shadow_baseline'
-        lexical_candidates = tuple(candidate_from_lexical_hit(request.query.topic_candidates, hit) for hit in lexical_hits)
+
+        lexical_candidates = tuple(
+            candidate_from_lexical_hit(request.query.topic_candidates, hit)
+            for hit in lexical_hits
+        )
         candidates = list(lexical_candidates)
         debug['lexical_candidate_count'] = len(lexical_candidates)
 
@@ -174,7 +616,7 @@ class HadithTopicalCandidateGenerator:
                 opensearch_candidates = self._load_opensearch_candidates(request)
                 candidates.extend(opensearch_candidates)
                 debug['opensearch_candidate_count'] = len(opensearch_candidates)
-            except Exception as exc:  # pragma: no cover - network path is integration-only
+            except Exception as exc:  # pragma: no cover
                 warnings.append('hadith_topical_opensearch_unavailable')
                 debug['opensearch_error'] = str(exc)
         else:
@@ -183,20 +625,158 @@ class HadithTopicalCandidateGenerator:
                 warnings.append('hadith_topical_opensearch_not_configured')
 
         deduped = list(_dedupe_candidates(candidates))
+        # Multi-factor sort: primary score, then answerability, centrality,
+        # incidental penalty, narrative specificity, and stable ref tiebreak.
         deduped.sort(
             key=lambda item: (
                 -float(item.fusion_score or item.lexical_score or 0.0),
                 -float(item.answerability_score or 0.0),
                 -float(item.central_topic_score or 0.0),
-                float(item.incidental_topic_penalty or 0.0),
-                float(item.narrative_specificity_score or 0.0),
-                item.canonical_ref,
-            )
+                 float(item.incidental_topic_penalty or 0.0),
+                 float(item.narrative_specificity_score or 0.0),
+                 item.canonical_ref,
+            ),
         )
         selected = tuple(deduped[: max(1, int(request.candidate_limit))])
-        debug['candidate_count'] = len(selected)
+        debug['candidate_count']   = len(selected)
         debug['candidate_origins'] = [candidate.retrieval_origin for candidate in selected]
-        return HadithTopicalCandidateGenerationResult(candidates=selected, warnings=tuple(dict.fromkeys(warnings)), debug=debug)
+        return HadithTopicalCandidateGenerationResult(
+            candidates=selected,
+            warnings=tuple(dict.fromkeys(warnings)),
+            debug=debug,
+        )
+
+    # ------------------------------------------------------------------
+    # Bukhari hybrid retrieval
+    # ------------------------------------------------------------------
+
+    def _generate_bukhari(
+        self,
+        request: HadithTopicalCandidateGenerationRequest,
+        *,
+        warnings: list[str],
+        debug: dict[str, Any],
+    ) -> HadithTopicalCandidateGenerationResult:
+        """Run BM25 + optional kNN on the Bukhari index and combine via RRF."""
+        debug['retrieval_path'] = 'bukhari_hybrid'
+        query          = request.query
+        dalil_family   = query.topic_family
+        normalized_query = query.normalized_query or query.raw_query
+        search_size    = max(20, int(request.candidate_limit) * 3)
+
+        bm25_hits: list[dict[str, Any]] = []
+        knn_hits:  list[dict[str, Any]] = []
+        knn_available = False
+
+        # ── BM25 lane — always attempted ──────────────────────────────────
+        try:
+            bm25_body = build_bukhari_bm25_query(
+                normalized_query=normalized_query,
+                topic_candidates=query.topic_candidates,
+                dalil_family=dalil_family,
+                size=search_size,
+            )
+            bm25_response = self.opensearch_client.search(
+                index=HADITH_BUKHARI_TOPICAL_INDEX,
+                body=bm25_body,
+            )
+            bm25_hits = (((bm25_response or {}).get('hits') or {}).get('hits') or [])
+            debug['bm25_hit_count'] = len(bm25_hits)
+        except Exception as exc:
+            warnings.append('bukhari_bm25_unavailable')
+            debug['bm25_error'] = str(exc)
+
+        # ── kNN lane — attempted only when embedding is available ─────────
+        query_vector = _get_query_embedding(normalized_query)
+        if query_vector:
+            knn_available = True
+            try:
+                knn_body = build_bukhari_knn_query(
+                    query_vector=query_vector,
+                    dalil_family=dalil_family,
+                    k=20,
+                )
+                knn_response = self.opensearch_client.search(
+                    index=HADITH_BUKHARI_TOPICAL_INDEX,
+                    body=knn_body,
+                )
+                knn_hits = (((knn_response or {}).get('hits') or {}).get('hits') or [])
+                debug['knn_hit_count'] = len(knn_hits)
+            except Exception as exc:
+                warnings.append('bukhari_knn_unavailable')
+                debug['knn_error'] = str(exc)
+        else:
+            debug['knn_hit_count'] = 0
+            debug['knn_skipped']   = 'embedding_unavailable'
+
+        debug['knn_enabled'] = knn_available
+        retrieval_origin = (
+            'bukhari_hybrid_bm25_knn' if knn_available and knn_hits
+            else 'bukhari_hybrid_bm25'
+        )
+        debug['retrieval_origin'] = retrieval_origin
+
+        # Early return when both lanes return nothing
+        if not bm25_hits and not knn_hits:
+            warnings.append('bukhari_hybrid_no_hits')
+            return HadithTopicalCandidateGenerationResult(
+                candidates=(),
+                warnings=tuple(dict.fromkeys(warnings)),
+                debug=debug,
+            )
+
+        # ── RRF combination ───────────────────────────────────────────────
+        combined = _rrf_combine(bm25_hits, knn_hits, k=_RRF_K)
+        debug['rrf_combined_count'] = len(combined)
+
+        # ── Prophetic statement boost ─────────────────────────────────────
+        # Applied before candidate construction so the boosted rrf_score is
+        # stored on the candidate and visible in debug / audit logs.
+        candidates: list[HadithTopicalCandidate] = []
+        for rrf_score, hit in combined:
+            source = hit.get('_source') or {}
+
+            effective_rrf_score = rrf_score
+            if (
+                source.get('has_direct_prophetic_statement')
+                and dalil_family
+                and dalil_family.lower() in _PROPHETIC_BOOST_FAMILIES
+            ):
+                effective_rrf_score = rrf_score * 1.3
+
+            candidate = _candidate_from_bukhari_hit(
+                query.topic_candidates,
+                effective_rrf_score,
+                source,
+                retrieval_origin=retrieval_origin,
+                dalil_family=dalil_family,
+            )
+            if candidate is not None:
+                candidates.append(candidate)
+
+        # Sort: primary fusion score, then answerability, centrality, stable ref.
+        candidates.sort(
+            key=lambda c: (
+                -float(c.fusion_score or 0.0),
+                -float(c.answerability_score or 0.0),
+                -float(c.central_topic_score or 0.0),
+                 c.canonical_ref,
+            ),
+        )
+        selected = tuple(candidates[: max(1, int(request.candidate_limit))])
+        debug['candidate_count']   = len(selected)
+        debug['candidate_origins'] = [c.retrieval_origin for c in selected]
+        debug['top_refs']          = [c.canonical_ref for c in selected[:5]]
+
+        return HadithTopicalCandidateGenerationResult(
+            candidates=selected,
+            warnings=tuple(dict.fromkeys(warnings)),
+            debug=debug,
+        )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def _load_lexical_hits(self, request: HadithTopicalCandidateGenerationRequest) -> list[HadithLexicalHit]:
         service = HadithService(database_url=self.database_url)
@@ -206,7 +786,10 @@ class HadithTopicalCandidateGenerator:
             limit=max(1, int(request.lexical_limit)),
         )
 
-    def _load_opensearch_candidates(self, request: HadithTopicalCandidateGenerationRequest) -> tuple[HadithTopicalCandidate, ...]:
+    def _load_opensearch_candidates(
+        self,
+        request: HadithTopicalCandidateGenerationRequest,
+    ) -> tuple[HadithTopicalCandidate, ...]:
         query = build_hadith_topical_bm25_query(
             request.query,
             collection_source_id=request.collection_source_id,
