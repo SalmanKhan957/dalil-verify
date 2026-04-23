@@ -1,6 +1,145 @@
 from __future__ import annotations
 
+import re
+
 from domains.hadith_topical.contracts import HadithTopicalCandidate, HadithTopicalQuery, HadithTopicalResult
+
+
+# ---------------------------------------------------------------------------
+# Query-shape detection (Phase 3.1)
+#
+# The upstream resolver already picks the right leaf topic; this classifier
+# picks the right *shape* of hadith within that topic. Example: for the query
+# "how did the prophet do ghusl?", the resolver correctly lands on
+# ritual.tahara.ghusl_bathing. But within that topic, Bukhari contains:
+#   - a ruling ("Friday ghusl is compulsory")        [direct_moral_instruction]
+#   - procedural descriptions ("he poured water thrice on his head")  [narrative_incident]
+#   - legal Q&A ("does a woman need ghusl after a wet dream?") [direct_moral_instruction]
+# For a "how" query, the procedural narrative is the best answer. For a
+# "what did he say" query, the direct teaching is best.
+# ---------------------------------------------------------------------------
+
+_HOW_DESCRIBE_PATTERNS = (
+    r'\bhow\b',
+    r'\bdescribe\b',
+    r'\bdescription\b',
+    r'\bmethod\b',
+    r'\bway\b',
+    r'\bprocedure\b',
+    r'\bshow me\b',
+    r'\bwhat is it like\b',
+)
+_PROPHETIC_TEACHING_PATTERNS = (
+    r"\bwhat did the prophet\s+(?:say|teach|advise|command)\b",
+    r"\bwhat does the prophet\s+(?:say|teach)\b",
+    r"\bwhat did the messenger\s+(?:say|teach)\b",
+    r"\bdid the prophet\s+(?:say|teach|advise|warn|command|mention)\b",
+    r"\bprophet'?s\s+(?:teaching|guidance|advice|command)\b",
+    r"\baccording to the prophet\b",
+)
+_WARNING_RULING_PATTERNS = (
+    r'\bpunishment\b',
+    r'\bforbid\b',
+    r'\bforbidden\b',
+    r'\bharam\b',
+    r'\bprohibit',
+    r'\brulings?\b',
+    r'\bwarn',
+    r'\bsin\b',
+    r'\bpenalty\b',
+    r'\bis it (haram|allowed|permissible)\b',
+)
+_VIRTUE_PATTERNS = (
+    r'\bvirtues?\b',
+    r'\bmerits?\b',
+    r'\breward\b',
+    r'\bblessings?\b',
+    r'\bbenefit',
+    r'\bexcellenc',
+)
+
+
+def _compile(patterns: tuple[str, ...]) -> list[re.Pattern[str]]:
+    return [re.compile(p, re.IGNORECASE) for p in patterns]
+
+
+_HOW_RE = _compile(_HOW_DESCRIBE_PATTERNS)
+_PROPHETIC_RE = _compile(_PROPHETIC_TEACHING_PATTERNS)
+_WARNING_RE = _compile(_WARNING_RULING_PATTERNS)
+_VIRTUE_RE = _compile(_VIRTUE_PATTERNS)
+
+
+def _query_shape(query: HadithTopicalQuery) -> str:
+    """Classify the query's *shape* (separate from its topic / family).
+
+    Shapes drive per-role bonuses in `_shape_role_bonus`. Order matters:
+    most specific shape first. Broad queries fall through to 'broad'.
+    """
+    text = (query.normalized_query or query.raw_query or '').lower()
+    if not text:
+        return 'broad'
+    if any(p.search(text) for p in _HOW_RE):
+        return 'procedural_descriptive'
+    if any(p.search(text) for p in _PROPHETIC_RE):
+        return 'prophetic_teaching'
+    if any(p.search(text) for p in _WARNING_RE):
+        return 'ruling_warning'
+    if any(p.search(text) for p in _VIRTUE_RE):
+        return 'virtue'
+    return 'broad'
+
+
+def _shape_role_bonus(query: HadithTopicalQuery, candidate: HadithTopicalCandidate) -> float:
+    """Additive bonus on top of `_preferred_role_bonus` for query-shape fit.
+
+    Weights sized so they can flip the primary candidate among topically-tied
+    records (all at central_topic_score=0.9) without overpowering the base
+    retrieval signal.
+    """
+    shape = _query_shape(query)
+    if shape == 'broad':
+        return 0.0
+    role = _normalized_role(candidate.guidance_role)
+
+    if shape == 'procedural_descriptive':
+        # "How did the prophet do X?" — Aisha-style descriptive narrations are gold.
+        if role == 'narrative_incident':
+            return 0.14
+        if role == 'direct_moral_instruction':
+            return 0.04
+        if role in {'warning', 'virtue_statement'}:
+            return -0.04
+        return 0.0
+
+    if shape == 'prophetic_teaching':
+        # "What did the prophet say about X?" — canonical teachings first.
+        if role == 'direct_moral_instruction':
+            return 0.14
+        if role in {'virtue_statement', 'warning'}:
+            return 0.06
+        if role == 'narrative_incident':
+            return -0.04
+        return 0.0
+
+    if shape == 'ruling_warning':
+        if role == 'warning':
+            return 0.14
+        if role == 'direct_moral_instruction':
+            return 0.08
+        if role == 'narrative_incident':
+            return -0.02
+        return 0.0
+
+    if shape == 'virtue':
+        if role == 'virtue_statement':
+            return 0.14
+        if role == 'direct_moral_instruction':
+            return 0.06
+        if role == 'narrative_incident':
+            return -0.02
+        return 0.0
+
+    return 0.0
 
 
 def _normalize_rank_signal(score: float | None) -> float:
@@ -76,6 +215,7 @@ def _candidate_score(candidate: HadithTopicalCandidate, query: HadithTopicalQuer
     narrative_specificity = float(candidate.narrative_specificity_score or 0.0)
     topic_alignment = 0.08 if (set(candidate.matched_topics or ()) & set(query.topic_candidates or ())) else 0.0
     family = _retrieval_family(query)
+    shape_bonus = _shape_role_bonus(query, candidate)
     if family in {'entity_eschatology', 'narrative_event', 'ritual_practice'}:
         return (
             0.2 * lexical
@@ -85,6 +225,7 @@ def _candidate_score(candidate: HadithTopicalCandidate, query: HadithTopicalQuer
             + 0.04 * _builder_rank(candidate)
             + topic_alignment
             + _preferred_role_bonus(query, candidate)
+            + shape_bonus
             - 0.06 * incidental
             - 0.02 * narrative_specificity
         )
@@ -96,6 +237,7 @@ def _candidate_score(candidate: HadithTopicalCandidate, query: HadithTopicalQuer
         + 0.08 * _builder_rank(candidate)
         + topic_alignment
         + _preferred_role_bonus(query, candidate)
+        + shape_bonus
         - 0.1 * incidental
         - 0.04 * narrative_specificity
     )

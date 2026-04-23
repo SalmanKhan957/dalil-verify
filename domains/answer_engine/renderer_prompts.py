@@ -14,14 +14,15 @@ CRITICAL GROUNDING & HONESTY RULES (LAST LINE OF DEFENSE):
 - Instead, you MUST state exactly: "The retrieved records discuss [Topic of Retrieved Text], which is not directly related to your question about [User's Topic]."
 - Never attempt to reinterpret, stretch, or hallucinate connections for unrelated narrations.
 
-MULTI-HADITH SYNTHESIS RULES:
-- The composition packet may contain multiple hadith source_bundles: one primary (role = 'topical_hadith_source' or 'explicit_hadith_source') and zero or more supporting (role = 'supporting_hadith_source').
-- Treat the primary hadith as the anchor. Draw on supporting hadiths ONLY when they directly strengthen the answer (describe the same practice, give additional detail, or corroborate the primary narration).
-- Every factual claim you make must be traceable to at least one specific hadith in the packet. When a claim is specifically supported by a particular hadith, cite it inline using its exact canonical_ref from source_bundles[i].citations[0] — e.g. "...as narrated in hadith:sahih-al-bukhari-en:6806". Do NOT invent refs.
-- If supporting hadiths each describe a different aspect, weave them into one coherent explanation that cites each aspect to its source. Do not merely list them.
-- If supporting hadiths contradict or significantly diverge from the primary, acknowledge briefly and prefer the primary.
-- If a supporting hadith's content is tangential to the user's specific question, ignore it — do not pad the answer.
-- If NO hadith (primary or supporting) directly addresses the user's question, trigger the grounding failsafe above.
+MULTI-HADITH SYNTHESIS RULES (MANDATORY — this section governs every topical hadith answer):
+- The composition packet contains one primary hadith source_bundle (role = 'topical_hadith_source' or 'explicit_hadith_source') and zero or more supporting bundles (role = 'supporting_hadith_source').
+- MANDATORY inline citations: every factual claim you make about what the Prophet said, did, or taught MUST carry an inline citation in the exact form `(hadith:sahih-al-bukhari-en:N)` — where N is the canonical_ref from the specific source_bundle that supports that claim. Do NOT invent refs. Do NOT cite without a source in the packet. An answer without any inline citations is a FAILURE.
+- MANDATORY synthesis when 2+ bundles are available: if the packet contains 2 or more hadith source_bundles AND the user's question is broader than any single hadith addresses (e.g. "how did the prophet do X", "describe X", "what did the prophet say about X"), you MUST draw on at least 2 distinct hadiths and cite each one inline. A single-source answer against a multi-hadith packet is a FAILURE.
+- Weave, don't list: integrate the hadiths into a coherent paragraph or short structured explanation. Do NOT dump them as a numbered list of narrations.
+- Per-claim attribution: each sentence that makes a specific claim should trace to one or more specific refs. Example: "According to `Aisha's narration, the Prophet began his ghusl by pouring water three times over his head (hadith:sahih-al-bukhari-en:254), and Jabir adds that he then poured more water over the rest of his body (hadith:sahih-al-bukhari-en:256)."
+- Handling tangential supporting hadiths: if a supporting bundle's content is NOT relevant to the specific question (e.g. a Ramadan night-prayer virtue hadith pulled for a "how did he pray at night" query), IGNORE it. Do not pad the answer with irrelevant material. You may briefly note at the end "Related topics in the retrieved set: ..." and list 1-2 refs for user exploration.
+- Handling contradictory hadiths: if supporting hadiths meaningfully diverge from the primary, acknowledge briefly and prefer the primary unless another hadith is clearly more on-point.
+- No-answer case: if NO hadith in the packet — primary OR supporting — directly addresses the user's specific question, trigger the grounding failsafe above. Do not force an answer from tangentially related material.
 
 STYLE & FORMATTING RULES:
 - Preserve Quran, Tafsir, and Hadith boundaries explicitly.
@@ -51,6 +52,30 @@ def build_renderer_user_prompt(*, composition: dict[str, Any], deterministic_ans
         'short_surah_explanations_should_sound_natural': True,
         'chat_like_but_bounded': True,
     }
+
+    # Multi-hadith synthesis contract — explicit, machine-checkable requirements
+    # the LLM can self-verify against. Only fires when the composition packet
+    # actually carries multiple hadith bundles; single-hadith responses don't
+    # need this overhead.
+    source_bundles = composition.get('source_bundles') if isinstance(composition, dict) else None
+    if isinstance(source_bundles, list):
+        hadith_bundles = [b for b in source_bundles if isinstance(b, dict) and b.get('domain') == 'hadith']
+        if len(hadith_bundles) >= 2:
+            hadith_refs = []
+            for bundle in hadith_bundles:
+                citations = bundle.get('citations') or []
+                if citations:
+                    hadith_refs.append(str(citations[0]))
+            quality_bar['hadith_synthesis_required'] = True
+            quality_bar['hadith_bundles_available'] = len(hadith_bundles)
+            quality_bar['hadith_minimum_distinct_citations'] = 2
+            quality_bar['hadith_refs_in_packet'] = hadith_refs
+            quality_bar['hadith_citation_format'] = '(hadith:sahih-al-bukhari-en:N)'
+            quality_bar['hadith_citation_rule'] = (
+                'Every factual claim must carry an inline citation using a ref from hadith_refs_in_packet. '
+                'Use at least 2 distinct refs when synthesizing. Never invent a ref.'
+            )
+
     if isinstance(continuation, dict) and continuation.get('truncate_large_responses'):
         hook = continuation.get('offered_continuation_hook')
         if hook:
