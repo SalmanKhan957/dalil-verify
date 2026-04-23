@@ -131,11 +131,11 @@ def _preflight(session) -> dict[str, int]:
     stmt = sa_text("""
         SELECT
             COUNT(*) AS total,
-            COUNT(metadata_json->'primary_topics') AS has_primary,
-            COUNT(metadata_json->>'matn_text_clean') AS has_clean,
-            COUNT(metadata_json->'matn_embedding') AS has_embedding,
-            COUNT(metadata_json->>'matn_embedding_source_field') FILTER (
-                WHERE metadata_json->>'matn_embedding_source_field' = 'matn_text_clean'
+            COUNT(he.metadata_json->'primary_topics') AS has_primary,
+            COUNT(he.metadata_json->>'matn_text_clean') AS has_clean,
+            COUNT(he.metadata_json->'matn_embedding') AS has_embedding,
+            COUNT(he.metadata_json->>'matn_embedding_source_field') FILTER (
+                WHERE he.metadata_json->>'matn_embedding_source_field' = 'matn_text_clean'
             ) AS has_clean_embedding
         FROM hadith_entries he
         JOIN source_works sw ON he.work_id = sw.id

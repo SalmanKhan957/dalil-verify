@@ -23,6 +23,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+import re
+
 from domains.hadith.contracts import HadithLexicalHit
 from domains.hadith.service import HadithService
 from domains.hadith_topical.contracts import (
@@ -31,6 +33,7 @@ from domains.hadith_topical.contracts import (
     HadithTopicalCandidateGenerationResult,
 )
 from domains.hadith_topical.enricher import build_enriched_document
+from domains.hadith_topical.query_topic_resolver import TopicResolution, resolve_topic
 from infrastructure.search.index_names import HADITH_BUKHARI_TOPICAL_INDEX, HADITH_TOPICAL_INDEX
 from infrastructure.search.opensearch.hadith_bukhari_queries import (
     build_bukhari_bm25_query,
@@ -432,6 +435,224 @@ def _derive_proxy_scores_from_bukhari(
     return central_topic_score, answerability_score, narrative_specificity_score
 
 
+# ---------------------------------------------------------------------------
+# Word-boundary anchor gate (v2) — the core runtime fix for narrator collisions
+# ---------------------------------------------------------------------------
+
+_WORD_BOUNDARY_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _word_boundary_pattern(token: str) -> re.Pattern[str]:
+    """Cache word-boundary regex compilation per token."""
+    pat = _WORD_BOUNDARY_CACHE.get(token)
+    if pat is None:
+        pat = re.compile(rf'\b{re.escape(token)}\b', re.IGNORECASE)
+        _WORD_BOUNDARY_CACHE[token] = pat
+    return pat
+
+
+def _has_word_boundary_anchor(
+    query_tokens: tuple[str, ...],
+    source: dict[str, Any],
+) -> bool:
+    """Return True iff any query token word-boundary-matches the hit's searchable text.
+
+    This is the hard gate that kills the zina/Abu-Az-Zinad collision at runtime.
+    A record can only count as a genuine match if at least one query token
+    literally appears (bounded) in:
+        - matn_text_clean            (narrator-stripped body)
+        - concept_vocabulary entries (per-record corpus phrases)
+        - synthetic_baab_label       (chapter heading)
+
+    The `narrator` field is intentionally NOT checked. Same rule at data,
+    index, and runtime layers.
+
+    When `query_tokens` is empty (degenerate query after stripping), the gate
+    defers to BM25/kNN — a record passes because the retrieval layer had
+    reason to surface it.
+    """
+    if not query_tokens:
+        return True
+
+    parts: list[str] = []
+    matn_clean = source.get('matn_text_clean')
+    if matn_clean:
+        parts.append(str(matn_clean))
+    vocab = source.get('concept_vocabulary') or ()
+    if vocab:
+        parts.append(' '.join(str(v) for v in vocab))
+    baab = source.get('synthetic_baab_label')
+    if baab:
+        parts.append(str(baab))
+
+    if not parts:
+        return False
+
+    full_text = ' '.join(parts)
+    for token in query_tokens:
+        if _word_boundary_pattern(token).search(full_text):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# v2 candidate construction — uses topical fields straight from the index
+# ---------------------------------------------------------------------------
+
+def _candidate_from_bukhari_v2_hit(
+    *,
+    resolution: TopicResolution,
+    rrf_score: float,
+    source: dict[str, Any],
+    retrieval_origin: str,
+    has_anchor: bool,
+    dalil_family: str | None,
+) -> HadithTopicalCandidate | None:
+    """Map a Bukhari v2 index hit to a HadithTopicalCandidate.
+
+    Replaces the heuristic `_derive_proxy_scores_from_bukhari` with direct
+    use of index-side fields:
+        - `topic_density`    → central_topic_score (unless anchor gate failed)
+        - `primary_topics`   → matched_topics
+        - `concept_vocabulary` → matched_terms (the phrases users can search for)
+
+    When the anchor gate failed, the candidate carries central_topic_score=0.0
+    and incidental_topic_penalty=1.0, ensuring the selector threshold will
+    reject the record before it reaches the renderer. This is the
+    belt-and-suspenders fix for vector hallucinations — even if BM25 and kNN
+    both rank a record highly, it must survive the textual anchor check.
+    """
+    if source.get('is_stub'):
+        return None
+
+    hadith_id = str(source.get('hadith_id') or '').strip()
+    if not hadith_id:
+        return None
+
+    matn_text_clean       = str(source.get('matn_text_clean') or '').strip()
+    synthetic_baab_label  = str(source.get('synthetic_baab_label') or '').strip()
+    kitab_title_english   = str(source.get('kitab_title_english') or '').strip()
+    narrator              = str(source.get('narrator') or '').strip() or None
+    is_prophetic          = bool(source.get('has_direct_prophetic_statement'))
+    primary_topics        = tuple(str(x) for x in (source.get('primary_topics') or ()))
+    secondary_topics      = tuple(str(x) for x in (source.get('secondary_topics') or ()))
+    concept_vocab         = tuple(str(x) for x in (source.get('concept_vocabulary') or ()))
+    topic_density         = float(source.get('topic_density') or 0.0)
+    source_query_family   = str(source.get('query_family') or '').strip() or None
+    kitab_domain          = [str(d) for d in (source.get('kitab_domain') or []) if d]
+    in_book_reference     = str(source.get('in_book_reference') or '').strip() or None
+    reference_url         = str(source.get('reference_url') or '').strip() or None
+
+    # Central topic score — from index, gated by word-boundary anchor.
+    central_topic_score = topic_density if has_anchor else 0.0
+
+    # Answerability depends on prophetic signal + anchor + primary-topic match.
+    # v2 candidates that passed the primary_topic hard filter have already
+    # proven strong topical alignment — baseline higher than legacy v1.
+    primary_matches_resolution = bool(
+        resolution.primary_topic and resolution.primary_topic in primary_topics
+    )
+    if has_anchor and primary_matches_resolution:
+        # Candidate is in the resolver's target topic — strongest signal class
+        answerability_score = 0.90 if is_prophetic else 0.84
+    elif is_prophetic and has_anchor:
+        answerability_score = 0.80
+    elif has_anchor:
+        answerability_score = 0.70
+    else:
+        answerability_score = 0.25  # fails selector thresholds
+    # Narrative specificity penalty: a well-targeted topical match on a
+    # narrative record isn't "just narrative" — the LLM already judged it
+    # central to the topic. Lower the penalty for primary-matched anchored
+    # non-prophetic candidates so they clear the prophetic_guidance threshold.
+    if primary_matches_resolution and has_anchor:
+        narrative_specificity_score = 0.05 if is_prophetic else 0.15
+    else:
+        narrative_specificity_score = 0.10 if is_prophetic else 0.30
+
+    # Hard penalty when no anchor — record becomes unselectable.
+    incidental_topic_penalty = 0.0 if has_anchor else 1.0
+
+    guidance_role = 'direct_moral_instruction' if is_prophetic else 'narrative_incident'
+
+    # Matched topics / terms — directly from index.
+    matched_topics = primary_topics
+    matched_terms = concept_vocab
+
+    metadata: dict[str, Any] = {
+        # Fields consumed by reranker / composition (kept identical to v1 shape)
+        'chapter_title_en':  synthetic_baab_label,
+        'book_title_en':     kitab_title_english,
+        'english_text':      matn_text_clean,
+        'english_narrator':  narrator,
+        'contextual_summary': matn_text_clean,
+        'snippet':           matn_text_clean[:400] if matn_text_clean else None,
+
+        # Bukhari-specific
+        'synthetic_baab_label': synthetic_baab_label,
+        'synthetic_baab_id':    source.get('synthetic_baab_id'),
+        'kitab_num':            source.get('kitab_num'),
+        'hadith_global_num':    source.get('hadith_global_num'),
+        'has_direct_prophetic_statement': is_prophetic,
+
+        # Citation
+        'reference_url':     reference_url,
+        'in_book_reference': in_book_reference,
+        'kitab_domain':      kitab_domain,
+        'query_family':      source_query_family,
+
+        # Topical v2
+        'primary_topics':    list(primary_topics),
+        'secondary_topics':  list(secondary_topics),
+        'concept_vocabulary': list(concept_vocab),
+        'topic_density':     topic_density,
+
+        # Audit trail
+        'has_word_boundary_anchor': has_anchor,
+        'rrf_score':          round(rrf_score, 6),
+        'resolved_primary':   resolution.primary_topic,
+        'resolved_family':    resolution.family,
+
+        # builder_rank_score is read by the result_selector composite score
+        # as an upstream pre-ranking signal (weight 0.08). v2 candidates that
+        # passed the primary_topic hard filter AND carry the resolved primary
+        # in their own topics have proven strong alignment upstream of the
+        # selector — give them a high builder_rank so the selector's composite
+        # clears threshold without requiring lexical/semantic score boosts
+        # that can't be reliably produced for short queries.
+        'builder_rank_score': (
+            1.0 if (resolution.primary_topic and resolution.primary_topic in primary_topics)
+            else (0.7 if any(s in primary_topics for s in resolution.confident_topics) else 0.3)
+        ) if has_anchor else 0.0,
+
+        # Empty compatibility collections (reranker expects these keys)
+        'topic_tags':             [],
+        'directive_labels':       [],
+        'normalized_topic_terms': [],
+        'incidental_topic_flags': [],
+        'moral_concepts':         [],
+    }
+
+    return HadithTopicalCandidate(
+        canonical_ref=hadith_id,
+        source_id=_BUKHARI_SOURCE_ID,
+        retrieval_origin=retrieval_origin,
+        lexical_score=rrf_score,
+        vector_score=None,
+        fusion_score=rrf_score,
+        rerank_score=None,
+        central_topic_score=central_topic_score,
+        answerability_score=answerability_score,
+        narrative_specificity_score=narrative_specificity_score,
+        incidental_topic_penalty=incidental_topic_penalty,
+        guidance_role=guidance_role,
+        topic_family=source_query_family,
+        matched_topics=matched_topics,
+        matched_terms=matched_terms,
+        metadata=metadata,
+    )
+
+
 def _candidate_from_bukhari_hit(
     query_topics: tuple[str, ...],
     rrf_score: float,
@@ -657,66 +878,102 @@ class HadithTopicalCandidateGenerator:
         warnings: list[str],
         debug: dict[str, Any],
     ) -> HadithTopicalCandidateGenerationResult:
-        """Run BM25 + optional kNN on the Bukhari index and combine via RRF."""
-        debug['retrieval_path'] = 'bukhari_hybrid'
-        query          = request.query
-        dalil_family   = query.topic_family
-        normalized_query = query.normalized_query or query.raw_query
-        search_size    = max(20, int(request.candidate_limit) * 3)
+        """Run Bukhari v2 hybrid retrieval: resolver → BM25 + kNN → RRF → anchor gate.
 
-        bm25_hits: list[dict[str, Any]] = []
-        knn_hits:  list[dict[str, Any]] = []
-        knn_available = False
+        Flow:
+            1. Resolve query to a taxonomy leaf (primary_topic) and
+               secondary-boost candidates via deterministic vocabulary lookup.
+            2. First attempt: run BM25 + kNN with strict primary_topic filter.
+            3. Fallback: if the strict attempt returned nothing, relax the
+               primary filter to family-only and retry. Prevents the common
+               case where a broad query can't pin a single topic but should
+               still surface something.
+            4. RRF-fuse the two lanes.
+            5. Apply the word-boundary anchor gate — records without any
+               literal query-token match in matn_text_clean /
+               concept_vocabulary / synthetic_baab_label get central_topic_score=0.0,
+               which fails the selector threshold downstream. This is the
+               hard fix for narrator collisions (zina vs "Abu Az-Zinad") and
+               vector hallucinations.
+            6. Apply the prophetic boost and emit candidates.
+        """
+        debug['retrieval_path'] = 'bukhari_hybrid_v2'
+        query = request.query
+        dalil_family = query.topic_family
+        raw_query = query.raw_query or query.normalized_query or ''
+        search_size = max(20, int(request.candidate_limit) * 3)
 
-        # ── BM25 lane — always attempted ──────────────────────────────────
-        try:
-            bm25_body = build_bukhari_bm25_query(
-                normalized_query=normalized_query,
-                topic_candidates=query.topic_candidates,
+        # -- Step 1: resolver ---------------------------------------------
+        # Resolver runs across ALL 182 taxonomy leafs rather than being
+        # restricted by the upstream classifier's family hint. The
+        # classifier's families (moral_guidance, entity_eschatology, etc.)
+        # don't align 1:1 with taxonomy families — e.g. "intentions"
+        # classifies as `moral_guidance` → `akhlaq`, but the right topic is
+        # `foundational.intention_niyya`. The dalil_family hint is still
+        # used at OpenSearch level as a fallback filter when no primary
+        # topic is confidently resolved.
+        resolution = resolve_topic(raw_query, query_family=None)
+        debug['topic_resolution'] = resolution.as_debug()
+
+        # Propagate resolved topics to the query so the downstream selector
+        # (1) uses a calibrated threshold (the "no topic_candidates" path
+        # defaults to 0.70 which is too strict for v2 candidates) and
+        # (2) awards the matched_topics∩topic_candidates alignment bonus.
+        # Merge any resolver output — even when no single primary was
+        # confidently chosen (topically-broad queries), the secondary list
+        # still gives the selector something to align against.
+        any_resolution = bool(
+            resolution.primary_topic
+            or resolution.confident_topics
+            or resolution.secondary_topics
+        )
+        if any_resolution:
+            existing = tuple(query.topic_candidates or ())
+            merged: list[str] = []
+            seen: set[str] = set()
+            for slug in (*existing, *resolution.confident_topics, *resolution.secondary_topics):
+                if slug and slug not in seen:
+                    seen.add(slug)
+                    merged.append(slug)
+            query.topic_candidates = tuple(merged)
+            debug['query_topic_candidates_set'] = merged
+
+        # -- Step 2: strict retrieval (primary_topic filter on) -----------
+        bm25_hits, knn_hits, bm25_err, knn_err, knn_available = self._fetch_bukhari_hybrid(
+            resolution=resolution,
+            dalil_family=dalil_family,
+            size=search_size,
+            enforce_primary=True,
+        )
+        if bm25_err:
+            warnings.append('bukhari_bm25_unavailable')
+            debug['bm25_error'] = bm25_err
+        if knn_err:
+            warnings.append('bukhari_knn_unavailable')
+            debug['knn_error'] = knn_err
+        debug['strict_bm25_hits'] = len(bm25_hits)
+        debug['strict_knn_hits']  = len(knn_hits)
+
+        # -- Step 3: relaxed fallback -------------------------------------
+        if not bm25_hits and not knn_hits and resolution.primary_topic:
+            debug['strict_empty_fallback'] = True
+            bm25_hits, knn_hits, _, _, knn_available = self._fetch_bukhari_hybrid(
+                resolution=resolution,
                 dalil_family=dalil_family,
                 size=search_size,
+                enforce_primary=False,
             )
-            bm25_response = self.opensearch_client.search(
-                index=HADITH_BUKHARI_TOPICAL_INDEX,
-                body=bm25_body,
-            )
-            bm25_hits = (((bm25_response or {}).get('hits') or {}).get('hits') or [])
-            debug['bm25_hit_count'] = len(bm25_hits)
-        except Exception as exc:
-            warnings.append('bukhari_bm25_unavailable')
-            debug['bm25_error'] = str(exc)
-
-        # ── kNN lane — attempted only when embedding is available ─────────
-        query_vector = _get_query_embedding(normalized_query)
-        if query_vector:
-            knn_available = True
-            try:
-                knn_body = build_bukhari_knn_query(
-                    query_vector=query_vector,
-                    dalil_family=dalil_family,
-                    k=20,
-                )
-                knn_response = self.opensearch_client.search(
-                    index=HADITH_BUKHARI_TOPICAL_INDEX,
-                    body=knn_body,
-                )
-                knn_hits = (((knn_response or {}).get('hits') or {}).get('hits') or [])
-                debug['knn_hit_count'] = len(knn_hits)
-            except Exception as exc:
-                warnings.append('bukhari_knn_unavailable')
-                debug['knn_error'] = str(exc)
-        else:
-            debug['knn_hit_count'] = 0
-            debug['knn_skipped']   = 'embedding_unavailable'
+            debug['relaxed_bm25_hits'] = len(bm25_hits)
+            debug['relaxed_knn_hits']  = len(knn_hits)
 
         debug['knn_enabled'] = knn_available
         retrieval_origin = (
-            'bukhari_hybrid_bm25_knn' if knn_available and knn_hits
-            else 'bukhari_hybrid_bm25'
+            'bukhari_v2_hybrid_bm25_knn' if knn_available and knn_hits
+            else 'bukhari_v2_hybrid_bm25'
         )
         debug['retrieval_origin'] = retrieval_origin
 
-        # Early return when both lanes return nothing
+        # -- Step 4: no-hits guard ----------------------------------------
         if not bm25_hits and not knn_hits:
             warnings.append('bukhari_hybrid_no_hits')
             return HadithTopicalCandidateGenerationResult(
@@ -725,41 +982,62 @@ class HadithTopicalCandidateGenerator:
                 debug=debug,
             )
 
-        # ── RRF combination ───────────────────────────────────────────────
+        # -- Step 5: RRF fuse + anchor gate + candidate build -------------
         combined = _rrf_combine(bm25_hits, knn_hits, k=_RRF_K)
         debug['rrf_combined_count'] = len(combined)
 
-        # ── Prophetic statement boost ─────────────────────────────────────
-        # Applied before candidate construction so the boosted rrf_score is
-        # stored on the candidate and visible in debug / audit logs.
+        # When the primary_topic hard filter was actually enforced AND produced
+        # the results, every returned record has been certified by the LLM
+        # enrichment to be about that topic. The anchor gate is redundant
+        # there — and occasionally harmful (e.g. "antichrist" queries reach
+        # Dajjal records whose matn uses "Dajjal" not "antichrist"). We only
+        # apply the gate on the relaxed fallback path where the filter was
+        # dropped and retrieval could surface non-topical hits.
+        primary_filter_enforced = (
+            resolution.primary_topic is not None
+            and not debug.get('strict_empty_fallback', False)
+        )
+        debug['anchor_gate_applied'] = not primary_filter_enforced
+
         candidates: list[HadithTopicalCandidate] = []
+        anchor_pass = 0
+        anchor_fail = 0
         for rrf_score, hit in combined:
             source = hit.get('_source') or {}
 
-            effective_rrf_score = rrf_score
-            if (
-                source.get('has_direct_prophetic_statement')
-                and dalil_family
-                and dalil_family.lower() in _PROPHETIC_BOOST_FAMILIES
-            ):
-                effective_rrf_score = rrf_score * 1.3
+            # Prophetic boost on RRF score (pre-candidate, so score trail is clean)
+            effective_rrf = rrf_score
+            family = (source.get('query_family') or '').lower()
+            if source.get('has_direct_prophetic_statement') and family in _PROPHETIC_BOOST_FAMILIES:
+                effective_rrf = rrf_score * 1.3
 
-            candidate = _candidate_from_bukhari_hit(
-                query.topic_candidates,
-                effective_rrf_score,
-                source,
+            if primary_filter_enforced:
+                has_anchor = True  # trust the primary_topic filter
+            else:
+                has_anchor = _has_word_boundary_anchor(resolution.stripped_tokens, source)
+            if has_anchor:
+                anchor_pass += 1
+            else:
+                anchor_fail += 1
+
+            candidate = _candidate_from_bukhari_v2_hit(
+                resolution=resolution,
+                rrf_score=effective_rrf,
+                source=source,
                 retrieval_origin=retrieval_origin,
+                has_anchor=has_anchor,
                 dalil_family=dalil_family,
             )
             if candidate is not None:
                 candidates.append(candidate)
 
-        # Sort: primary fusion score, then answerability, centrality, stable ref.
+        debug['anchor_gate'] = {'pass': anchor_pass, 'fail': anchor_fail}
+
         candidates.sort(
             key=lambda c: (
                 -float(c.fusion_score or 0.0),
-                -float(c.answerability_score or 0.0),
                 -float(c.central_topic_score or 0.0),
+                -float(c.answerability_score or 0.0),
                  c.canonical_ref,
             ),
         )
@@ -773,6 +1051,57 @@ class HadithTopicalCandidateGenerator:
             warnings=tuple(dict.fromkeys(warnings)),
             debug=debug,
         )
+
+    def _fetch_bukhari_hybrid(
+        self,
+        *,
+        resolution: TopicResolution,
+        dalil_family: str | None,
+        size: int,
+        enforce_primary: bool,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None, str | None, bool]:
+        """Run BM25 + optional kNN against the Bukhari v2 index.
+
+        Returns (bm25_hits, knn_hits, bm25_error, knn_error, knn_attempted).
+        """
+        bm25_hits: list[dict[str, Any]] = []
+        knn_hits:  list[dict[str, Any]] = []
+        bm25_err: str | None = None
+        knn_err:  str | None = None
+        knn_attempted = False
+
+        # BM25
+        try:
+            body = build_bukhari_bm25_query(
+                resolution=resolution,
+                dalil_family=dalil_family,
+                size=size,
+                enforce_primary=enforce_primary,
+            )
+            resp = self.opensearch_client.search(index=HADITH_BUKHARI_TOPICAL_INDEX, body=body)
+            bm25_hits = (((resp or {}).get('hits') or {}).get('hits') or [])
+        except Exception as exc:
+            bm25_err = str(exc)
+
+        # kNN — only when we have an embedding
+        embed_text = resolution.normalized_query or ' '.join(resolution.stripped_tokens)
+        qvec = _get_query_embedding(embed_text) if embed_text else None
+        if qvec:
+            knn_attempted = True
+            try:
+                body = build_bukhari_knn_query(
+                    resolution=resolution,
+                    query_vector=qvec,
+                    dalil_family=dalil_family,
+                    k=size,
+                    enforce_primary=enforce_primary,
+                )
+                resp = self.opensearch_client.search(index=HADITH_BUKHARI_TOPICAL_INDEX, body=body)
+                knn_hits = (((resp or {}).get('hits') or {}).get('hits') or [])
+            except Exception as exc:
+                knn_err = str(exc)
+
+        return bm25_hits, knn_hits, bm25_err, knn_err, knn_attempted
 
     # ------------------------------------------------------------------
     # Helpers

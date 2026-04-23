@@ -39,6 +39,22 @@ _ENRICHED_JSON = _REPO_ROOT / 'data' / 'raw' / 'hadith' / 'meeatif' / 'bukhari_e
 
 _BUKHARI_SOURCE_ID = 'hadith:sahih-al-bukhari-en'
 
+# ID format bridge:
+#     JSON enriched file uses sunnah.com short form:  "bukhari:123"
+#     DB canonical_ref_collection uses full form:     "hadith:sahih-al-bukhari-en:123"
+# All downstream work (index, runtime, smoke tests) uses the DB/long form.
+def _to_db_ref(json_hadith_id: str) -> str:
+    """Translate 'bukhari:N' to 'hadith:sahih-al-bukhari-en:N'."""
+    jid = (json_hadith_id or '').strip()
+    if not jid:
+        return jid
+    if jid.startswith('hadith:sahih-al-bukhari-en:'):
+        return jid
+    if jid.startswith('bukhari:'):
+        return f'hadith:sahih-al-bukhari-en:{jid.split(":", 1)[1]}'
+    return jid
+
+
 # Fields from the enriched JSON that we merge into metadata_json.
 _MERGE_FIELDS = (
     'primary_topics',
@@ -64,50 +80,79 @@ def _project_fields(record: dict[str, Any]) -> dict[str, Any]:
     return {field: record.get(field) for field in _MERGE_FIELDS}
 
 
-def _preflight(session) -> int:
-    """Return the count of Bukhari records in the DB; fail loudly if mismatched."""
-    stmt = sa_text(f"""
-        SELECT COUNT(*)
-        FROM hadith_entries he
-        JOIN source_works sw ON he.work_id = sw.id
-        WHERE sw.source_id = :source_id
+def _resolve_work_id(session) -> int | None:
+    """Return the `source_works.id` for Bukhari or None if not found."""
+    stmt = sa_text("SELECT id FROM source_works WHERE source_id = :source_id")
+    row = session.execute(stmt, {'source_id': _BUKHARI_SOURCE_ID}).fetchone()
+    return int(row[0]) if row and row[0] is not None else None
+
+
+def _preflight(session) -> dict[str, Any]:
+    """Probe the DB so we fail loudly before doing anything destructive.
+
+    Returns a diagnostic dict covering:
+        - whether the Bukhari source_works row exists
+        - how many hadith_entries rows are scoped to that work
+        - a sample of canonical_ref_collection values for format confirmation
+    """
+    work_id = _resolve_work_id(session)
+    diag: dict[str, Any] = {'work_id': work_id, 'total': 0, 'sample_refs': [], 'null_refs': 0}
+    if work_id is None:
+        return diag
+
+    stmt_count = sa_text("""
+        SELECT COUNT(*) FROM hadith_entries he WHERE he.work_id = :work_id
     """)
-    count = session.execute(stmt, {'source_id': _BUKHARI_SOURCE_ID}).scalar() or 0
-    return int(count)
+    diag['total'] = int(session.execute(stmt_count, {'work_id': work_id}).scalar() or 0)
+
+    stmt_null = sa_text("""
+        SELECT COUNT(*) FROM hadith_entries he
+        WHERE he.work_id = :work_id AND he.canonical_ref_collection IS NULL
+    """)
+    diag['null_refs'] = int(session.execute(stmt_null, {'work_id': work_id}).scalar() or 0)
+
+    stmt_sample = sa_text("""
+        SELECT he.canonical_ref_collection
+        FROM hadith_entries he
+        WHERE he.work_id = :work_id AND he.canonical_ref_collection IS NOT NULL
+        ORDER BY he.id
+        LIMIT 5
+    """)
+    diag['sample_refs'] = [row[0] for row in session.execute(stmt_sample, {'work_id': work_id}).fetchall()]
+    return diag
 
 
-def _update_batch(session, updates: list[tuple[str, dict[str, Any]]]) -> int:
+def _update_batch(session, work_id: int, updates: list[tuple[str, dict[str, Any]]]) -> int:
     """Apply topical-field merges to a batch of hadith rows. Returns rows affected."""
     stmt = sa_text("""
         UPDATE hadith_entries
         SET metadata_json = COALESCE(metadata_json, '{}'::jsonb) || CAST(:new_fields AS jsonb)
         WHERE canonical_ref_collection = :hadith_id
-        AND work_id = (SELECT id FROM source_works WHERE source_id = :source_id)
+          AND work_id = :work_id
     """)
     affected = 0
     for hadith_id, new_fields in updates:
         result = session.execute(stmt, {
             'hadith_id': hadith_id,
             'new_fields': json.dumps(new_fields, ensure_ascii=False),
-            'source_id': _BUKHARI_SOURCE_ID,
+            'work_id': work_id,
         })
         affected += result.rowcount or 0
     return affected
 
 
-def _verify(session, sample_hadith_ids: list[str]) -> None:
+def _verify(session, work_id: int, sample_hadith_ids: list[str]) -> None:
     """Post-migration spot-check: confirm a random sample has the new fields."""
     stmt = sa_text("""
-        SELECT canonical_ref_collection,
-               metadata_json->'primary_topics' AS primary_topics,
-               metadata_json->>'matn_text_clean' AS matn_clean,
-               metadata_json->>'enrichment_version' AS version
+        SELECT he.canonical_ref_collection,
+               he.metadata_json->'primary_topics' AS primary_topics,
+               he.metadata_json->>'matn_text_clean' AS matn_clean,
+               he.metadata_json->>'enrichment_version' AS version
         FROM hadith_entries he
-        JOIN source_works sw ON he.work_id = sw.id
-        WHERE sw.source_id = :source_id
-          AND canonical_ref_collection = ANY(:ids)
+        WHERE he.work_id = :work_id
+          AND he.canonical_ref_collection = ANY(:ids)
     """)
-    rows = session.execute(stmt, {'source_id': _BUKHARI_SOURCE_ID, 'ids': sample_hadith_ids}).fetchall()
+    rows = session.execute(stmt, {'work_id': work_id, 'ids': sample_hadith_ids}).fetchall()
     log.info('Verification sample (%d rows):', len(rows))
     for ref, topics, clean_preview, version in rows:
         preview = (clean_preview or '')[:80]
@@ -132,14 +177,31 @@ def main() -> None:
     log.info('Enriched JSON: %d records', len(records))
 
     with get_session() as session:
-        db_count = _preflight(session)
-        log.info('DB Bukhari rows: %d', db_count)
-        if db_count == 0:
-            log.error('No Bukhari records found in DB. Ingestion must run first.')
-            sys.exit(3)
-        if db_count != len(records):
-            log.warning('Count mismatch: DB has %d, JSON has %d. Proceeding — mismatched records will be silently skipped.',
-                        db_count, len(records))
+        diag = _preflight(session)
+    log.info('DB preflight: work_id=%s, total_rows=%d, null_refs=%d, sample_refs=%s',
+             diag['work_id'], diag['total'], diag['null_refs'], diag['sample_refs'])
+
+    work_id = diag['work_id']
+    if work_id is None:
+        log.error('No source_works row for source_id=%s. Bukhari ingestion has not run. Aborting.', _BUKHARI_SOURCE_ID)
+        sys.exit(3)
+    if diag['total'] == 0:
+        log.error('source_works row exists but 0 hadith_entries are attached to work_id=%d.', work_id)
+        sys.exit(3)
+    if not diag['sample_refs']:
+        log.error('All canonical_ref_collection values are NULL; cannot migrate by hadith_id.')
+        sys.exit(3)
+
+    # Cross-check format: does the JSON hadith_id match the DB ref format?
+    json_first = records[0].get('hadith_id') if records else None
+    db_first = diag['sample_refs'][0]
+    if json_first and db_first and json_first != db_first:
+        log.warning('Format sample: JSON first hadith_id=%r  vs  DB first canonical_ref=%r', json_first, db_first)
+        # Only warn; the bulk of migration still proceeds and will report mismatches.
+
+    if diag['total'] != len(records):
+        log.warning('Count mismatch: DB has %d, JSON has %d. Unmatched records will be silently skipped.',
+                    diag['total'], len(records))
 
     if args.limit:
         records = records[: args.limit]
@@ -157,22 +219,19 @@ def main() -> None:
     with get_session() as session:
         for batch_start in range(0, len(records), args.batch_size):
             batch = records[batch_start: batch_start + args.batch_size]
-            updates = [(r['hadith_id'], _project_fields(r)) for r in batch if r.get('hadith_id')]
-            affected = _update_batch(session, updates)
+            updates = [(_to_db_ref(r['hadith_id']), _project_fields(r)) for r in batch if r.get('hadith_id')]
+            affected = _update_batch(session, work_id, updates)
             session.commit()
-            # Track records that didn't match (no rows updated means hadith_id not in DB)
             missing_in_batch = len(updates) - affected
             updated_total += affected
             if missing_in_batch:
-                # Collect the missing IDs for reporting (cheap — only when non-zero)
                 stmt = sa_text("""
-                    SELECT canonical_ref_collection FROM hadith_entries he
-                    JOIN source_works sw ON he.work_id = sw.id
-                    WHERE sw.source_id = :source_id AND canonical_ref_collection = ANY(:ids)
+                    SELECT he.canonical_ref_collection FROM hadith_entries he
+                    WHERE he.work_id = :work_id AND he.canonical_ref_collection = ANY(:ids)
                 """)
                 existing = {
                     row[0] for row in session.execute(stmt, {
-                        'source_id': _BUKHARI_SOURCE_ID,
+                        'work_id': work_id,
                         'ids': [r[0] for r in updates],
                     }).fetchall()
                 }
@@ -188,10 +247,10 @@ def main() -> None:
     if not_found:
         log.warning('First 20 missing hadith_ids: %s', not_found[:20])
 
-    # Verification
+    # Verification — query with DB-form refs
     with get_session() as session:
-        sample_ids = [records[i]['hadith_id'] for i in (0, len(records) // 2, len(records) - 1) if records[i].get('hadith_id')]
-        _verify(session, sample_ids)
+        sample_ids = [_to_db_ref(records[i]['hadith_id']) for i in (0, len(records) // 2, len(records) - 1) if records[i].get('hadith_id')]
+        _verify(session, work_id, sample_ids)
 
     log.info('Migration complete. Every Bukhari row now carries primary_topics / concept_vocabulary / matn_text_clean / topic_density in metadata_json.')
 
