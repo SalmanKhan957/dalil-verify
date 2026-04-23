@@ -101,5 +101,59 @@ def attach_observability(
             'timings_ms': dict(timings_ms),
             'query_normalization': normalization,
             'feature_flags': diagnostics['feature_flags'],
+            'hadith_retrieval': _extract_hadith_retrieval_debug(orchestration),
         }
     return payload
+
+
+def _extract_hadith_retrieval_debug(orchestration: dict[str, Any]) -> dict[str, Any] | None:
+    """Promote the Bukhari retrieval internals into the public debug block.
+
+    When a user sets ``debug: true`` on the /ask request, they want enough
+    information to diagnose abstains and mis-routes without SSH access.
+    Specifically, the three fields that turned a silent OpenSearch outage
+    into an unreproducible mystery on the topical-hadith branch:
+
+        topic_resolution — which leaf the resolver picked and why
+        bm25_error       — OpenSearch BM25 lane exception string (empty on success)
+        knn_error        — OpenSearch kNN lane exception string
+        retrieval_origin — which pipeline ran (BM25-only vs hybrid)
+        anchor_gate      — pass/fail counts from the word-boundary gate
+
+    Returns None when no hadith retrieval happened for the request.
+    """
+    if not isinstance(orchestration, dict):
+        return None
+    diag = orchestration.get('diagnostics')
+    if not isinstance(diag, dict):
+        return None
+    shadow = diag.get('topical_v2_shadow')
+    if not isinstance(shadow, dict):
+        return None
+    debug_block = shadow.get('debug')
+    if not isinstance(debug_block, dict):
+        return {'abstain': shadow.get('abstain'), 'warnings': shadow.get('warnings')}
+    cg = debug_block.get('candidate_generation') if isinstance(debug_block.get('candidate_generation'), dict) else {}
+
+    result: dict[str, Any] = {
+        'abstain': shadow.get('abstain'),
+        'abstain_reason': shadow.get('abstain_reason'),
+        'warnings': shadow.get('warnings'),
+        'selected_refs': shadow.get('selected_refs'),
+        'retrieval_path': cg.get('retrieval_path'),
+        'retrieval_origin': cg.get('retrieval_origin'),
+        'topic_resolution': cg.get('topic_resolution'),
+        'strict_bm25_hits': cg.get('strict_bm25_hits'),
+        'strict_knn_hits': cg.get('strict_knn_hits'),
+        'relaxed_bm25_hits': cg.get('relaxed_bm25_hits'),
+        'relaxed_knn_hits': cg.get('relaxed_knn_hits'),
+        'rrf_combined_count': cg.get('rrf_combined_count'),
+        'anchor_gate': cg.get('anchor_gate'),
+        'anchor_gate_applied': cg.get('anchor_gate_applied'),
+        'candidate_count': cg.get('candidate_count'),
+        'top_refs': cg.get('top_refs'),
+        'bm25_error': cg.get('bm25_error'),
+        'knn_error': cg.get('knn_error'),
+    }
+    # Keep only keys with non-None values so the debug block stays compact.
+    return {k: v for k, v in result.items() if v is not None}
