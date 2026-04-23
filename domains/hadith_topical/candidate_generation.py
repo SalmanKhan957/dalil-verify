@@ -1008,6 +1008,29 @@ class HadithTopicalCandidateGenerator:
         combined = _rrf_combine(bm25_hits, knn_hits, k=_RRF_K)
         debug['rrf_combined_count'] = len(combined)
 
+        # Phase 3.2.2 — post-RRF shape reorder.
+        # kNN ranks by embedding similarity, which doesn't respect query shape:
+        # for "how did the prophet pray at night", kNN surfaces records
+        # semantically close to "pray at night" (warnings, Ramadan virtues)
+        # ahead of the procedural Aisha narrations. BM25 alone handled this
+        # via shape boost, but RRF fusion with shape-unaware kNN dilutes the
+        # signal. Re-sort the fused list so shape-fit records rise to top —
+        # the primary_topics filter on both lanes already guarantees topical
+        # relevance, so this is pure within-topic reordering.
+        if resolution.primary_topic and query_shape in {'procedural_descriptive', 'prophetic_teaching'}:
+            target_prophetic_false = query_shape == 'procedural_descriptive'
+            def _shape_rerank_key(pair):
+                rrf_score, hit = pair
+                src = hit.get('_source') or {}
+                is_prophetic = bool(src.get('has_direct_prophetic_statement'))
+                # For procedural: non-prophetic (narrative) gets priority 0, prophetic gets 1
+                # For prophetic_teaching: prophetic gets 0, non-prophetic gets 1
+                matches_shape = (not is_prophetic) if target_prophetic_false else is_prophetic
+                shape_priority = 0 if matches_shape else 1
+                return (shape_priority, -rrf_score)
+            combined = sorted(combined, key=_shape_rerank_key)
+            debug['shape_reorder_applied'] = query_shape
+
         # When the primary_topic hard filter was actually enforced AND produced
         # the results, every returned record has been certified by the LLM
         # enrichment to be about that topic. The anchor gate is redundant
