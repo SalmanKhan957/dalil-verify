@@ -4,6 +4,7 @@ from typing import Any
 
 from domains.ask.route_types import AskActionType, AskRouteType
 from domains.ask.heuristics import detect_tafsir_intent, looks_like_explicit_quran_reference
+from domains.hadith_topical.query_topic_resolver import resolve_topic
 from domains.query_intelligence.concept_linker import link_query_to_concepts
 from domains.query_intelligence.normalization import normalize_topic_query, normalize_user_query
 from domains.query_intelligence.query_family_classifier import classify_query_family
@@ -142,6 +143,43 @@ def detect_topical_query_intent(query: str, *, allow_multi_source: bool = True) 
             'reason': 'topical_tafsir_query_detected',
             'action_type': AskActionType.EXPLAIN.value,
             'confidence': max(0.74, family.confidence),
+        }
+
+    # Fallback — resolver-based safety net.
+    #
+    # The cue-phrase family classifier above is precise but conservative; it
+    # rejects any query whose shape doesn't match an enumerated lead-in (e.g.
+    # "How did the Prophet do ghusl?" matches no cue, so it would abstain
+    # despite being a textbook topical hadith query).
+    #
+    # The taxonomy-backed resolver (domains.hadith_topical.query_topic_resolver)
+    # already knows the vocabulary for all 182 leaf topics. If it finds a
+    # confident primary_topic for this query, we trust that signal and route
+    # to topical_hadith_query. This is belt-and-suspenders — the resolver
+    # runs again inside the retrieval pipeline, so a false positive here is
+    # cheap (retrieval still has the final word via its own word-boundary gate).
+    resolution = resolve_topic(text, query_family=None)
+    # Only treat the resolver-fallback as topical HADITH when the resolved
+    # primary is NOT a quran/tafsir leaf — those belong to the tafsir lane.
+    resolver_primary_family = (
+        resolution.primary_topic.split('.', 1)[0] if resolution.primary_topic else None
+    )
+    if (
+        resolution.primary_topic
+        and resolution.confident_topics
+        and resolver_primary_family not in {'quran', 'tafsir'}
+    ):
+        return {
+            'matched': True,
+            'route_type': AskRouteType.TOPICAL_HADITH_QUERY.value,
+            'topic_query': normalize_topic_query(text) or text,
+            'signals': ['topical_hadith_query', 'resolver_primary_topic'],
+            'reason': 'topical_hadith_query_detected_via_resolver',
+            'action_type': AskActionType.EXPLAIN.value,
+            'confidence': 0.72,
+            'query_profile': 'guidance',
+            'concept_matches': list(resolution.confident_topics),
+            'resolver_primary': resolution.primary_topic,
         }
 
     return {
