@@ -1078,14 +1078,36 @@ class HadithTopicalCandidateGenerator:
 
         debug['anchor_gate'] = {'pass': anchor_pass, 'fail': anchor_fail}
 
-        candidates.sort(
-            key=lambda c: (
-                -float(c.fusion_score or 0.0),
-                -float(c.central_topic_score or 0.0),
-                -float(c.answerability_score or 0.0),
-                 c.canonical_ref,
-            ),
-        )
+        # If Phase 3.2.2 shape reorder was applied above, `combined` (and
+        # therefore `candidates`) is already in the correct order:
+        # shape-fit cluster first, RRF score tiebreak. A post-pass re-sort
+        # by fusion_score alone would undo that. Preserve the shape order
+        # and only sort within-shape by RRF and secondary signals.
+        shape_reorder_active = bool(debug.get('shape_reorder_applied'))
+        if shape_reorder_active:
+            target_prophetic_false = query_shape == 'procedural_descriptive'
+            def _stable_sort_key(c: HadithTopicalCandidate) -> tuple:
+                meta = c.metadata or {}
+                is_proph = bool(meta.get('has_direct_prophetic_statement'))
+                matches_shape = (not is_proph) if target_prophetic_false else is_proph
+                shape_prio = 0 if matches_shape else 1
+                return (
+                    shape_prio,
+                    -float(c.fusion_score or 0.0),
+                    -float(c.central_topic_score or 0.0),
+                    -float(c.answerability_score or 0.0),
+                    c.canonical_ref,
+                )
+            candidates.sort(key=_stable_sort_key)
+        else:
+            candidates.sort(
+                key=lambda c: (
+                    -float(c.fusion_score or 0.0),
+                    -float(c.central_topic_score or 0.0),
+                    -float(c.answerability_score or 0.0),
+                     c.canonical_ref,
+                ),
+            )
         # For procedural queries with a confident primary_topic, let the full
         # expanded pool through to the selector so its shape-aware scoring can
         # reach procedural records whose literal vocabulary doesn't match the
