@@ -1,0 +1,1124 @@
+{
+  "taxonomy_version": "v1",
+  "generated_from": "bukhari_enriched_v3",
+  "description": "Bottom-up topic taxonomy for Sahih al-Bukhari topical retrieval. Leaf topics are the unit the enrichment pass assigns to each hadith. The `vocabulary` field carries the corpus-specific English phrases that actually appear in Bukhari's translation; it is the data-layer replacement for the previous hand-coded _CONCEPT_ALIASES dict in hadith_bukhari_queries.py. The `source_kitabs` and `source_baabs` fields are non-authoritative locator aids — the enricher reads the matn, not the kitab label, to decide.",
+  "notes": {
+    "vocabulary_policy": "Phrases must be grounded in Bukhari's English translation register. Do not include Arabic transliterations that never surface in the text (e.g. 'zina' itself does not appear in Bukhari's English — 'illegal sexual intercourse' does). Conversely, when Arabic transliteration is the dominant form in the translation (e.g. 'salah', 'zakat', 'tawaf'), list it first.",
+    "disambiguation_policy": "Use disambiguation_hint sparingly; only for topics that are easily confused with a near-neighbour (e.g. anger-the-virtue vs anger-the-narrative-event).",
+    "abstention_policy": "If a hadith does not fit any leaf topic with topic_density >= 0.5, the enricher emits primary_topics=[] and sets abstain_reason. Such records never surface for topical queries; they remain reachable via explicit citation lookup."
+  },
+
+  "leaf_topics": {
+
+    "fiqh.business.sales_general": {
+      "display_name": "Sales and trade — general rulings",
+      "family": "fiqh",
+      "vocabulary": ["selling", "buying", "trade", "market", "goods", "sale", "seller", "buyer", "business transaction"],
+      "source_kitabs": ["Sales and Trade"],
+      "source_baabs": ["Sales and Business Transactions — General"]
+    },
+    "fiqh.business.riba_usury": {
+      "display_name": "Riba / usury / interest — prohibition",
+      "family": "fiqh",
+      "vocabulary": ["usury", "riba", "interest", "unlawful gain", "gold for gold", "silver for silver", "equal for equal"],
+      "source_kitabs": ["Sales and Trade"],
+      "disambiguation_hint": "Distinct from lawful profit and lawful trade; focuses on unequal exchanges of like commodities or deferred exchange producing gain."
+    },
+    "fiqh.business.pricing_bargaining": {
+      "display_name": "Pricing, bargaining and market conduct",
+      "family": "fiqh",
+      "vocabulary": ["price", "bargaining", "haggle", "cheating in sale", "fixing price", "dweller selling for a bedouin"],
+      "source_kitabs": ["Sales and Trade"],
+      "source_baabs": ["Pricing, Bargaining and Market Conduct"]
+    },
+    "fiqh.business.conditions_options": {
+      "display_name": "Conditions and options in sales (khiyar)",
+      "family": "fiqh",
+      "vocabulary": ["option", "right to cancel", "conditional sale", "part ways", "option of the meeting"],
+      "source_kitabs": ["Sales and Trade"],
+      "source_baabs": ["Conditions and Options in Sales"]
+    },
+    "fiqh.business.partnership": {
+      "display_name": "Partnership and joint business (shirka)",
+      "family": "fiqh",
+      "vocabulary": ["partnership", "partners", "shared", "joint"],
+      "source_kitabs": ["Partnership"]
+    },
+    "fiqh.business.guarantee_kafala": {
+      "display_name": "Guarantees and suretyship (kafala)",
+      "family": "fiqh",
+      "vocabulary": ["guarantee", "surety", "responsible for the debt", "stand guarantor"],
+      "source_kitabs": ["Representation / Business by Proxy", "Agriculture"]
+    },
+    "fiqh.business.loans_debts": {
+      "display_name": "Loans, debts and repayment",
+      "family": "fiqh",
+      "vocabulary": ["debt", "loan", "repay", "owed", "borrow", "creditor", "debtor", "pay back"],
+      "source_kitabs": ["Loans, Payment of Loans, Freezing of Property, Bankruptcy"]
+    },
+    "fiqh.business.mortgage_rahn": {
+      "display_name": "Mortgage and pledges (rahn)",
+      "family": "fiqh",
+      "vocabulary": ["mortgage", "pledge", "pawn", "armour in pledge"],
+      "source_kitabs": ["Pawning"]
+    },
+    "fiqh.business.representation_proxy": {
+      "display_name": "Representation and power of attorney (wakala)",
+      "family": "fiqh",
+      "vocabulary": ["representative", "proxy", "appointed", "authorize", "deputy"],
+      "source_kitabs": ["Representation / Business by Proxy"]
+    },
+    "fiqh.business.pre_emption_shufa": {
+      "display_name": "Pre-emption rights (shufa)",
+      "family": "fiqh",
+      "vocabulary": ["pre-emption", "first right to buy", "neighbour's right", "shufa"],
+      "source_kitabs": ["Pre-emption"]
+    },
+    "fiqh.business.gifts_hiba": {
+      "display_name": "Gifts and giving (hiba)",
+      "family": "fiqh",
+      "vocabulary": ["gift", "gave", "given", "present", "grant"],
+      "source_kitabs": ["Gifts (Hiba)"]
+    },
+    "fiqh.business.wages_ijara": {
+      "display_name": "Wages, hire and lease (ijara)",
+      "family": "fiqh",
+      "vocabulary": ["wages", "hire", "lease", "rent", "hired"],
+      "source_kitabs": ["Hiring"]
+    },
+    "fiqh.business.agriculture_musaqa": {
+      "display_name": "Agriculture and crop-sharing (musaqa / muzara'a)",
+      "family": "fiqh",
+      "vocabulary": ["crops", "harvest", "share of produce", "till the land", "cultivate", "water the palms"],
+      "source_kitabs": ["Agriculture", "Distribution of Water"]
+    },
+    "fiqh.business.endowment_waqf": {
+      "display_name": "Endowments and trusts (waqf)",
+      "family": "fiqh",
+      "vocabulary": ["endowment", "trust", "gave in charity a land", "perpetual charity"],
+      "source_kitabs": ["Wills and Testaments (Wasaya)"]
+    },
+    "fiqh.business.wills_inheritance": {
+      "display_name": "Wills, testaments and inheritance (miras / wasiyya)",
+      "family": "fiqh",
+      "vocabulary": ["will", "bequeath", "inheritance", "heir", "estate", "share of the deceased", "testament"],
+      "source_kitabs": ["Wills and Testaments (Wasaya)", "Laws of Inheritance (Al-Faraaid)"]
+    },
+    "fiqh.business.manumission": {
+      "display_name": "Manumission and emancipation of slaves",
+      "family": "fiqh",
+      "vocabulary": ["manumit", "freed the slave", "emancipate", "set free", "slave"],
+      "source_kitabs": ["Manumission of Slaves"]
+    },
+
+    "fiqh.nikah.marriage_general": {
+      "display_name": "Marriage — general rulings and conduct",
+      "family": "fiqh",
+      "vocabulary": ["marriage", "married", "marry", "wedding", "wife", "husband", "nikah"],
+      "source_kitabs": ["Wedlock and Marriage (Nikah)"]
+    },
+    "fiqh.nikah.mahr_dowry": {
+      "display_name": "Mahr (dowry) and marriage conditions",
+      "family": "fiqh",
+      "vocabulary": ["mahr", "dowry", "bridal gift", "marriage payment", "banquet", "walima"],
+      "source_kitabs": ["Wedlock and Marriage (Nikah)"],
+      "source_baabs": ["Marriage, Conditions and Mahr (Dowry)"]
+    },
+    "fiqh.nikah.consent_guardian": {
+      "display_name": "Consent of the bride and role of the guardian (wali)",
+      "family": "fiqh",
+      "vocabulary": ["guardian", "wali", "consent", "permission of the woman", "orphaned girl", "virgin", "previously married woman"],
+      "source_kitabs": ["Wedlock and Marriage (Nikah)"]
+    },
+    "fiqh.nikah.polygamy_jealousy": {
+      "display_name": "Multiple wives, co-wife jealousy (ghira) and fairness between them",
+      "family": "fiqh",
+      "vocabulary": ["ghira", "jealousy of co-wife", "wives", "fair division", "turn with his wife", "took for his bed"],
+      "source_kitabs": ["Wedlock and Marriage (Nikah)"]
+    },
+    "fiqh.nikah.divorce_general": {
+      "display_name": "Divorce — general rulings",
+      "family": "fiqh",
+      "vocabulary": ["divorce", "divorced", "separation from his wife", "pronounce divorce"],
+      "source_kitabs": ["Divorce"]
+    },
+    "fiqh.nikah.talaq_rulings": {
+      "display_name": "Talaq specifics (pronouncement, witnesses, revocation)",
+      "family": "fiqh",
+      "vocabulary": ["talaq", "pronounce divorce", "menstrual cycle divorce", "return to her"],
+      "source_kitabs": ["Divorce"]
+    },
+    "fiqh.nikah.iddah_mourning": {
+      "display_name": "Iddah, waiting period and mourning",
+      "family": "fiqh",
+      "vocabulary": ["iddah", "waiting period", "mourn", "four months and ten days", "mourning for husband", "no perfume"],
+      "source_kitabs": ["Divorce"]
+    },
+    "fiqh.nikah.ila_vow_abstinence": {
+      "display_name": "Ila' — oath of sexual abstinence",
+      "family": "fiqh",
+      "vocabulary": ["ila", "oath not to approach", "vow of abstinence"],
+      "source_kitabs": ["Divorce"]
+    },
+
+    "fiqh.food.food_general": {
+      "display_name": "Food and eating — permissibility and etiquette",
+      "family": "fiqh",
+      "vocabulary": ["food", "eat", "meal", "ate", "gourd", "dates", "bread", "cheese"],
+      "source_kitabs": ["Food and Meals"]
+    },
+    "fiqh.food.hunting_slaughter": {
+      "display_name": "Hunting, slaughter and permissible game",
+      "family": "fiqh",
+      "vocabulary": ["hunt", "game", "slaughter", "hound", "arrow", "name of Allah on it", "dead meat"],
+      "source_kitabs": ["Hunting and Slaughtering"]
+    },
+    "fiqh.food.drinks_permissible": {
+      "display_name": "Permissible drinks (water, milk, honey)",
+      "family": "fiqh",
+      "vocabulary": ["water", "milk", "honey", "drank", "drink", "bowl", "cup"],
+      "source_kitabs": ["Drinks"]
+    },
+    "fiqh.food.wine_intoxicants": {
+      "display_name": "Wine, khamr and every intoxicant — prohibition",
+      "family": "fiqh",
+      "vocabulary": ["wine", "alcoholic drink", "intoxicant", "nabidh", "every drink that intoxicates", "forbidden drink"],
+      "source_kitabs": ["Drinks"],
+      "source_baabs": ["Prohibition of Wine and Every Intoxicant"]
+    },
+    "fiqh.food.sacrifice_adahi": {
+      "display_name": "Sacrifices (Eid al-Adha, aqiqah)",
+      "family": "fiqh",
+      "vocabulary": ["sacrifice", "slaughter for Eid", "aqiqah", "name of newborn", "seventh day"],
+      "source_kitabs": ["Sacrifice on Occasion of Birth (`Aqiqa)", "Udhiyya (Sacrifice)"]
+    },
+
+    "fiqh.dress.izar_arrogance": {
+      "display_name": "Izar below the ankles — arrogance and haughtiness",
+      "family": "fiqh",
+      "vocabulary": ["izar", "below the ankles", "drag his garment out of pride", "arrogance", "part of the garment below"],
+      "source_kitabs": ["Dress"],
+      "disambiguation_hint": "Specifically about pride-motivated dragging; not general dress rules."
+    },
+    "fiqh.dress.silk_men": {
+      "display_name": "Silk and gold for men — prohibition",
+      "family": "fiqh",
+      "vocabulary": ["silk", "gold ring", "prohibited for men", "unlawful for my men", "signet ring of gold"],
+      "source_kitabs": ["Dress"]
+    },
+    "fiqh.dress.women_hijab_khimar": {
+      "display_name": "Women's dress, khimar and veiling",
+      "family": "fiqh",
+      "vocabulary": ["khimar", "veil", "head covering", "jilbab", "let down over their bosoms", "woman's dress"],
+      "source_kitabs": ["Dress"]
+    },
+    "fiqh.dress.general_dress": {
+      "display_name": "Dress — general rulings (non-specialised)",
+      "family": "fiqh",
+      "vocabulary": ["dress", "garment", "clothing", "cloak", "shirt", "turban"],
+      "source_kitabs": ["Dress"]
+    },
+    "fiqh.dress.hair_perfume_grooming": {
+      "display_name": "Hair, perfume and grooming",
+      "family": "fiqh",
+      "vocabulary": ["hair", "comb", "perfume", "oil the hair", "dye the hair", "henna", "beard", "moustache"],
+      "source_kitabs": ["Dress"]
+    },
+
+    "fiqh.hudood.zina_adultery": {
+      "display_name": "Hudud of zina — illegal sexual intercourse and its punishment",
+      "family": "fiqh",
+      "vocabulary": ["illegal sexual intercourse", "adultery", "fornication", "rajam", "stoning to death", "stoned to death", "lashed one hundred", "hundred stripes"],
+      "source_kitabs": ["Limits and Punishments (Hudood)"],
+      "source_baabs": ["Punishment for Illegal Sexual Intercourse (Zina/Rajam)"],
+      "disambiguation_hint": "Primary topic for any query about zina, adultery, rajam, or the fornication punishment — regardless of narrator or surrounding surah-commentary framing."
+    },
+    "fiqh.hudood.theft_sariqa": {
+      "display_name": "Hudud of theft — cutting the hand (sariqa)",
+      "family": "fiqh",
+      "vocabulary": ["theft", "thief", "cut off the hand", "cutting the hand", "stealing"],
+      "source_kitabs": ["Limits and Punishments (Hudood)"],
+      "source_baabs": ["Punishment for Theft (Cutting the Hand)"]
+    },
+    "fiqh.hudood.qazf_slander": {
+      "display_name": "Hudud of qazf — false accusation of zina",
+      "family": "fiqh",
+      "vocabulary": ["accusation of illegal intercourse", "qazf", "false accusation", "eighty stripes for accusation"],
+      "source_kitabs": ["Limits and Punishments (Hudood)"]
+    },
+    "fiqh.hudood.apostasy_riddah": {
+      "display_name": "Hudud of apostasy — riddah",
+      "family": "fiqh",
+      "vocabulary": ["apostasy", "apostate", "renegade", "who changes his religion", "left Islam"],
+      "source_kitabs": ["Apostates", "Limits and Punishments (Hudood)"]
+    },
+    "fiqh.hudood.alcohol_punishment": {
+      "display_name": "Punishment for drinking alcohol",
+      "family": "fiqh",
+      "vocabulary": ["punishment for drinking", "lashed for wine", "drinker of wine"],
+      "source_kitabs": ["Limits and Punishments (Hudood)"]
+    },
+    "fiqh.hudood.general": {
+      "display_name": "Hudud — general principles and sacred limits",
+      "family": "fiqh",
+      "vocabulary": ["limits", "sacred limits", "hudood", "transgress the limits", "intercession in hudud"],
+      "source_kitabs": ["Limits and Punishments (Hudood)"]
+    },
+
+    "fiqh.justice.blood_money_diyat": {
+      "display_name": "Blood money and qisas (retaliation)",
+      "family": "fiqh",
+      "vocabulary": ["diya", "blood money", "retaliation", "qisas", "killed a person", "compensation for killing"],
+      "source_kitabs": ["Blood Money (Ad-Diyat)"]
+    },
+    "fiqh.justice.witnesses_shuhud": {
+      "display_name": "Witnesses and testimony",
+      "family": "fiqh",
+      "vocabulary": ["witness", "testimony", "testify", "bear witness", "false witness"],
+      "source_kitabs": ["Witnesses (Shuhud)"]
+    },
+    "fiqh.justice.judgments_ahkam": {
+      "display_name": "Judgments, pledges of allegiance and governance (ahkam)",
+      "family": "fiqh",
+      "vocabulary": ["pledge of allegiance", "bay'a", "ruler", "judge", "appoint", "governor", "judicial"],
+      "source_kitabs": ["Judgments (Ahkam)"]
+    },
+    "fiqh.justice.oaths_vows": {
+      "display_name": "Oaths, vows and their expiation",
+      "family": "fiqh",
+      "vocabulary": ["oath", "swear by Allah", "vow", "expiation of oath", "break the oath"],
+      "source_kitabs": ["Oaths and Vows"]
+    },
+    "fiqh.justice.medicine_ruqya": {
+      "display_name": "Medicine, healing and ruqya",
+      "family": "fiqh",
+      "vocabulary": ["disease", "healing", "cure", "ruqya", "recite over him", "medicine", "treatment"],
+      "source_kitabs": ["Medicine (Al-Tibb)"]
+    },
+
+    "ritual.tahara.wudu_ablution": {
+      "display_name": "Wudu (ablution) — procedure, invalidators, virtues",
+      "family": "ritual",
+      "vocabulary": ["ablution", "wudu", "washed his face", "washed his hands", "washed his feet", "rinse the mouth", "wipe the head"],
+      "source_kitabs": ["Ablutions (Wudu')"]
+    },
+    "ritual.tahara.ghusl_bathing": {
+      "display_name": "Ghusl (ritual bath) — major purification",
+      "family": "ritual",
+      "vocabulary": ["bath", "washed himself", "ghusl", "major purification", "poured water over"],
+      "source_kitabs": ["Bathing (Ghusl)"]
+    },
+    "ritual.tahara.tayammum": {
+      "display_name": "Tayammum (dry ablution) with earth",
+      "family": "ritual",
+      "vocabulary": ["tayammum", "strike the earth", "wipe with dust", "no water was found", "pure earth"],
+      "source_kitabs": ["Rubbing hands and feet with dust (Tayammum)"]
+    },
+    "ritual.tahara.menstruation": {
+      "display_name": "Menstruation and post-natal bleeding",
+      "family": "ritual",
+      "vocabulary": ["menses", "menstruating", "period", "blood of menstruation", "postnatal bleeding"],
+      "source_kitabs": ["Menstrual Periods"]
+    },
+
+    "ritual.salah.times_of_prayer": {
+      "display_name": "Times of the five daily prayers",
+      "family": "ritual",
+      "vocabulary": ["fajr prayer", "zuhr", "asr", "maghrib", "isha", "before sunrise", "after sunset", "between prayers"],
+      "source_kitabs": ["Times of the Prayers"]
+    },
+    "ritual.salah.adhan_iqama": {
+      "display_name": "Adhan (call to prayer) and iqama",
+      "family": "ritual",
+      "vocabulary": ["adhan", "iqama", "call to prayer", "muadhdhin", "pronounced for prayer"],
+      "source_kitabs": ["Call to Prayers (Adhan)"]
+    },
+    "ritual.salah.ruku_sujud": {
+      "display_name": "Bowing (ruku) and prostration (sujud) in prayer",
+      "family": "ritual",
+      "vocabulary": ["bowing", "ruku", "prostration", "sujud", "raise the head", "takbir", "raising hands"],
+      "source_kitabs": ["Call to Prayers (Adhan)"]
+    },
+    "ritual.salah.congregation_imam": {
+      "display_name": "Prayer in congregation and the imam",
+      "family": "ritual",
+      "vocabulary": ["lead the prayer", "imam", "behind the imam", "rows of prayer", "congregation"],
+      "source_kitabs": ["Call to Prayers (Adhan)", "Prayers (Salat)"]
+    },
+    "ritual.salah.mosque_places": {
+      "display_name": "Mosques and places of prayer",
+      "family": "ritual",
+      "vocabulary": ["mosque", "sacred mosque", "build a mosque", "pray in the mosque"],
+      "source_kitabs": ["Prayers (Salat)"]
+    },
+    "ritual.salah.sutra_direction": {
+      "display_name": "Sutra and facing the qibla",
+      "family": "ritual",
+      "vocabulary": ["sutra", "facing the Ka'ba", "qibla", "direction of prayer", "pass in front of a praying person"],
+      "source_kitabs": ["Prayers (Salat)"]
+    },
+    "ritual.salah.friday_jumua": {
+      "display_name": "Friday (jumua) prayer and khutba",
+      "family": "ritual",
+      "vocabulary": ["jumua", "friday prayer", "khutba", "friday bath", "ghusl on friday"],
+      "source_kitabs": ["Friday Prayer"]
+    },
+    "ritual.salah.night_tahajjud": {
+      "display_name": "Night prayer (tahajjud, qiyam al-layl, witr)",
+      "family": "ritual",
+      "vocabulary": ["night prayer", "tahajjud", "qiyam", "witr", "pray at night", "last third of the night"],
+      "source_kitabs": ["Prayer at Night (Tahajjud)"]
+    },
+    "ritual.salah.shortening_travel": {
+      "display_name": "Shortening and combining prayers on travel",
+      "family": "ritual",
+      "vocabulary": ["journey", "traveller", "shortening the prayer", "combined zuhr and asr", "on a journey"],
+      "source_kitabs": ["Shortening the Prayers (At-Taqseer)"]
+    },
+    "ritual.salah.eid_two_festivals": {
+      "display_name": "The two Eid prayers",
+      "family": "ritual",
+      "vocabulary": ["eid prayer", "eid al-fitr", "eid al-adha", "musalla for eid", "khutba of eid"],
+      "source_kitabs": ["The Two Festivals (Eids)"]
+    },
+    "ritual.salah.eclipse_rain": {
+      "display_name": "Eclipse and rain-seeking prayers",
+      "family": "ritual",
+      "vocabulary": ["eclipse", "solar eclipse", "lunar eclipse", "istisqa", "rain prayer", "seeking rain"],
+      "source_kitabs": ["Eclipses", "Invoking Allah for Rain (Istisqa)"]
+    },
+    "ritual.salah.fear_prayer_witr": {
+      "display_name": "Fear prayer (salat al-khawf) and witr",
+      "family": "ritual",
+      "vocabulary": ["fear prayer", "in the face of the enemy", "witr prayer", "odd number of rak'ahs"],
+      "source_kitabs": ["Witr Prayer", "Fear Prayer"]
+    },
+    "ritual.salah.prostration_recitation": {
+      "display_name": "Prostration of recitation (sujud al-tilawa)",
+      "family": "ritual",
+      "vocabulary": ["prostration of recitation", "sajdah when reciting", "verse of prostration"],
+      "source_kitabs": ["Prostration During Recital of Qur'an"]
+    },
+    "ritual.salah.prayer_general": {
+      "display_name": "Prayer (salah) — general rulings and virtues",
+      "family": "ritual",
+      "vocabulary": ["prayer", "salah", "offered the prayer", "two rak'ahs", "four rak'ahs"],
+      "source_kitabs": ["Prayers (Salat)"],
+      "disambiguation_hint": "Catch-all for salah narrations that are not clearly about a specific time, place, posture, or special prayer."
+    },
+
+    "ritual.sawm.ramadan": {
+      "display_name": "Ramadan — starting, ending, sighting the moon",
+      "family": "ritual",
+      "vocabulary": ["ramadan", "month of fasting", "sighting the moon", "begin the fast", "end of ramadan"],
+      "source_kitabs": ["Fasting"]
+    },
+    "ritual.sawm.fasting_general": {
+      "display_name": "Fasting — general rulings and virtues",
+      "family": "ritual",
+      "vocabulary": ["fast", "fasting", "did not fast", "kept the fast", "break the fast", "iftar"],
+      "source_kitabs": ["Fasting"]
+    },
+    "ritual.sawm.voluntary_fasts": {
+      "display_name": "Voluntary fasts (Ashura, Mondays, white days)",
+      "family": "ritual",
+      "vocabulary": ["ashura", "day of ashura", "monday fast", "thursday fast", "white days", "six of shawwal"],
+      "source_kitabs": ["Fasting"]
+    },
+    "ritual.sawm.travel_sick_fasting": {
+      "display_name": "Fasting on travel, illness and exemption",
+      "family": "ritual",
+      "vocabulary": ["fasting while travelling", "on a journey and fasting", "sawiq", "makes up the days"],
+      "source_kitabs": ["Fasting"]
+    },
+    "ritual.sawm.itikaf": {
+      "display_name": "I'tikaf — seclusion in the mosque",
+      "family": "ritual",
+      "vocabulary": ["itikaf", "seclusion in the mosque", "last ten days", "lailatul qadr", "night of decree"],
+      "source_kitabs": ["I'tikaf"]
+    },
+
+    "ritual.zakat.general": {
+      "display_name": "Zakat — obligation and general rulings",
+      "family": "ritual",
+      "vocabulary": ["zakat", "obligatory charity", "poor-due", "zakah", "almsgiving", "nisab"],
+      "source_kitabs": ["Obligatory Charity Tax (Zakat)"]
+    },
+    "ritual.zakat.sadaqa_voluntary": {
+      "display_name": "Voluntary charity (sadaqa) and its virtues",
+      "family": "ritual",
+      "vocabulary": ["sadaqa", "voluntary charity", "gave in charity", "charity extinguishes sin", "shade of his charity"],
+      "source_kitabs": ["Obligatory Charity Tax (Zakat)"]
+    },
+    "ritual.zakat.fitr": {
+      "display_name": "Zakat al-fitr (charity at end of Ramadan)",
+      "family": "ritual",
+      "vocabulary": ["zakat al-fitr", "sadaqat al-fitr", "sa'a of dates", "charity of breaking the fast"],
+      "source_kitabs": ["Obligatory Charity Tax (Zakat)"]
+    },
+    "ritual.zakat.crops_livestock": {
+      "display_name": "Zakat on crops, fruits and livestock",
+      "family": "ritual",
+      "vocabulary": ["zakat on crops", "tenth on what the sky waters", "zakat on camels", "zakat on sheep", "grapes and dates"],
+      "source_kitabs": ["Obligatory Charity Tax (Zakat)"]
+    },
+
+    "ritual.hajj.ihram_miqat": {
+      "display_name": "Ihram, talbiyah and miqat",
+      "family": "ritual",
+      "vocabulary": ["ihram", "assume ihram", "talbiyah", "labbayk", "miqat", "dhul hulaifa"],
+      "source_kitabs": ["Hajj (Pilgrimage)"]
+    },
+    "ritual.hajj.tawaf": {
+      "display_name": "Tawaf around the Ka'ba",
+      "family": "ritual",
+      "vocabulary": ["tawaf", "circumambulation", "around the Ka'ba", "seven rounds", "black stone"],
+      "source_kitabs": ["Hajj (Pilgrimage)"]
+    },
+    "ritual.hajj.sai_safa_marwa": {
+      "display_name": "Sa'i between Safa and Marwa",
+      "family": "ritual",
+      "vocabulary": ["safa", "marwa", "sa'i", "between the two hills", "hagar"],
+      "source_kitabs": ["Hajj (Pilgrimage)"]
+    },
+    "ritual.hajj.arafat_muzdalifa_mina": {
+      "display_name": "Arafat, Muzdalifa and Mina — stations of hajj",
+      "family": "ritual",
+      "vocabulary": ["arafat", "muzdalifa", "mina", "day of arafah", "standing at arafah", "stay at mina"],
+      "source_kitabs": ["Hajj (Pilgrimage)"]
+    },
+    "ritual.hajj.hady_sacrifice_hajj": {
+      "display_name": "Hady (sacrificial animal) and sacrifice at hajj",
+      "family": "ritual",
+      "vocabulary": ["hady", "sacrificial animal", "slaughter at mina", "share the camel", "sacrifice for hajj"],
+      "source_kitabs": ["Hajj (Pilgrimage)"]
+    },
+    "ritual.hajj.umrah": {
+      "display_name": "Umrah — rituals and combining with hajj",
+      "family": "ritual",
+      "vocabulary": ["umra", "lesser pilgrimage", "tamattu", "qiran", "umra in ramadan"],
+      "source_kitabs": ["Hajj (Pilgrimage)", "Umra"]
+    },
+    "ritual.hajj.hunting_while_ihram": {
+      "display_name": "Hunting and game while in ihram",
+      "family": "ritual",
+      "vocabulary": ["onager", "kill game while in ihram", "penalty of hunting", "muhrim killed"],
+      "source_kitabs": ["Penalty of Hunting while on Pilgrimage"]
+    },
+    "ritual.hajj.sacred_mosque_kaba": {
+      "display_name": "Sacred mosque, Ka'ba and its history",
+      "family": "ritual",
+      "vocabulary": ["ka'ba", "sacred mosque", "masjid al-haram", "built the house", "foundations of the house"],
+      "source_kitabs": ["Virtues of Prayer at Masjid Makkah and Madinah"]
+    },
+    "ritual.hajj.general": {
+      "display_name": "Hajj — general rulings and virtues",
+      "family": "ritual",
+      "vocabulary": ["hajj", "pilgrimage", "perform the hajj", "abrar hajj", "rewarded hajj"],
+      "source_kitabs": ["Hajj (Pilgrimage)"]
+    },
+
+    "ritual.funerals.death_what_to_say": {
+      "display_name": "At the time of death — what to say and do",
+      "family": "ritual",
+      "vocabulary": ["at the time of death", "died", "talqin", "say the shahada", "closed the eyes"],
+      "source_kitabs": ["Funerals (Al-Janaa'iz)"]
+    },
+    "ritual.funerals.washing_shrouding": {
+      "display_name": "Washing and shrouding the deceased",
+      "family": "ritual",
+      "vocabulary": ["wash the deceased", "shroud", "kafan", "three pieces of cloth", "camphor"],
+      "source_kitabs": ["Funerals (Al-Janaa'iz)"]
+    },
+    "ritual.funerals.funeral_prayer": {
+      "display_name": "Funeral prayer (salat al-janaza)",
+      "family": "ritual",
+      "vocabulary": ["funeral prayer", "prayed over the deceased", "four takbirs", "janaza prayer"],
+      "source_kitabs": ["Funerals (Al-Janaa'iz)"]
+    },
+    "ritual.funerals.burial_grave": {
+      "display_name": "Burial, the grave and grave-visiting",
+      "family": "ritual",
+      "vocabulary": ["grave", "graves", "buried", "lahd", "niche in the grave", "visit the graves"],
+      "source_kitabs": ["Funerals (Al-Janaa'iz)"]
+    },
+    "ritual.funerals.mourning_tearing_garment": {
+      "display_name": "Mourning — permissible grief and prohibited wailing",
+      "family": "ritual",
+      "vocabulary": ["wailing", "tearing garments", "strike the cheeks", "mourning the dead", "niyaha"],
+      "source_kitabs": ["Funerals (Al-Janaa'iz)"]
+    },
+
+    "historical.maghazi.badr": {
+      "display_name": "The Battle of Badr",
+      "family": "historical",
+      "vocabulary": ["badr", "day of badr", "wells of badr", "people of badr", "prisoners of badr"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.uhud": {
+      "display_name": "The Battle of Uhud",
+      "family": "historical",
+      "vocabulary": ["uhud", "battle of uhud", "hamza at uhud", "mount uhud", "day of uhud"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.khandaq_trench": {
+      "display_name": "Battle of the Trench (Khandaq / Ahzab)",
+      "family": "historical",
+      "vocabulary": ["trench", "khandaq", "ahzab", "confederates", "dug the trench"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.khaybar": {
+      "display_name": "Expedition of Khaybar",
+      "family": "historical",
+      "vocabulary": ["khaybar", "forts of khaybar", "jewish tribes", "safiyya"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.hunayn_taif": {
+      "display_name": "Hunayn and Ta'if expeditions",
+      "family": "historical",
+      "vocabulary": ["hunayn", "ta'if", "hawazin", "thaqif", "booty of hunayn"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.conquest_mecca": {
+      "display_name": "Conquest of Mecca",
+      "family": "historical",
+      "vocabulary": ["conquest of mecca", "fath", "entered mecca", "day of the conquest", "cleared the ka'ba"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.tabuk": {
+      "display_name": "Expedition of Tabuk",
+      "family": "historical",
+      "vocabulary": ["tabuk", "army of distress", "ka'b ibn malik", "three who were left behind"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+    "historical.maghazi.general": {
+      "display_name": "Military expeditions — general and minor campaigns",
+      "family": "historical",
+      "vocabulary": ["ghazwa", "expedition", "campaign", "raid", "sariyya"],
+      "source_kitabs": ["Military Expeditions (Al-Maghazi)"]
+    },
+
+    "historical.jihad.conduct_rules": {
+      "display_name": "Conduct in battle and treatment of the enemy",
+      "family": "historical",
+      "vocabulary": ["do not kill women", "do not kill children", "captive treatment", "prisoner", "truce"],
+      "source_kitabs": ["Fighting for the Cause of Allah (Jihad)"]
+    },
+    "historical.jihad.general_etiquette": {
+      "display_name": "Jihad — general rulings and etiquette",
+      "family": "historical",
+      "vocabulary": ["jihad", "fighting in the cause", "striving in the path", "go out to fight"],
+      "source_kitabs": ["Fighting for the Cause of Allah (Jihad)"]
+    },
+    "historical.jihad.weapons_horses": {
+      "display_name": "Weapons, horses and military preparation",
+      "family": "historical",
+      "vocabulary": ["horse", "horses in the cause", "sword", "spear", "armour", "bow"],
+      "source_kitabs": ["Fighting for the Cause of Allah (Jihad)"]
+    },
+    "historical.jihad.booty_khumus": {
+      "display_name": "Spoils of war and the one-fifth (khumus)",
+      "family": "historical",
+      "vocabulary": ["booty", "spoils", "khumus", "one-fifth", "divided the spoils", "share of the prophet"],
+      "source_kitabs": ["One-fifth of Booty (Khumus)"]
+    },
+    "historical.jihad.jizya_treaty": {
+      "display_name": "Jizya and treaties with non-Muslims",
+      "family": "historical",
+      "vocabulary": ["jizya", "tribute", "people of the book", "treaty", "ahl al-dhimma"],
+      "source_kitabs": ["Jizyah and Mawadah"]
+    },
+    "historical.jihad.martyrdom": {
+      "display_name": "Martyrdom and its virtues",
+      "family": "historical",
+      "vocabulary": ["martyr", "martyred", "slain in the path", "shaheed", "seven rewards of the martyr"],
+      "source_kitabs": ["Fighting for the Cause of Allah (Jihad)"]
+    },
+
+    "historical.companions.abu_bakr": {
+      "display_name": "Merits of Abu Bakr as-Siddiq",
+      "family": "historical",
+      "vocabulary": ["abu bakr", "as-siddiq", "companion of the cave", "first caliph"],
+      "source_kitabs": ["Companions of the Prophet"]
+    },
+    "historical.companions.umar": {
+      "display_name": "Merits of Umar ibn al-Khattab",
+      "family": "historical",
+      "vocabulary": ["umar", "ibn al-khattab", "al-faruq", "second caliph"],
+      "source_kitabs": ["Companions of the Prophet"]
+    },
+    "historical.companions.uthman": {
+      "display_name": "Merits of Uthman ibn Affan",
+      "family": "historical",
+      "vocabulary": ["uthman", "ibn affan", "dhu al-nurayn", "third caliph"],
+      "source_kitabs": ["Companions of the Prophet"]
+    },
+    "historical.companions.ali": {
+      "display_name": "Merits of Ali ibn Abi Talib",
+      "family": "historical",
+      "vocabulary": ["ali ibn abi talib", "abu al-hasan", "ali's sword"],
+      "source_kitabs": ["Companions of the Prophet"]
+    },
+    "historical.companions.others": {
+      "display_name": "Other companions and families",
+      "family": "historical",
+      "vocabulary": ["zubair", "talha", "sa'd", "aisha", "khadija", "fatima", "hasan and husayn", "abbas"],
+      "source_kitabs": ["Companions of the Prophet"]
+    },
+    "historical.ansar_muhajireen": {
+      "display_name": "Merits of the Ansar and the Muhajireen",
+      "family": "historical",
+      "vocabulary": ["ansar", "helpers", "muhajireen", "emigrants", "love of the ansar"],
+      "source_kitabs": ["Merits of the Helpers (Ansar)"]
+    },
+
+    "historical.prophets.ibrahim": {
+      "display_name": "Prophet Ibrahim (Abraham)",
+      "family": "historical",
+      "vocabulary": ["abraham", "ibrahim", "khalil", "built the ka'ba", "ishmael", "hagar"],
+      "source_kitabs": ["Prophets"]
+    },
+    "historical.prophets.musa": {
+      "display_name": "Prophet Musa (Moses)",
+      "family": "historical",
+      "vocabulary": ["moses", "musa", "pharaoh", "children of israel", "khadir"],
+      "source_kitabs": ["Prophets"]
+    },
+    "historical.prophets.isa_maryam": {
+      "display_name": "Prophet Isa (Jesus) and Maryam (Mary)",
+      "family": "historical",
+      "vocabulary": ["jesus", "isa", "mary", "maryam", "son of mary", "cradle"],
+      "source_kitabs": ["Prophets"]
+    },
+    "historical.prophets.nuh_flood": {
+      "display_name": "Prophet Nuh (Noah) and the flood",
+      "family": "historical",
+      "vocabulary": ["noah", "nuh", "ark", "flood", "his people"],
+      "source_kitabs": ["Prophets"]
+    },
+    "historical.prophets.other": {
+      "display_name": "Other prophets — Yusuf, Ayub, Dawud, Sulayman, Yunus etc.",
+      "family": "historical",
+      "vocabulary": ["yusuf", "joseph", "ayub", "job", "dawud", "david", "sulayman", "solomon", "yunus", "jonah"],
+      "source_kitabs": ["Prophets"]
+    },
+    "historical.prophet_biography.merits": {
+      "display_name": "Virtues and merits of the Prophet ﷺ",
+      "family": "historical",
+      "vocabulary": ["merits of the prophet", "virtues of muhammad", "description of the prophet", "seal of the prophets"],
+      "source_kitabs": ["Virtues and Merits of the Prophet ﷺ"]
+    },
+    "historical.prophet_biography.hijra": {
+      "display_name": "Hijra (emigration) to Madinah",
+      "family": "historical",
+      "vocabulary": ["hijra", "emigration", "cave of thawr", "left mecca", "arrived in medina"],
+      "source_kitabs": ["Merits of the Helpers (Ansar)"]
+    },
+    "historical.madinah_virtues": {
+      "display_name": "Virtues of Madinah",
+      "family": "historical",
+      "vocabulary": ["medina", "madinah", "dajjal cannot enter medina", "two lava tracts", "between the two harras"],
+      "source_kitabs": ["Virtues of Madinah"]
+    },
+
+    "akhlaq.adab.parents_duty": {
+      "display_name": "Rights and duty to parents",
+      "family": "akhlaq",
+      "vocabulary": ["parents", "mother", "father", "be dutiful", "uff to them", "kind to parents"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.kinship_silat_rahim": {
+      "display_name": "Ties of kinship (silat al-rahim)",
+      "family": "akhlaq",
+      "vocabulary": ["kinship", "keep good relations", "cut off kinship", "silat al-rahim", "relatives"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.mercy_compassion": {
+      "display_name": "Mercy and compassion",
+      "family": "akhlaq",
+      "vocabulary": ["merciful", "mercy", "compassion", "who are not merciful", "to the young and old"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.neighbor_rights": {
+      "display_name": "Rights of the neighbour",
+      "family": "akhlaq",
+      "vocabulary": ["neighbour", "not harm his neighbour", "generous to his neighbour", "next to him"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.guests_hospitality": {
+      "display_name": "Hospitality and rights of the guest",
+      "family": "akhlaq",
+      "vocabulary": ["guest", "honour his guest", "host", "entertain", "three days"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.truthfulness_lying": {
+      "display_name": "Truthfulness and the prohibition of lying",
+      "family": "akhlaq",
+      "vocabulary": ["lying", "false statements", "truthfulness", "truthful", "falsehood", "liar"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.anger_control": {
+      "display_name": "Anger and self-control",
+      "family": "akhlaq",
+      "vocabulary": ["do not become angry", "anger", "angry", "controls his anger", "swallows his rage"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.patience_sabr": {
+      "display_name": "Patience (sabr) and perseverance",
+      "family": "akhlaq",
+      "vocabulary": ["patience", "patient", "endurance", "at the first shock", "perseverance"],
+      "source_kitabs": ["To Make the Heart Tender (Ar-Riqaq)", "Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.modesty_haya": {
+      "display_name": "Modesty (haya)",
+      "family": "akhlaq",
+      "vocabulary": ["modesty", "shyness", "haya", "modest", "bashfulness", "part of faith"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.arrogance_humility": {
+      "display_name": "Arrogance (kibr) vs humility (tawadu)",
+      "family": "akhlaq",
+      "vocabulary": ["arrogance", "pride", "haughty", "boasting", "humility", "humble"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.envy_hasad": {
+      "display_name": "Envy (hasad) and jealousy",
+      "family": "akhlaq",
+      "vocabulary": ["envy", "envious", "jealousy", "jealous", "hasad"],
+      "source_kitabs": ["Good Manners and Form (Al-Adab)"]
+    },
+    "akhlaq.adab.backbiting_ghayba": {
+      "display_name": "Backbiting (ghayba) and tale-bearing (nameemah)",
+      "family": "akhlaq",
+      "vocabulary": ["backbiting", "speaking ill of", "tale-bearer", "carries tales", "nameemah", "says behind his back"]
+    },
+    "akhlaq.adab.cursing_profanity": {
+      "display_name": "Cursing, swearing and obscene speech",
+      "family": "akhlaq",
+      "vocabulary": ["curse", "cursing", "obscene", "foul speech", "revile", "swearing"]
+    },
+    "akhlaq.adab.generosity_stinginess": {
+      "display_name": "Generosity vs stinginess",
+      "family": "akhlaq",
+      "vocabulary": ["generous", "generosity", "stingy", "miserly", "openhanded"]
+    },
+    "akhlaq.adab.brotherhood_love": {
+      "display_name": "Brotherhood and love for fellow Muslim",
+      "family": "akhlaq",
+      "vocabulary": ["brother", "love for his brother", "does not believe", "what he loves for himself"]
+    },
+    "akhlaq.adab.mocking_nicknames": {
+      "display_name": "Mocking, nicknames and offending others",
+      "family": "akhlaq",
+      "vocabulary": ["nickname", "mock", "ridicule", "offensive names"]
+    },
+    "akhlaq.adab.names_conduct": {
+      "display_name": "Choosing names and kunya",
+      "family": "akhlaq",
+      "vocabulary": ["name", "naming", "best of names", "do not take the kunya abu al-qasim"]
+    },
+    "akhlaq.adab.permission_greeting": {
+      "display_name": "Asking permission and the salam greeting",
+      "family": "akhlaq",
+      "vocabulary": ["permission to enter", "istidhan", "salam", "greet with peace", "three times"],
+      "source_kitabs": ["Asking Permission (Al-Istidhan)"]
+    },
+
+    "akhlaq.dua.invocations_general": {
+      "display_name": "Invocations and du'a — general",
+      "family": "akhlaq",
+      "vocabulary": ["dua", "invocation", "supplication", "called upon his lord", "ask allah"],
+      "source_kitabs": ["Invocations and Dua (Al-Dawat)"]
+    },
+    "akhlaq.dua.refuge_seeking": {
+      "display_name": "Seeking refuge (ta'awwudh)",
+      "family": "akhlaq",
+      "vocabulary": ["seek refuge", "refuge with allah", "a'udhu billah", "protect me from"],
+      "source_kitabs": ["Invocations and Dua (Al-Dawat)"]
+    },
+    "akhlaq.dua.morning_evening_adhkar": {
+      "display_name": "Morning and evening adhkar (remembrances)",
+      "family": "akhlaq",
+      "vocabulary": ["when he rose in the morning", "when he went to bed", "before sleep", "adhkar of the morning"]
+    },
+    "akhlaq.dua.istighfar_tawbah": {
+      "display_name": "Istighfar and repentance (tawbah)",
+      "family": "akhlaq",
+      "vocabulary": ["ask forgiveness", "seek forgiveness", "repent", "tawbah", "istighfar", "returns to his lord"]
+    },
+    "akhlaq.dua.dhikr_tasbih": {
+      "display_name": "Dhikr, tasbih and remembrance",
+      "family": "akhlaq",
+      "vocabulary": ["dhikr", "remembrance of allah", "tasbih", "subhan allah", "alhamdulillah", "la ilaha illa allah"]
+    },
+
+    "akhlaq.riqaq.death_remembrance": {
+      "display_name": "Remembrance of death and the grave",
+      "family": "akhlaq",
+      "vocabulary": ["death", "grave", "punishment of the grave", "angel of death", "remember death"],
+      "source_kitabs": ["To Make the Heart Tender (Ar-Riqaq)"]
+    },
+    "akhlaq.riqaq.world_dunya": {
+      "display_name": "Attitude toward the world (dunya) and zuhd",
+      "family": "akhlaq",
+      "vocabulary": ["world", "dunya", "live as a stranger", "like a traveller", "zuhd", "little wealth"],
+      "source_kitabs": ["To Make the Heart Tender (Ar-Riqaq)"]
+    },
+    "akhlaq.riqaq.heart_tender_general": {
+      "display_name": "General spiritual reminders (riqaq)",
+      "family": "akhlaq",
+      "vocabulary": ["heart", "tender", "fear of allah", "reminded", "spiritual"],
+      "source_kitabs": ["To Make the Heart Tender (Ar-Riqaq)"]
+    },
+    "akhlaq.sick_visit": {
+      "display_name": "Visiting the sick",
+      "family": "akhlaq",
+      "vocabulary": ["visit the sick", "fever", "sick person", "patient", "illness"],
+      "source_kitabs": ["Patients and the Sick"]
+    },
+    "akhlaq.dress_wishes_martyrdom": {
+      "display_name": "Wishes, intentions and desire for good",
+      "family": "akhlaq",
+      "vocabulary": ["wish", "desire", "wish he were a martyr", "long for", "loved to"],
+      "source_kitabs": ["Wishes (Al-Tamanni)"]
+    },
+
+    "quran.tafsir.general": {
+      "display_name": "Prophetic commentary on the Qur'an — general tafsir",
+      "family": "quran",
+      "vocabulary": ["verse was revealed", "meaning of the verse", "this verse refers to", "occasion of revelation"],
+      "source_kitabs": ["Prophetic Commentary on the Quran"]
+    },
+    "quran.tafsir.specific_surah": {
+      "display_name": "Commentary on a specific surah",
+      "family": "quran",
+      "vocabulary": ["surat", "chapter", "al-fatiha", "al-baqara", "an-nisa", "an-nahl", "an-nas"],
+      "source_kitabs": ["Prophetic Commentary on the Quran"]
+    },
+    "quran.virtues.recitation": {
+      "display_name": "Virtues of Qur'an recitation",
+      "family": "quran",
+      "vocabulary": ["recite the qur'an", "read the qur'an", "virtue of the qur'an", "one letter ten rewards", "surat al-kahf"],
+      "source_kitabs": ["Virtues of the Quran"]
+    },
+    "quran.preservation_modes": {
+      "display_name": "Preservation of the Qur'an and its seven modes (ahruf)",
+      "family": "quran",
+      "vocabulary": ["seven ahruf", "modes of recitation", "compiled the qur'an", "collected the qur'an", "uthman's mushaf"],
+      "source_kitabs": ["Virtues of the Quran"]
+    },
+
+    "aqeedah.tawhid.general": {
+      "display_name": "Tawhid — the oneness of Allah",
+      "family": "aqeedah",
+      "vocabulary": ["oneness of allah", "monotheism", "tawhid", "la ilaha illa allah", "worship allah alone"],
+      "source_kitabs": ["Oneness of Allah (Tawheed)"]
+    },
+    "aqeedah.tawhid.shirk": {
+      "display_name": "Shirk — associating partners with Allah",
+      "family": "aqeedah",
+      "vocabulary": ["associate partners", "shirk", "polytheism", "idol worship", "the greatest sin"]
+    },
+    "aqeedah.attributes_of_allah": {
+      "display_name": "Attributes and names of Allah",
+      "family": "aqeedah",
+      "vocabulary": ["allah descends", "his hand", "his face", "sees", "hears", "ninety-nine names"]
+    },
+    "aqeedah.throne_greatness": {
+      "display_name": "Allah's Throne (Arsh) and greatness",
+      "family": "aqeedah",
+      "vocabulary": ["throne", "arsh", "above the throne", "kursi", "greatness of allah"]
+    },
+    "aqeedah.quran_word_of_allah": {
+      "display_name": "The Qur'an as the word of Allah",
+      "family": "aqeedah",
+      "vocabulary": ["speech of allah", "word of allah", "qur'an is not created", "allah speaks"]
+    },
+    "aqeedah.iman_belief_general": {
+      "display_name": "Iman — belief and its components",
+      "family": "aqeedah",
+      "vocabulary": ["belief", "iman", "faith", "believe in allah", "pillars of faith", "angels and books"],
+      "source_kitabs": ["Belief"]
+    },
+    "aqeedah.iman_increase_decrease": {
+      "display_name": "Faith increases and decreases",
+      "family": "aqeedah",
+      "vocabulary": ["faith increases", "faith decreases", "weakest faith", "highest branch"]
+    },
+    "aqeedah.hypocrisy_nifaq": {
+      "display_name": "Hypocrisy (nifaq) and signs of a hypocrite",
+      "family": "aqeedah",
+      "vocabulary": ["hypocrite", "hypocrisy", "signs of a hypocrite", "when he speaks he lies", "breaks his promise"]
+    },
+    "aqeedah.qadar_divine_decree": {
+      "display_name": "Qadar — divine decree and predestination",
+      "family": "aqeedah",
+      "vocabulary": ["divine will", "predestination", "qadar", "decree of allah", "written before creation"],
+      "source_kitabs": ["Divine Will (Al-Qadar)"]
+    },
+    "aqeedah.angels": {
+      "display_name": "Angels and their roles",
+      "family": "aqeedah",
+      "vocabulary": ["gabriel", "jibril", "mikail", "angel of death", "recording angels", "angels descend"]
+    },
+    "aqeedah.jinn_satan": {
+      "display_name": "Jinn and Satan (shaytan)",
+      "family": "aqeedah",
+      "vocabulary": ["jinn", "satan", "shaytan", "devil", "iblis", "whisperings"]
+    },
+
+    "eschatology.creation_beginning": {
+      "display_name": "Beginning of creation",
+      "family": "eschatology",
+      "vocabulary": ["created the heavens", "adam", "created from clay", "creation of the heavens", "in six days"],
+      "source_kitabs": ["Beginning of Creation"]
+    },
+    "eschatology.end_times_general": {
+      "display_name": "End-times afflictions and fitan",
+      "family": "eschatology",
+      "vocabulary": ["afflictions", "trials", "fitan", "tribulations", "civil strife", "near the hour"],
+      "source_kitabs": ["Afflictions and the End of the World"]
+    },
+    "eschatology.dajjal": {
+      "display_name": "Dajjal — the false messiah / antichrist",
+      "family": "eschatology",
+      "vocabulary": ["dajjal", "false messiah", "antichrist", "one-eyed", "between his eyes", "kafir written", "cannot enter medina"],
+      "source_kitabs": ["Afflictions and the End of the World"],
+      "source_baabs": ["The Dajjal (False Messiah)"],
+      "disambiguation_hint": "Primary topic for any dajjal query. Also picks up narrations about him from other kitabs (e.g. du'a seeking refuge from dajjal, Madinah's immunity to him)."
+    },
+    "eschatology.signs_of_hour": {
+      "display_name": "Signs of the Hour",
+      "family": "eschatology",
+      "vocabulary": ["signs of the hour", "hour is near", "hour established", "until the hour"]
+    },
+    "eschatology.gog_magog": {
+      "display_name": "Gog and Magog (Ya'juj wa Ma'juj)",
+      "family": "eschatology",
+      "vocabulary": ["gog", "magog", "yajuj", "majuj", "ya'juj wa ma'juj"]
+    },
+    "eschatology.mahdi_isa_return": {
+      "display_name": "Mahdi and the return of Isa",
+      "family": "eschatology",
+      "vocabulary": ["mahdi", "guided one", "fills the earth with justice", "descent of isa", "son of mary will descend"]
+    },
+    "eschatology.resurrection_day": {
+      "display_name": "Day of Resurrection (qiyamah)",
+      "family": "eschatology",
+      "vocabulary": ["day of resurrection", "day of judgment", "qiyamah", "resurrected", "gathered"]
+    },
+    "eschatology.bridge_mizan": {
+      "display_name": "The bridge (sirat) and the scale (mizan)",
+      "family": "eschatology",
+      "vocabulary": ["sirat", "bridge over hell", "scale", "mizan", "weighed his deeds"]
+    },
+    "eschatology.hawd_fount": {
+      "display_name": "Hawd — the fount (lake) of the Prophet",
+      "family": "eschatology",
+      "vocabulary": ["fount", "lake", "hawd", "cup of the prophet", "drink and never thirst"]
+    },
+    "eschatology.paradise_jannah": {
+      "display_name": "Paradise (jannah) and its blessings",
+      "family": "eschatology",
+      "vocabulary": ["paradise", "garden", "jannah", "rivers of paradise", "entered paradise", "firdaws"]
+    },
+    "eschatology.hellfire_jahannam": {
+      "display_name": "Hellfire (jahannam) and its punishment",
+      "family": "eschatology",
+      "vocabulary": ["hellfire", "hell", "fire of hell", "jahannam", "wretched fire"]
+    },
+    "eschatology.grave_punishment_blessing": {
+      "display_name": "Punishment and blessing of the grave",
+      "family": "eschatology",
+      "vocabulary": ["punishment of the grave", "torment of the grave", "bliss of the grave", "two angels in the grave"]
+    },
+    "eschatology.dreams_interpretation": {
+      "display_name": "Dreams and their interpretation",
+      "family": "eschatology",
+      "vocabulary": ["dream", "saw in my dream", "interpreted the dream", "good vision"],
+      "source_kitabs": ["Interpretation of Dreams"]
+    },
+
+    "foundational.quran_sunnah_holding_fast": {
+      "display_name": "Holding fast to the Qur'an and Sunnah",
+      "family": "foundational",
+      "vocabulary": ["hold fast", "innovation", "bid'ah", "sunnah", "adhere to my sunnah", "every innovation"],
+      "source_kitabs": ["Holding Fast to the Quran and Sunnah"]
+    },
+    "foundational.knowledge_general": {
+      "display_name": "Knowledge — virtues and seeking",
+      "family": "foundational",
+      "vocabulary": ["knowledge", "learn", "teach", "seeker of knowledge", "scholars"],
+      "source_kitabs": ["Knowledge"]
+    },
+    "foundational.knowledge_teaching": {
+      "display_name": "Teaching, scholars and transmission of knowledge",
+      "family": "foundational",
+      "vocabulary": ["teaching", "pass on", "transmit", "isnad", "chain of narrators", "hadith reached me"],
+      "source_kitabs": ["Knowledge"]
+    },
+    "foundational.fatwa_rulings": {
+      "display_name": "Giving fatwas and religious rulings",
+      "family": "foundational",
+      "vocabulary": ["fatwa", "ruling", "ask him", "consulted", "asked the prophet"],
+      "source_kitabs": ["Knowledge"]
+    },
+    "foundational.single_chain_khabar_wahid": {
+      "display_name": "Accepting reports from a single narrator (khabar al-wahid)",
+      "family": "foundational",
+      "vocabulary": ["one person informed", "single narrator", "we acted on his word"],
+      "source_kitabs": ["Accepting Information from One Person"]
+    },
+    "foundational.revelation_wahy": {
+      "display_name": "Revelation (wahy) — its beginning and forms",
+      "family": "foundational",
+      "vocabulary": ["revelation", "wahy", "angel came to him", "like the ringing of a bell", "heraclius"],
+      "source_kitabs": ["Revelation"]
+    },
+    "foundational.intention_niyya": {
+      "display_name": "Intention (niyya) and actions by intentions",
+      "family": "foundational",
+      "vocabulary": ["intentions", "reward of deeds", "according to what he intended", "emigrated for"],
+      "source_kitabs": ["Revelation"]
+    },
+
+    "historical.prophet_biography.daily_life": {
+      "display_name": "Prophet's personal habits, preferences and daily routines",
+      "family": "historical",
+      "vocabulary": ["liked honey", "liked sweets", "used to wear", "used to eat", "visited his wives", "household of the prophet", "daily routine", "personal preference", "favoured", "loved", "used to say when"],
+      "source_kitabs": ["Virtues and Merits of the Prophet ﷺ", "Dress", "Food and Meals"],
+      "disambiguation_hint": "Use for hadiths describing what the Prophet habitually did in private life — preferences, domestic routines, personal mannerisms — as distinct from his public teachings or rulings."
+    },
+
+    "aqeedah.fitrah_innate_faith": {
+      "display_name": "Fitrah — innate disposition toward true faith",
+      "family": "aqeedah",
+      "vocabulary": ["fitrah", "every child is born", "born with a true faith", "natural disposition", "parents convert him", "parents make him jew", "upon this religion", "innate nature"],
+      "disambiguation_hint": "Specifically about the Islamic concept of innate belief present at birth; covers the classic 'every child is born upon fitrah' narration and variants."
+    },
+
+    "fiqh.hudood.divination_sorcery": {
+      "display_name": "Divination, arrow-lots, sorcery and prohibited supernatural practices",
+      "family": "fiqh",
+      "vocabulary": ["azlam", "arrow-divination", "game of chance", "divining", "divination", "sorcery", "sihr", "bewitched", "magic", "magician", "soothsayer", "fortune teller", "drawing lots for divination", "forbade gambling"],
+      "source_kitabs": ["Limits and Punishments (Hudood)", "Medicine (Al-Tibb)"],
+      "disambiguation_hint": "Use for hadiths on prohibited supernatural / quasi-religious practices: azlam (arrow-lots), sihr (sorcery), soothsaying, gambling of a divinatory kind. Not for permissible activities like drawing lots to decide fair allocation."
+    },
+
+    "akhlaq.adab.night_sleep_etiquette": {
+      "display_name": "Etiquette of night and sleep (household protection, before-bed practices)",
+      "family": "akhlaq",
+      "vocabulary": ["cover your utensils", "close your doors", "put out your lights", "tie your water skins", "when you go to bed", "before sleep", "when retiring", "at night the jinn", "keep your children close at night", "lie down on the right side"],
+      "disambiguation_hint": "Use for procedural night / pre-sleep conduct including household protection measures; distinct from morning/evening dhikr which has its own leaf."
+    },
+
+    "ritual.tahara.najasa_purification": {
+      "display_name": "Purification of impurities (najasa) on clothing, places and surfaces",
+      "family": "ritual",
+      "vocabulary": ["najasa", "impurity on the garment", "blood on the clothes", "washed off the blood", "urine on the ground", "scraped off", "soiled with", "clean it", "remove the stain", "sprinkle water over", "seven times when a dog licks"],
+      "source_kitabs": ["Ablutions (Wudu')", "Menstrual Periods"],
+      "disambiguation_hint": "Use for dealing with impurities on surfaces, clothing, floors, mosque walls — as distinct from body purification (wudu/ghusl) or menstruation-specific rulings."
+    }
+
+  }
+}
