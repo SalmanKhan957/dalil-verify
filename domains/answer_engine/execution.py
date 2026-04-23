@@ -48,6 +48,7 @@ def execute_plan(plan: AskPlan, *, request: Request | None = None, database_url:
 
     hadith_evidence = invoke_hadith_domain(plan, database_url=effective_database_url)
     evidence.hadith = hadith_evidence.hadith
+    evidence.supporting_hadiths = list(hadith_evidence.supporting_hadiths or [])
     evidence.warnings.extend(hadith_evidence.warnings)
     evidence.errors.extend(hadith_evidence.errors)
     if hadith_evidence.diagnostics:

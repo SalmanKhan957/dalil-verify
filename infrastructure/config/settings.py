@@ -62,6 +62,18 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("DALIL_PUBLIC_TOPICAL_HADITH_ENABLED", "true").strip().lower()
         in {"1", "true", "yes", "on"}
     )
+    # Multi-hadith evidence bundling for topical retrieval (Phase 3 / Option B).
+    # When enabled, /ask hadith responses carry up to `hadith_multi_bundle_size`
+    # hadiths (primary + supporting). The renderer synthesizes across them with
+    # per-hadith citation discipline. Rolls back cleanly to single-hadith mode
+    # by setting DALIL_HADITH_MULTI_BUNDLE_ENABLED=false.
+    hadith_multi_bundle_enabled: bool = Field(
+        default_factory=lambda: os.getenv("DALIL_HADITH_MULTI_BUNDLE_ENABLED", "true").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    hadith_multi_bundle_size: int = Field(
+        default_factory=lambda: max(1, min(8, int(os.getenv("DALIL_HADITH_MULTI_BUNDLE_SIZE", "5") or "5")))
+    )
     renderer_backend: str = Field(
         default_factory=lambda: (os.getenv("DALIL_RENDERER_BACKEND", "deterministic").strip().lower() or "deterministic")
     )

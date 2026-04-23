@@ -355,56 +355,94 @@ def _tafsir_source_bundles(tafsir_support: list[dict[str, Any]]) -> list[dict[st
     return bundles
 
 
-def _hadith_source_bundle(hadith_support: dict[str, Any] | None, composition_mode: str) -> list[dict[str, Any]]:
-    if hadith_support is None:
-        return []
+def _build_single_hadith_bundle(
+    entry: dict[str, Any],
+    *,
+    role: str,
+    display_name: str,
+) -> dict[str, Any]:
+    """Build one source_bundle for a single hadith dict (primary or supporting)."""
     full_text = ' '.join(
         part for part in [
-            _collapse_whitespace(hadith_support.get('english_narrator')),
-            _collapse_whitespace(hadith_support.get('english_text')),
+            _collapse_whitespace(entry.get('english_narrator')),
+            _collapse_whitespace(entry.get('english_text')),
         ] if part
     ).strip()
-    summary = _build_hadith_summary(hadith_support, max_chars=420)
+    summary = _build_hadith_summary(entry, max_chars=420)
     focused_extract = _build_focused_extract(
         summary,
-        _collapse_whitespace(hadith_support.get('source_excerpt')),
-        _collapse_whitespace(hadith_support.get('snippet')),
-        _collapse_whitespace(hadith_support.get('guidance_summary')),
+        _collapse_whitespace(entry.get('source_excerpt')),
+        _collapse_whitespace(entry.get('snippet')),
+        _collapse_whitespace(entry.get('guidance_summary')),
         fallback=full_text,
         limit=900,
     )
     short_excerpt = _short_excerpt(
         summary,
-        _collapse_whitespace(hadith_support.get('source_excerpt')),
-        _collapse_whitespace(hadith_support.get('snippet')),
+        _collapse_whitespace(entry.get('source_excerpt')),
+        _collapse_whitespace(entry.get('snippet')),
         fallback=focused_extract,
         limit=220,
     )
-    role = 'explicit_hadith_source'
-    if composition_mode == 'topical_hadith':
-        role = 'topical_hadith_source'
     bundle: dict[str, Any] = {
         'domain': 'hadith',
-        'source_id': hadith_support.get('collection_source_id'),
-        'display_name': _humanize_collection_name(
-            source_id=hadith_support.get('collection_source_id'),
-            collection_slug=hadith_support.get('collection_slug'),
-        ),
+        'source_id': entry.get('collection_source_id'),
+        'display_name': display_name,
         'role': role,
-        'scope_ref': hadith_support.get('canonical_ref'),
+        'scope_ref': entry.get('canonical_ref'),
         'full_text': full_text,
         'focused_extract': focused_extract,
         'short_excerpt': short_excerpt,
-        'reference_url': hadith_support.get('reference_url'),
-        'citations': [hadith_support.get('canonical_ref')],
+        'reference_url': entry.get('reference_url'),
+        'citations': [entry.get('canonical_ref')],
+        'narrator': entry.get('english_narrator'),
+        'grading_label': entry.get('grading_label'),
     }
-    supporting_refs = [str(ref).strip() for ref in list(hadith_support.get('supporting_refs') or []) if str(ref).strip()]
-    if supporting_refs:
-        bundle['supporting_refs'] = supporting_refs
-    matched_topics = [str(topic).strip() for topic in list(hadith_support.get('matched_topics') or []) if str(topic).strip()]
+    matched_topics = [str(topic).strip() for topic in list(entry.get('matched_topics') or []) if str(topic).strip()]
     if matched_topics:
         bundle['matched_topics'] = matched_topics
-    return [bundle]
+    return bundle
+
+
+def _hadith_source_bundle(hadith_support: dict[str, Any] | None, composition_mode: str) -> list[dict[str, Any]]:
+    """Emit one source_bundle per hadith so the renderer sees the full evidence pack.
+
+    Phase 3 (Option B): the primary bundle stays at index 0 with role
+    explicit_hadith_source / topical_hadith_source. Supporting hadiths (if
+    any) follow with role `supporting_hadith_source`. The renderer prompt
+    instructs the LLM to synthesize across them with per-hadith citations.
+    """
+    if hadith_support is None:
+        return []
+
+    display_name = _humanize_collection_name(
+        source_id=hadith_support.get('collection_source_id'),
+        collection_slug=hadith_support.get('collection_slug'),
+    )
+    primary_role = 'topical_hadith_source' if composition_mode == 'topical_hadith' else 'explicit_hadith_source'
+    bundles: list[dict[str, Any]] = [
+        _build_single_hadith_bundle(hadith_support, role=primary_role, display_name=display_name),
+    ]
+
+    # Primary's supporting_refs list (used downstream for resolved_scope).
+    supporting_refs = [str(ref).strip() for ref in list(hadith_support.get('supporting_refs') or []) if str(ref).strip()]
+    if supporting_refs:
+        bundles[0]['supporting_refs'] = supporting_refs
+
+    # Phase 3: emit one bundle per supporting hadith.
+    supporting_entries = hadith_support.get('supporting_hadiths') or []
+    for entry in supporting_entries:
+        if not isinstance(entry, dict) or not entry.get('canonical_ref'):
+            continue
+        bundles.append(
+            _build_single_hadith_bundle(
+                entry,
+                role='supporting_hadith_source',
+                display_name=display_name,
+            )
+        )
+
+    return bundles
 
 
 def _comparative_packet(tafsir_bundles: list[dict[str, Any]]) -> dict[str, Any] | None:

@@ -33,6 +33,9 @@ class TafsirInvocationEvidence:
 @dataclass(slots=True)
 class HadithInvocationEvidence:
     hadith: HadithEvidence | None = None
+    # Phase 3 multi-hadith bundle — up to settings.hadith_multi_bundle_size - 1
+    # additional topically-aligned records surfaced alongside the primary one.
+    supporting_hadiths: list[HadithEvidence] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     diagnostics: dict[str, Any] = field(default_factory=dict)
@@ -215,6 +218,7 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
         top_score = float(getattr(top, 'score', 0.0) or 0.0)
         diagnostics: dict[str, Any] = {}
         selected_hadith = None
+        supporting_list: list[HadithEvidence] = []
         selected_warnings: list[str] = []
         authority_source = 'legacy_lexical'
         if retrieval_mode == 'topical_v2_shadow':
@@ -235,46 +239,84 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
                     'debug': shadow_result.debug,
                 }
                 if not shadow_result.abstain and shadow_result.selected:
-                    selected_candidate = shadow_result.selected[0]
+                    # ── Phase 3: multi-hadith evidence bundle ─────────────────
+                    # Hydrate top-N candidates in one DB round-trip. Primary =
+                    # first candidate; supporting = remaining. Renderer gets
+                    # all of them and synthesizes with per-hadith citations.
+                    bundle_enabled = bool(getattr(settings, 'hadith_multi_bundle_enabled', True))
+                    bundle_size = int(getattr(settings, 'hadith_multi_bundle_size', 5))
+                    n = max(1, bundle_size) if bundle_enabled else 1
+                    selected_candidates = list(shadow_result.selected[:n])
+
                     hydrated = hydrate_hadith_entries_by_collection_refs(
-                        [selected_candidate.canonical_ref],
+                        [c.canonical_ref for c in selected_candidates],
                         collection_source_id=plan.hadith_plan.params.get('source_id') or plan.hadith_plan.source_id,
                         database_url=database_url,
                     )
-                    selected_entry = hydrated.get(selected_candidate.canonical_ref)
-                    if selected_entry is not None:
-                        selected_hadith = build_hadith_evidence(
-                            selected_entry,
-                            snippet=(getattr(selected_candidate, 'metadata', {}) or {}).get('snippet'),
+
+                    def _build_from_candidate(cand) -> HadithEvidence | None:
+                        entry = hydrated.get(cand.canonical_ref)
+                        if entry is None:
+                            return None
+                        metadata = getattr(cand, 'metadata', {}) or {}
+                        evidence = build_hadith_evidence(
+                            entry,
+                            snippet=metadata.get('snippet'),
                             retrieval_method='topical_v2',
-                            matched_terms=tuple(getattr(selected_candidate, 'matched_terms', ()) or ()),
+                            matched_terms=tuple(getattr(cand, 'matched_terms', ()) or ()),
                             authority_source='topical_v2',
-                            retrieval_origin=getattr(selected_candidate, 'retrieval_origin', None),
-                            matched_topics=tuple(getattr(selected_candidate, 'matched_topics', ()) or ()),
-                            central_topic_score=getattr(selected_candidate, 'central_topic_score', None),
-                            answerability_score=getattr(selected_candidate, 'answerability_score', None),
-                            guidance_role=getattr(selected_candidate, 'guidance_role', None),
-                            topic_family=getattr(selected_candidate, 'topic_family', None),
-                            fusion_score=getattr(selected_candidate, 'fusion_score', None),
-                            rerank_score=getattr(selected_candidate, 'rerank_score', None),
-                            lexical_score=getattr(selected_candidate, 'lexical_score', None),
-                            vector_score=getattr(selected_candidate, 'vector_score', None),
+                            retrieval_origin=getattr(cand, 'retrieval_origin', None),
+                            matched_topics=tuple(getattr(cand, 'matched_topics', ()) or ()),
+                            central_topic_score=getattr(cand, 'central_topic_score', None),
+                            answerability_score=getattr(cand, 'answerability_score', None),
+                            guidance_role=getattr(cand, 'guidance_role', None),
+                            topic_family=getattr(cand, 'topic_family', None),
+                            fusion_score=getattr(cand, 'fusion_score', None),
+                            rerank_score=getattr(cand, 'rerank_score', None),
+                            lexical_score=getattr(cand, 'lexical_score', None),
+                            vector_score=getattr(cand, 'vector_score', None),
                         )
+                        if evidence is not None:
+                            evidence.raw.update({
+                                'guidance_unit_id': metadata.get('guidance_unit_id'),
+                                'guidance_summary': metadata.get('contextual_summary'),
+                                'source_excerpt': metadata.get('span_text'),
+                                'snippet': metadata.get('snippet'),
+                                'topic_density': metadata.get('topic_density'),
+                            })
+                        return evidence
+
+                    built: list[HadithEvidence] = []
+                    for cand in selected_candidates:
+                        ev = _build_from_candidate(cand)
+                        if ev is not None:
+                            built.append(ev)
+
+                    if built:
+                        selected_hadith = built[0]
+                        supporting_list = built[1:]
+                        # Preserve the legacy raw fields on the primary, plus
+                        # enumerate the supporting refs for composition-layer use.
                         selected_hadith.raw.update({
-                            'supporting_refs': list((shadow_result.debug.get('evidence_bundle') or {}).get('supporting_refs') or []),
-                            'evidence_bundle_size': int((shadow_result.debug.get('evidence_bundle') or {}).get('candidate_count') or 0),
+                            'supporting_refs': [ev.canonical_ref for ev in supporting_list],
+                            'evidence_bundle_size': len(built),
                             'llm_composition_ready': bool(shadow_result.debug.get('llm_composition_contract')),
-                            'guidance_unit_id': ((getattr(selected_candidate, 'metadata', {}) or {}).get('guidance_unit_id')),
-                            'guidance_summary': ((getattr(selected_candidate, 'metadata', {}) or {}).get('contextual_summary')),
-                            'source_excerpt': ((getattr(selected_candidate, 'metadata', {}) or {}).get('span_text')),
                         })
                         authority_source = 'topical_v2'
                         selected_warnings = list(shadow_result.warnings)
+                        diagnostics['hadith_bundle'] = {
+                            'primary_ref': selected_hadith.canonical_ref,
+                            'supporting_refs': [ev.canonical_ref for ev in supporting_list],
+                            'bundle_size': len(built),
+                            'multi_bundle_enabled': bundle_enabled,
+                        }
             except Exception as exc:  # pragma: no cover
                 diagnostics['topical_v2_shadow'] = {'error': str(exc)}
+
         if selected_hadith is not None:
             return HadithInvocationEvidence(
                 hadith=selected_hadith,
+                supporting_hadiths=supporting_list,
                 warnings=selected_warnings,
                 errors=[],
                 diagnostics=diagnostics,

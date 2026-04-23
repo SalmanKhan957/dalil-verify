@@ -88,12 +88,49 @@ def _build_quran_support(plan: AskPlan, evidence: EvidencePack) -> dict[str, Any
     }
 
 
+def _projected_hadith_entry(hadith: Any) -> dict[str, Any]:
+    """Flatten one HadithEvidence into the supporting_hadiths projection shape.
+
+    A compact subset of the primary `hadith_support` dict — enough for the
+    composer / renderer to cite and excerpt, without repeating every
+    diagnostic field. Used exclusively for entries in `supporting_hadiths`.
+    """
+    raw = dict(getattr(hadith, 'raw', {}) or {})
+    return {
+        'citation_string': getattr(hadith, 'citation_string', None),
+        'canonical_ref': getattr(hadith, 'canonical_ref', None),
+        'collection_source_id': getattr(hadith, 'collection_source_id', None),
+        'collection_slug': getattr(hadith, 'collection_slug', None),
+        'collection_hadith_number': getattr(hadith, 'collection_hadith_number', None),
+        'book_number': getattr(hadith, 'book_number', None),
+        'chapter_number': getattr(hadith, 'chapter_number', None),
+        'in_book_hadith_number': getattr(hadith, 'in_book_hadith_number', None),
+        'reference_url': raw.get('reference_url'),
+        'in_book_reference_text': raw.get('in_book_reference_text'),
+        'book_title_en': _clean_hadith_book_title(raw.get('book_title_en'), language='en'),
+        'english_narrator': getattr(hadith, 'english_narrator', None),
+        'english_text': getattr(hadith, 'english_text', None),
+        'arabic_text': getattr(hadith, 'arabic_text', None),
+        'grading_label': getattr(hadith, 'grading_label', None),
+        'grading_text': getattr(hadith, 'grading_text', None),
+        'snippet': getattr(hadith, 'snippet', None),
+        'matched_topics': list(raw.get('matched_topics') or []),
+        'central_topic_score': raw.get('central_topic_score'),
+        'answerability_score': raw.get('answerability_score'),
+        'guidance_role': raw.get('guidance_role'),
+        'role': 'supporting',
+    }
+
+
 def _build_hadith_support(evidence: EvidencePack) -> dict[str, Any] | None:
     if evidence.hadith is None:
         return None
     hadith = evidence.hadith
     numbering_quality = _resolve_hadith_numbering_quality(evidence)
     raw = dict(hadith.raw or {})
+    supporting_hadiths_projection = [
+        _projected_hadith_entry(ev) for ev in (evidence.supporting_hadiths or []) if ev is not None
+    ]
     return {
         'citation_string': hadith.citation_string,
         'canonical_ref': hadith.canonical_ref,
@@ -133,9 +170,11 @@ def _build_hadith_support(evidence: EvidencePack) -> dict[str, Any] | None:
         'lexical_score': raw.get('lexical_score'),
         'vector_score': raw.get('vector_score'),
         'supporting_refs': list(raw.get('supporting_refs') or []),
-        'evidence_bundle_size': raw.get('evidence_bundle_size'),
+        'supporting_hadiths': supporting_hadiths_projection,
+        'evidence_bundle_size': raw.get('evidence_bundle_size') or (1 + len(supporting_hadiths_projection)),
         'llm_composition_ready': bool(raw.get('llm_composition_ready')) or bool(raw.get('source_excerpt') or hadith.snippet or raw.get('guidance_summary') or hadith.english_text),
         'numbering_quality': numbering_quality,
+        'role': 'primary',
     }
 
 

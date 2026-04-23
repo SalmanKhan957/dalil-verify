@@ -41,6 +41,7 @@ class Case:
     query: str
     expected_primary: str | None  # None = accept any primary, just not abstain
     allow_alternatives: tuple[str, ...] = ()
+    min_bundle_size: int = 1  # Phase 3: expected hadith bundle size (primary + supporting)
 
 
 CANONICAL_CASES: tuple[Case, ...] = (
@@ -89,6 +90,13 @@ CANONICAL_CASES: tuple[Case, ...] = (
     # ── Broad queries — accept any non-abstain ──────────────────────────
     Case('generosity and charity', None),
     Case('the merits of the companions', None),
+
+    # ── Phase 3: multi-hadith bundle assertions ─────────────────────────
+    # Procedural queries should surface multiple hadiths (primary + supporting)
+    # so the renderer can synthesize a real answer.
+    Case('How did the prophet do ghusl?', 'ritual.tahara.ghusl_bathing', min_bundle_size=3),
+    Case('How did the prophet pray at night?', 'ritual.salah.night_tahajjud', min_bundle_size=2),
+    Case('Describe paradise in hadith', 'eschatology.paradise_jannah', min_bundle_size=2),
 )
 
 
@@ -137,6 +145,16 @@ def run_case(svc: HadithTopicalSearchService, case: Case) -> CaseResult:
         )
 
     top_primary = list(top.matched_topics or [])
+    bundle_size = len(result.selected)
+    debug['bundle_size'] = bundle_size
+
+    if case.min_bundle_size > 1 and bundle_size < case.min_bundle_size:
+        return CaseResult(
+            case=case, passed=False, reason=f'bundle_too_small ({bundle_size} < {case.min_bundle_size})',
+            top_ref=top.canonical_ref, top_primary=top_primary,
+            elapsed_ms=elapsed_ms, debug=debug,
+        )
+
     if case.expected_primary is None:
         return CaseResult(
             case=case, passed=True, reason='broad_ok',

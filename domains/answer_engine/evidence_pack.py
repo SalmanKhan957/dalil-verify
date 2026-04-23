@@ -86,6 +86,12 @@ class EvidencePack:
     quran: QuranEvidence | None = None
     tafsir: list[TafsirEvidence] = field(default_factory=list)
     hadith: HadithEvidence | None = None
+    # Phase 3 — multi-hadith evidence bundle. `hadith` stays as the primary
+    # selected record (backward compatible for existing single-hadith consumers);
+    # `supporting_hadiths` carries 0..N additional topically-aligned records
+    # that the renderer can draw on for synthesis. Empty when retrieval only
+    # returned one candidate, or when DALIL_HADITH_MULTI_BUNDLE_ENABLED=false.
+    supporting_hadiths: list[HadithEvidence] = field(default_factory=list)
     resolution: dict[str, Any] | None = None
     verifier_result: dict[str, Any] | None = None
     quote_payload: str | None = None

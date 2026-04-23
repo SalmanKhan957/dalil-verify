@@ -476,6 +476,40 @@ class QuranSourceSelection(BaseModel):
     selected_quran_translation_source_id: str | None = None
 
 
+class SupportingHadith(BaseModel):
+    """A supporting hadith surfaced alongside a primary topical-hadith answer.
+
+    Phase 3 multi-hadith bundle. When the primary hadith is accompanied by
+    additional topically-aligned records (because the query benefits from
+    multi-source synthesis — e.g. "how did the prophet do ghusl?" draws on
+    multiple narrations), this shape carries the secondary entries.
+
+    Subset of the full HadithSupport projection — enough to display and cite.
+    """
+    citation_string: str | None = None
+    canonical_ref: str | None = None
+    collection_source_id: str | None = None
+    collection_slug: str | None = None
+    collection_hadith_number: int | None = None
+    book_number: int | None = None
+    chapter_number: int | None = None
+    in_book_hadith_number: int | None = None
+    reference_url: str | None = None
+    in_book_reference_text: str | None = None
+    book_title_en: str | None = None
+    english_narrator: str | None = None
+    english_text: str | None = None
+    arabic_text: str | None = None
+    grading_label: str | None = None
+    grading_text: str | None = None
+    snippet: str | None = None
+    matched_topics: list[str] = []
+    central_topic_score: float | None = None
+    answerability_score: float | None = None
+    guidance_role: str | None = None
+    role: str = 'supporting'
+
+
 class HadithSupport(BaseModel):
     citation_string: str
     canonical_ref: str
@@ -498,6 +532,11 @@ class HadithSupport(BaseModel):
     grading_label: str | None = None
     grading_text: str | None = None
     numbering_quality: str | None = None
+    # Phase 3: multi-hadith bundle — supporting hadiths surfaced alongside primary.
+    supporting_hadiths: list[SupportingHadith] = []
+    evidence_bundle_size: int | None = None
+    role: str = 'primary'
+    model_config = {'extra': 'allow'}
 
 
 class TafsirSupportItem(BaseModel):

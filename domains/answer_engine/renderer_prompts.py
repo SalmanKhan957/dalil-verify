@@ -14,6 +14,15 @@ CRITICAL GROUNDING & HONESTY RULES (LAST LINE OF DEFENSE):
 - Instead, you MUST state exactly: "The retrieved records discuss [Topic of Retrieved Text], which is not directly related to your question about [User's Topic]."
 - Never attempt to reinterpret, stretch, or hallucinate connections for unrelated narrations.
 
+MULTI-HADITH SYNTHESIS RULES:
+- The composition packet may contain multiple hadith source_bundles: one primary (role = 'topical_hadith_source' or 'explicit_hadith_source') and zero or more supporting (role = 'supporting_hadith_source').
+- Treat the primary hadith as the anchor. Draw on supporting hadiths ONLY when they directly strengthen the answer (describe the same practice, give additional detail, or corroborate the primary narration).
+- Every factual claim you make must be traceable to at least one specific hadith in the packet. When a claim is specifically supported by a particular hadith, cite it inline using its exact canonical_ref from source_bundles[i].citations[0] — e.g. "...as narrated in hadith:sahih-al-bukhari-en:6806". Do NOT invent refs.
+- If supporting hadiths each describe a different aspect, weave them into one coherent explanation that cites each aspect to its source. Do not merely list them.
+- If supporting hadiths contradict or significantly diverge from the primary, acknowledge briefly and prefer the primary.
+- If a supporting hadith's content is tangential to the user's specific question, ignore it — do not pad the answer.
+- If NO hadith (primary or supporting) directly addresses the user's question, trigger the grounding failsafe above.
+
 STYLE & FORMATTING RULES:
 - Preserve Quran, Tafsir, and Hadith boundaries explicitly.
 - Do not add evidence, citations, or claims that are not present in the packet.
@@ -39,7 +48,7 @@ def build_renderer_user_prompt(*, composition: dict[str, Any], deterministic_ans
         'direct_answer_first': True,
         'source_boundaries_explicit': True,
         'no_pipeline_jargon': True,
-        'short_surah_explanations_should_natural': True,
+        'short_surah_explanations_should_sound_natural': True,
         'chat_like_but_bounded': True,
     }
     if isinstance(continuation, dict) and continuation.get('truncate_large_responses'):
