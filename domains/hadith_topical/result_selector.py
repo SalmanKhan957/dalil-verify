@@ -69,13 +69,18 @@ _WARNING_RE = _compile(_WARNING_RULING_PATTERNS)
 _VIRTUE_RE = _compile(_VIRTUE_PATTERNS)
 
 
-def _query_shape(query: HadithTopicalQuery) -> str:
+def detect_query_shape(query: HadithTopicalQuery) -> str:
     """Classify the query's *shape* (separate from its topic / family).
 
     Shapes drive per-role bonuses in `_shape_role_bonus`. Order matters:
     most specific shape first. Broad queries fall through to 'broad'.
+
+    Uses raw_query FIRST because the Bukhari topical normalizer strips
+    shape-signal words ("how", "what did", "describe") as conversational
+    fluff. By the time the query reaches normalized_query, the shape is
+    lost — we need the original wording.
     """
-    text = (query.normalized_query or query.raw_query or '').lower()
+    text = (query.raw_query or query.normalized_query or '').lower()
     if not text:
         return 'broad'
     if any(p.search(text) for p in _HOW_RE):
@@ -96,7 +101,7 @@ def _shape_role_bonus(query: HadithTopicalQuery, candidate: HadithTopicalCandida
     records (all at central_topic_score=0.9) without overpowering the base
     retrieval signal.
     """
-    shape = _query_shape(query)
+    shape = detect_query_shape(query)
     if shape == 'broad':
         return 0.0
     role = _normalized_role(candidate.guidance_role)
@@ -165,6 +170,14 @@ def _retrieval_family(query: HadithTopicalQuery) -> str:
 def _preferred_role_bonus(query: HadithTopicalQuery, candidate: HadithTopicalCandidate) -> float:
     role = _normalized_role(candidate.guidance_role)
     family = _retrieval_family(query)
+    # Shape-override: when the query shape is procedural/descriptive, the
+    # classifier's query_profile (often 'prophetic_guidance' because "prophet"
+    # is in the query) is misleading — we WANT narrative_incident records
+    # and MUST NOT apply its anti-narrative penalty. Return 0 here; the
+    # separate _shape_role_bonus carries the correct procedural signal.
+    shape = detect_query_shape(query)
+    if shape == 'procedural_descriptive':
+        return 0.0
     if family == 'entity_eschatology':
         if role == 'thematic_passage':
             return 0.14

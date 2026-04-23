@@ -125,7 +125,46 @@ def _build_filter_clauses(
     return filters
 
 
-def _build_should_clauses(resolution: TopicResolution) -> list[dict[str, Any]]:
+# Shape boosts must overpower literal-token BM25 scores when primary_topic is
+# enforced. The topic filter already guarantees relevance — literal keyword
+# match should NOT be the primary ranking signal in that case. Procedural
+# records use specialized vocabulary ("eleven rak`at", "prolong the prostration",
+# "stood till his feet swelled") that won't literal-match query tokens like
+# "pray at night". A high-magnitude boost ensures the shape-matching cluster
+# ranks above the literal-match cluster.
+_SHAPE_NARRATIVE_BOOST = 60.0   # procedural queries — prefer narrative_incident
+_SHAPE_PROPHETIC_BOOST = 40.0   # "what did the prophet say" — prefer direct statements
+
+
+def _shape_boost_clauses(query_shape: str | None) -> list[dict[str, Any]]:
+    """Phase 3.2 — shape-aware retrieval boost.
+
+    When the query shape indicates the user wants a descriptive or procedural
+    answer ("how did the prophet do X?"), strongly boost records without a
+    direct prophetic statement — those are the Aisha/Jabir-style narrations
+    that describe the Prophet's actual practice. Conversely, boost direct
+    prophetic statements for "what did the prophet say about X?" queries.
+
+    Boost values are tuned to dominate literal-token BM25 scores (which
+    typically max at ~100 for 2-term phrase-plus-AND matches) so that shape-
+    fit records surface above records that merely contain the query tokens.
+    The primary_topics filter guarantees all candidates are on-topic, so
+    this aggressive boost is safe — it reorders within the topic, not across.
+    """
+    if not query_shape:
+        return []
+    if query_shape == 'procedural_descriptive':
+        return [
+            {'term': {'has_direct_prophetic_statement': {'value': False, 'boost': _SHAPE_NARRATIVE_BOOST}}},
+        ]
+    if query_shape == 'prophetic_teaching':
+        return [
+            {'term': {'has_direct_prophetic_statement': {'value': True, 'boost': _SHAPE_PROPHETIC_BOOST}}},
+        ]
+    return []
+
+
+def _build_should_clauses(resolution: TopicResolution, query_shape: str | None = None) -> list[dict[str, Any]]:
     """Construct the BM25 should clauses.
 
     Scoring stack (highest boost first):
@@ -135,6 +174,9 @@ def _build_should_clauses(resolution: TopicResolution) -> list[dict[str, Any]]:
       4. `synthetic_baab_label` AND match   — chapter-title with word flex
       5. `matn_text_clean` AND match        — body text fallback
       6. `secondary_topics` boost           — soft alignment with near-miss slugs
+      7. shape-aware role boost             — Phase 3.2, prefers narrative_incident
+                                              for "how" queries and prophetic
+                                              statements for "say" queries
     """
     tokens = resolution.stripped_tokens
     if not tokens:
@@ -169,6 +211,9 @@ def _build_should_clauses(resolution: TopicResolution) -> list[dict[str, Any]]:
     for slug in resolution.confident_topics[1:3]:
         clauses.append({'term': {'secondary_topics': {'value': slug, 'boost': 0.5}}})
 
+    # Phase 3.2 — shape-aware boost (see _shape_boost_clauses for rationale).
+    clauses.extend(_shape_boost_clauses(query_shape))
+
     return clauses
 
 
@@ -182,6 +227,7 @@ def build_bukhari_bm25_query(
     dalil_family: str | None = None,
     size: int = 20,
     enforce_primary: bool = True,
+    query_shape: str | None = None,
 ) -> dict[str, Any]:
     """Build a BM25 query body against the Bukhari topical v2 index.
 
@@ -193,9 +239,14 @@ def build_bukhari_bm25_query(
                              even if the resolver found one. Useful for
                              fallback retrieval when a strict-filtered query
                              produced no hits.
+        query_shape        — 'procedural_descriptive' / 'prophetic_teaching' /
+                             'ruling_warning' / 'virtue' / 'broad'. Adds shape-
+                             aware BM25 boost so procedural queries pull
+                             narrative_incident records above direct-statement
+                             virtue/warning hadiths (Phase 3.2).
     """
     filters = _build_filter_clauses(resolution, dalil_family=dalil_family, enforce_primary=enforce_primary)
-    shoulds = _build_should_clauses(resolution)
+    shoulds = _build_should_clauses(resolution, query_shape=query_shape)
 
     # When we have a confident primary_topic filter OR any hard filter at all,
     # `should` clauses are used purely for scoring — not for eligibility. We

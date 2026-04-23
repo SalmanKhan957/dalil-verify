@@ -34,6 +34,7 @@ from domains.hadith_topical.contracts import (
 )
 from domains.hadith_topical.enricher import build_enriched_document
 from domains.hadith_topical.query_topic_resolver import TopicResolution, resolve_topic
+from domains.hadith_topical.result_selector import detect_query_shape
 from infrastructure.search.index_names import HADITH_BUKHARI_TOPICAL_INDEX, HADITH_TOPICAL_INDEX
 from infrastructure.search.opensearch.hadith_bukhari_queries import (
     build_bukhari_bm25_query,
@@ -901,6 +902,9 @@ class HadithTopicalCandidateGenerator:
         query = request.query
         dalil_family = query.topic_family
         raw_query = query.raw_query or query.normalized_query or ''
+        # Base search size scales with candidate_limit; expanded below when
+        # primary_topic filter is enforced so the selector sees the full
+        # topic pool (essential for shape-aware ranking of procedural records).
         search_size = max(20, int(request.candidate_limit) * 3)
 
         # -- Step 1: resolver ---------------------------------------------
@@ -914,6 +918,22 @@ class HadithTopicalCandidateGenerator:
         # topic is confidently resolved.
         resolution = resolve_topic(raw_query, query_family=None)
         debug['topic_resolution'] = resolution.as_debug()
+
+        # Phase 3.2 — detect query shape once and thread to retrieval.
+        # Shape drives the has_direct_prophetic_statement boost in BM25 so
+        # "how did the prophet do X" queries pull Aisha-style narrative
+        # descriptions above direct virtue/warning statements.
+        query_shape = detect_query_shape(query)
+        debug['query_shape'] = query_shape
+
+        # When we have a confident primary_topic AND the query asks for a
+        # procedure/description, literal-token BM25 under-ranks the actual
+        # procedural records — their vocabulary ("eleven rak`at", "prolong
+        # prostration") doesn't match the query tokens. Expand the pool
+        # aggressively so the selector's shape-aware reranker can reach them.
+        if resolution.primary_topic and query_shape == 'procedural_descriptive':
+            search_size = max(search_size, 120)
+            debug['search_size_expanded_for_procedural'] = search_size
 
         # Propagate resolved topics to the query so the downstream selector
         # (1) uses a calibrated threshold (the "no topic_candidates" path
@@ -944,6 +964,7 @@ class HadithTopicalCandidateGenerator:
             dalil_family=dalil_family,
             size=search_size,
             enforce_primary=True,
+            query_shape=query_shape,
         )
         if bm25_err:
             warnings.append('bukhari_bm25_unavailable')
@@ -962,6 +983,7 @@ class HadithTopicalCandidateGenerator:
                 dalil_family=dalil_family,
                 size=search_size,
                 enforce_primary=False,
+                query_shape=query_shape,
             )
             debug['relaxed_bm25_hits'] = len(bm25_hits)
             debug['relaxed_knn_hits']  = len(knn_hits)
@@ -1041,7 +1063,14 @@ class HadithTopicalCandidateGenerator:
                  c.canonical_ref,
             ),
         )
-        selected = tuple(candidates[: max(1, int(request.candidate_limit))])
+        # For procedural queries with a confident primary_topic, let the full
+        # expanded pool through to the selector so its shape-aware scoring can
+        # reach procedural records whose literal vocabulary doesn't match the
+        # query tokens. The selector itself caps the final result.
+        effective_limit = int(request.candidate_limit)
+        if resolution.primary_topic and query_shape == 'procedural_descriptive':
+            effective_limit = max(effective_limit, 80)
+        selected = tuple(candidates[: max(1, effective_limit)])
         debug['candidate_count']   = len(selected)
         debug['candidate_origins'] = [c.retrieval_origin for c in selected]
         debug['top_refs']          = [c.canonical_ref for c in selected[:5]]
@@ -1059,6 +1088,7 @@ class HadithTopicalCandidateGenerator:
         dalil_family: str | None,
         size: int,
         enforce_primary: bool,
+        query_shape: str | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None, str | None, bool]:
         """Run BM25 + optional kNN against the Bukhari v2 index.
 
@@ -1077,6 +1107,7 @@ class HadithTopicalCandidateGenerator:
                 dalil_family=dalil_family,
                 size=size,
                 enforce_primary=enforce_primary,
+                query_shape=query_shape,
             )
             resp = self.opensearch_client.search(index=HADITH_BUKHARI_TOPICAL_INDEX, body=body)
             bm25_hits = (((resp or {}).get('hits') or {}).get('hits') or [])

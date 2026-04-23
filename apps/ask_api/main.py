@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+# Load .env BEFORE settings is first imported, so OPENAI_API_KEY etc. reach
+# the runtime embedding client / query normalizer / renderer. Without this,
+# kNN retrieval silently disables itself when the shell env lacks the key.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from fastapi import FastAPI
 
 from apps.ask_api.routes.ask import router as ask_router
