@@ -13,6 +13,10 @@ ARABIC_LETTER_RE = re.compile(r"[\u0621-\u063A\u0641-\u064A\u066E-\u06D3\u06FA-\
 LATIN_LETTER_RE = re.compile(r"[A-Za-z]")
 ARABIC_TOKEN_RE = re.compile(r"[\u0600-\u06FF]+")
 ARABIC_SEGMENT_RE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s\u0640\u0610-\u061A\u06D6-\u06ED\u0660-\u0669]+")
+# Bidi format controls (LRM/RLM, embedding/override, isolates, BOM). Injected by
+# some clipboards when copying Arabic — invisible but break ARABIC_SEGMENT_RE
+# fullmatch, silently routing short quotes (e.g. muqatta'at) to policy_restricted.
+_BIDI_CONTROL_RE = re.compile(r"[‎‏‪-‮⁦-⁩﻿]")
 DIGIT_REFERENCE_RE = re.compile(r"\b(?P<surah>\d{1,3})\s*:\s*(?P<start>\d{1,3})(?:\s*[-–—]\s*(?P<end>\d{1,3}))?\b")
 SURAH_PREFIX_RE = re.compile(
     r"\b(?:surah|surat|surahs)\s+(?P<name>[a-z][a-z\-\s']{1,40}?)(?:\s+(?:ayah|ayahs|verse|verses)\s*)?(?P<start>\d{1,3})?(?:\s*[-–—]\s*(?P<end>\d{1,3}))?\b",
@@ -89,7 +93,8 @@ SURAH_ALIAS_PATTERN = re.compile(
 
 
 def normalize_query_text(query: str) -> str:
-    return re.sub(r"\s+", " ", (query or "").strip())
+    stripped = _BIDI_CONTROL_RE.sub("", query or "")
+    return re.sub(r"\s+", " ", stripped.strip())
 
 
 def _normalize_range(start: str | None, end: str | None) -> tuple[int | None, int | None]:
