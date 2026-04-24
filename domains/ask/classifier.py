@@ -421,6 +421,41 @@ def _classify_anchored_followup(text: str, request_context: dict[str, Any] | Non
                 'followup_kind': str(quran_target.get('followup_kind') or 'anchored_scope_repeat'),
             }
 
+    # Span-level followups ("simplify", "show the exact wording again", generic
+    # "what does this mean") act on the existing anchor scope rather than
+    # shifting it. The planner + followup_resolver already handle these
+    # correctly via the hydrated anchor, but without this branch the route
+    # metadata was falling through to policy_restricted — a telemetry lie
+    # that makes real followups look rejected in logs/analytics.
+    if quran_anchor is not None and (
+        _SIMPLIFY_FOLLOWUP_RE.search(text)
+        or _REPEAT_FOLLOWUP_RE.search(text)
+        or _GENERIC_FOLLOWUP_RE.search(text)
+    ):
+        scope = (hydrated_state or {}).get('scope', {}) or {}
+        has_tafsir_scope = bool(
+            scope.get('tafsir_source_ids')
+            or scope.get('comparative_tafsir_source_ids')
+            or scope.get('current_tafsir_source_id')
+        )
+        route_type = (
+            AskRouteType.ANCHORED_FOLLOWUP_TAFSIR.value
+            if has_tafsir_scope
+            else AskRouteType.ANCHORED_FOLLOWUP_QURAN.value
+        )
+        return {
+            'route_type': route_type,
+            'action_type': AskActionType.EXPLAIN.value,
+            'confidence': 0.88,
+            'signals': ['anchor_refs_present', 'span_level_followup'],
+            'secondary_intents': ['anchored_followup'],
+            'reason': 'span_level_anchored_followup_detected',
+            'normalized_query': text,
+            'anchor_refs': list(anchor_refs),
+            'followup_quran_ref': quran_anchor,
+            'followup_kind': 'span_level_followup',
+        }
+
     return None
 
 

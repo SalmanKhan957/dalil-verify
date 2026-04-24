@@ -15,6 +15,17 @@ class TopicalExposurePolicy:
     PUBLIC = 'public'
 
 
+# Minimum score-per-token ratio for accepting a resolver-fallback topic match.
+# The taxonomy resolver scores each candidate by summing per-phrase weights
+# that any query token matches. A gibberish query like "zzzz qqqq ibn kathir
+# moon cow banana" can accidentally hit one real vocabulary term (e.g. "moon"
+# → Ramadan) and produce a confident primary_topic, but the per-token ratio
+# reveals the noise: score 136 / 7 tokens = 19, vs real queries which land
+# well above 60. Ratio ≥ 30 cleanly separates the two. This gate only guards
+# the classifier-side fallback; the retrieval pipeline has its own thresholds.
+_RESOLVER_FALLBACK_MIN_SCORE_PER_TOKEN = 30.0
+
+
 _MIXED_MULTI_SOURCE_PREFIXES = (
     'what does islam say about',
     "what is islam's view on",
@@ -164,10 +175,14 @@ def detect_topical_query_intent(query: str, *, allow_multi_source: bool = True) 
     resolver_primary_family = (
         resolution.primary_topic.split('.', 1)[0] if resolution.primary_topic else None
     )
+    resolver_top_score = resolution.scores[0][1] if resolution.scores else 0.0
+    resolver_token_count = max(len(resolution.stripped_tokens), 1)
+    resolver_score_per_token = resolver_top_score / resolver_token_count
     if (
         resolution.primary_topic
         and resolution.confident_topics
         and resolver_primary_family not in {'quran', 'tafsir'}
+        and resolver_score_per_token >= _RESOLVER_FALLBACK_MIN_SCORE_PER_TOKEN
     ):
         return {
             'matched': True,
