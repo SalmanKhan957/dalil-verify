@@ -71,6 +71,15 @@ _PROPHETIC_BOOST_FAMILIES: frozenset[str] = frozenset({
     'eschatology',
 })
 
+# Phase 3.3 — Fix C: when strict primary_topic retrieval returns fewer than
+# this many hits, supplement with relaxed (no primary filter) results to
+# build a healthier evidence bundle. Under-tagged topics like backbiting
+# (only 2 records carry the primary tag) would otherwise yield thin answers.
+# The relaxed supplement passes through the word-boundary anchor gate so
+# off-topic vocabulary collisions can't sneak in; strict-origin hits skip
+# the gate because the primary_topics filter already certified them.
+_STRICT_SUFFICIENT_THRESHOLD = 5
+
 
 # ---------------------------------------------------------------------------
 # Bukhari collection detection
@@ -975,28 +984,79 @@ class HadithTopicalCandidateGenerator:
         debug['strict_bm25_hits'] = len(bm25_hits)
         debug['strict_knn_hits']  = len(knn_hits)
 
-        # -- Step 3: relaxed fallback -------------------------------------
-        if not bm25_hits and not knn_hits and resolution.primary_topic:
-            debug['strict_empty_fallback'] = True
-            bm25_hits, knn_hits, _, _, knn_available = self._fetch_bukhari_hybrid(
+        strict_combined: list[tuple[float, dict[str, Any]]] = (
+            _rrf_combine(bm25_hits, knn_hits, k=_RRF_K) if (bm25_hits or knn_hits) else []
+        )
+        for _, hit in strict_combined:
+            hit['_dalil_origin'] = 'strict'
+        debug['strict_combined_count'] = len(strict_combined)
+
+        # -- Step 3: relaxed fallback / sparse-strict supplement ----------
+        # Three cases:
+        #   (a) strict empty + primary_topic exists  → full relaxed fallback
+        #       (existing behavior — keep the topic search alive)
+        #   (b) strict has 1..threshold-1 hits + primary_topic exists
+        #       → Phase 3.3 sparse-strict supplement: under-tagged topics
+        #         (e.g. backbiting has only 2 primary-tagged records out of
+        #         7,272) would otherwise yield thin 2-hadith answers. Top up
+        #         from relaxed retrieval, de-dup, mark as 'relaxed' origin so
+        #         the anchor gate can validate them downstream.
+        #   (c) strict has ≥ threshold hits  → use strict only (no-op)
+        relaxed_combined: list[tuple[float, dict[str, Any]]] = []
+        relaxed_used_as: str | None = None
+
+        need_relaxed = (
+            resolution.primary_topic is not None
+            and len(strict_combined) < _STRICT_SUFFICIENT_THRESHOLD
+        )
+        if need_relaxed:
+            relaxed_used_as = 'fallback' if not strict_combined else 'supplement'
+            r_bm25_hits, r_knn_hits, _, _, r_knn_avail = self._fetch_bukhari_hybrid(
                 resolution=resolution,
                 dalil_family=dalil_family,
                 size=search_size,
                 enforce_primary=False,
                 query_shape=query_shape,
             )
-            debug['relaxed_bm25_hits'] = len(bm25_hits)
-            debug['relaxed_knn_hits']  = len(knn_hits)
+            debug[f'relaxed_bm25_hits_{relaxed_used_as}'] = len(r_bm25_hits)
+            debug[f'relaxed_knn_hits_{relaxed_used_as}']  = len(r_knn_hits)
+            if relaxed_used_as == 'fallback':
+                # Strict produced nothing — surface the relaxed retrieval as
+                # the primary lane for knn_enabled telemetry and preserve the
+                # back-compat debug field names that monitoring relies on.
+                knn_available = r_knn_avail
+                debug['strict_empty_fallback'] = True
+                debug['relaxed_bm25_hits'] = len(r_bm25_hits)
+                debug['relaxed_knn_hits']  = len(r_knn_hits)
+
+            relaxed_combined = (
+                _rrf_combine(r_bm25_hits, r_knn_hits, k=_RRF_K)
+                if (r_bm25_hits or r_knn_hits) else []
+            )
+            # De-dup against strict by hadith_id so supplement only adds NEW records.
+            strict_ids = {
+                ((hit.get('_source') or {}).get('hadith_id') or hit.get('_id'))
+                for _, hit in strict_combined
+            }
+            relaxed_combined = [
+                (s, h) for (s, h) in relaxed_combined
+                if ((h.get('_source') or {}).get('hadith_id') or h.get('_id')) not in strict_ids
+            ]
+            for _, hit in relaxed_combined:
+                hit['_dalil_origin'] = 'relaxed'
+            debug['relaxed_used_as'] = relaxed_used_as
+            debug['relaxed_supplement_count'] = len(relaxed_combined)
 
         debug['knn_enabled'] = knn_available
+        any_hits_present = bool(strict_combined or relaxed_combined)
         retrieval_origin = (
-            'bukhari_v2_hybrid_bm25_knn' if knn_available and knn_hits
+            'bukhari_v2_hybrid_bm25_knn' if knn_available and any_hits_present
             else 'bukhari_v2_hybrid_bm25'
         )
         debug['retrieval_origin'] = retrieval_origin
 
         # -- Step 4: no-hits guard ----------------------------------------
-        if not bm25_hits and not knn_hits:
+        if not strict_combined and not relaxed_combined:
             warnings.append('bukhari_hybrid_no_hits')
             return HadithTopicalCandidateGenerationResult(
                 candidates=(),
@@ -1005,7 +1065,12 @@ class HadithTopicalCandidateGenerator:
             )
 
         # -- Step 5: RRF fuse + anchor gate + candidate build -------------
-        combined = _rrf_combine(bm25_hits, knn_hits, k=_RRF_K)
+        # Strict-first, relaxed-second so within-tier ordering is preserved.
+        # Shape reorder below operates on the merged list and may reorder
+        # across origins — that's intentional: a shape-fit relaxed hit should
+        # outrank a shape-mismatch strict hit when the primary_topics filter
+        # has already certified topical relevance for the strict tier.
+        combined = strict_combined + relaxed_combined
         debug['rrf_combined_count'] = len(combined)
 
         # Phase 3.2.2 — post-RRF shape reorder.
@@ -1031,24 +1096,24 @@ class HadithTopicalCandidateGenerator:
             combined = sorted(combined, key=_shape_rerank_key)
             debug['shape_reorder_applied'] = query_shape
 
-        # When the primary_topic hard filter was actually enforced AND produced
-        # the results, every returned record has been certified by the LLM
-        # enrichment to be about that topic. The anchor gate is redundant
-        # there — and occasionally harmful (e.g. "antichrist" queries reach
-        # Dajjal records whose matn uses "Dajjal" not "antichrist"). We only
-        # apply the gate on the relaxed fallback path where the filter was
-        # dropped and retrieval could surface non-topical hits.
-        primary_filter_enforced = (
-            resolution.primary_topic is not None
-            and not debug.get('strict_empty_fallback', False)
+        # Anchor gate is per-hit now (Phase 3.3 — Fix C):
+        # - 'strict' origin: trusted, gate skipped (LLM enrichment already
+        #   certified the topic via primary_topics filter; e.g. "antichrist"
+        #   queries reach Dajjal records whose matn uses "Dajjal" not the
+        #   English word, and that's the right behavior).
+        # - 'relaxed' origin: gated by word-boundary anchor since the topic
+        #   filter was dropped — without the gate, supplement / fallback
+        #   could surface narrator-collision hits.
+        debug['anchor_gate_applied'] = any(
+            (hit.get('_dalil_origin') == 'relaxed') for _, hit in combined
         )
-        debug['anchor_gate_applied'] = not primary_filter_enforced
 
         candidates: list[HadithTopicalCandidate] = []
         anchor_pass = 0
         anchor_fail = 0
         for rrf_score, hit in combined:
             source = hit.get('_source') or {}
+            is_strict_origin = (hit.get('_dalil_origin') == 'strict')
 
             # Prophetic boost on RRF score (pre-candidate, so score trail is clean)
             effective_rrf = rrf_score
@@ -1056,7 +1121,7 @@ class HadithTopicalCandidateGenerator:
             if source.get('has_direct_prophetic_statement') and family in _PROPHETIC_BOOST_FAMILIES:
                 effective_rrf = rrf_score * 1.3
 
-            if primary_filter_enforced:
+            if is_strict_origin:
                 has_anchor = True  # trust the primary_topic filter
             else:
                 has_anchor = _has_word_boundary_anchor(resolution.stripped_tokens, source)

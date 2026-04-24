@@ -213,9 +213,17 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
         except Exception as exc:  # pragma: no cover
             return HadithInvocationEvidence(errors=[f'hadith_topical_lookup_failed: {exc}'])
         if not baseline_hits:
-            return HadithInvocationEvidence(warnings=['no_hadith_topical_matches'], errors=['insufficient_evidence'])
-        top = baseline_hits[0]
-        top_score = float(getattr(top, 'score', 0.0) or 0.0)
+            # Phase 3.3 — Fix A: legacy PostgreSQL FTS sees only Khan's 1970s
+            # wording. Topics like backbiting, ghibah, hasad never literally
+            # appear in the corpus ("speaks ill of", "tale-bearer", "envier"
+            # are used instead) so FTS returns zero hits. The v2 shadow lane
+            # uses corpus-grounded concept_vocabulary + topic-tag filters and
+            # can answer where lexical can't. In shadow mode, let v2 try;
+            # abstain only if v2 also produces nothing (handled below).
+            if retrieval_mode != 'topical_v2_shadow':
+                return HadithInvocationEvidence(warnings=['no_hadith_topical_matches'], errors=['insufficient_evidence'])
+        top = baseline_hits[0] if baseline_hits else None
+        top_score = float(getattr(top, 'score', 0.0) or 0.0) if top is not None else 0.0
         diagnostics: dict[str, Any] = {}
         selected_hadith = None
         supporting_list: list[HadithEvidence] = []
@@ -229,7 +237,8 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
                     raw_query=query_text,
                     collection_source_id=plan.hadith_plan.params.get('source_id') or plan.hadith_plan.source_id,
                     limit=limit,
-                    lexical_hits=list(baseline_hits),
+                    lexical_hits=list(baseline_hits) if baseline_hits else None,
+                    original_query=str(plan.hadith_plan.params.get('original_query') or plan.query or query_text),
                 )
                 diagnostics['topical_v2_shadow'] = {
                     'abstain': shadow_result.abstain,
@@ -321,6 +330,18 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
                 errors=[],
                 diagnostics=diagnostics,
             )
+        # Fix A — when shadow lane was the only retrieval lane (legacy lexical
+        # produced no hits) and v2 also abstained, return the v2 abstain reason
+        # rather than crashing on top.entry below.
+        if top is None:
+            shadow_diag = diagnostics.get('topical_v2_shadow') or {}
+            shadow_reason = shadow_diag.get('abstain_reason') or 'no_hadith_topical_matches'
+            warnings = list(dict.fromkeys(list(shadow_diag.get('warnings') or ()) + [shadow_reason]))
+            return HadithInvocationEvidence(
+                warnings=warnings,
+                errors=['insufficient_evidence'],
+                diagnostics=diagnostics,
+            )
         if top_score < minimum_score:
             return HadithInvocationEvidence(
                 warnings=[f"No Hadith topical match met the minimum evidence threshold for {plan.hadith_plan.params.get('source_id') or plan.hadith_plan.source_id}."],
@@ -350,14 +371,34 @@ def invoke_hadith_domain(plan: AskPlan, *, database_url: str | None = None) -> H
             authority_source=authority_source,
             retrieval_origin=getattr(top, 'retrieval_method', None),
         )
+        # Phase 3.4 — Fix A: hydrate supporting hits into HadithEvidence objects
+        # so the composition layer receives a real multi-hadith bundle when the
+        # legacy lexical path wins (v2 abstained). Without this the renderer
+        # only sees the primary's text and silently collapses 5 hits → 1 cite.
+        fallback_supporting: list[HadithEvidence] = []
         if fallback_hadith is not None:
+            bundle_enabled = bool(getattr(settings, 'hadith_multi_bundle_enabled', True))
+            bundle_size = int(getattr(settings, 'hadith_multi_bundle_size', 5))
+            n = max(1, bundle_size) if bundle_enabled else 1
+            for hit in list(baseline_hits)[1:n]:
+                ev = build_hadith_evidence(
+                    hit.entry,
+                    snippet=getattr(hit, 'snippet', None),
+                    retrieval_method=getattr(hit, 'retrieval_method', None),
+                    matched_terms=getattr(hit, 'matched_terms', ()),
+                    authority_source=authority_source,
+                    retrieval_origin=getattr(hit, 'retrieval_method', None),
+                )
+                if ev is not None and ev.canonical_ref != fallback_hadith.canonical_ref:
+                    fallback_supporting.append(ev)
             fallback_hadith.raw.update({
-                'supporting_refs': [hit.entry.canonical_ref_collection for hit in list(baseline_hits)[: min(len(baseline_hits), 5)]],
-                'evidence_bundle_size': min(len(baseline_hits), 5),
+                'supporting_refs': [ev.canonical_ref for ev in fallback_supporting],
+                'evidence_bundle_size': 1 + len(fallback_supporting),
                 'llm_composition_ready': False,
             })
         return HadithInvocationEvidence(
             hadith=fallback_hadith,
+            supporting_hadiths=fallback_supporting,
             warnings=(['additional_hadith_matches_available'] if len(baseline_hits) > 1 else []),
             errors=[],
             diagnostics=diagnostics,

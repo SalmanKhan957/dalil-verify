@@ -441,6 +441,7 @@ def _configure_topical_hadith_plan(
                 'source_id': hadith_policy.selected_source_id,
                 'limit': max(5, int(tafsir_limit)),
                 'query_text': topic_query,
+                'original_query': plan.query,
                 'retrieval_mode': 'topical_v2_shadow',
                 'minimum_score': 0.6,
             },
@@ -458,6 +459,7 @@ def _configure_topical_hadith_plan(
                 'source_id': hadith_policy.selected_source_id,
                 'limit': max(5, int(tafsir_limit)),
                 'query_text': topic_query,
+                'original_query': plan.query,
                 'retrieval_mode': 'topical_v2_shadow',
                 'minimum_score': 0.6,
                 'shadow_only': True,
@@ -512,7 +514,7 @@ def _configure_topical_multisource_plan(
         plan.hadith_plan = DomainInvocation(
             domain=EvidenceDomain.HADITH,
             source_id=hadith_policy.selected_source_id,
-            params={'source_id': hadith_policy.selected_source_id, 'limit': int(tafsir_limit), 'query_text': topic_query, 'retrieval_mode': 'lexical', 'minimum_score': 0.6},
+            params={'source_id': hadith_policy.selected_source_id, 'limit': int(tafsir_limit), 'query_text': topic_query, 'original_query': plan.query, 'retrieval_mode': 'lexical', 'minimum_score': 0.6},
         )
         plan.notes.append(f'hadith_topic_source:{hadith_policy.selected_source_id}')
 

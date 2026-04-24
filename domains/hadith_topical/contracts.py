@@ -14,6 +14,11 @@ class HadithTopicalQuery:
     topic_family: str | None = None
     directive_biases: tuple[str, ...] = ()
     debug: dict[str, Any] = field(default_factory=dict)
+    # Verbatim user input before any planner-side stripping. The /ask planner
+    # passes a stripped `topic_query` ("pray at night") as raw_query, which
+    # destroys shape signals ("how", "what did the prophet"). Shape detection
+    # must read the true original — this field carries it end-to-end.
+    original_query: str | None = None
 
 
 @dataclass(slots=True)

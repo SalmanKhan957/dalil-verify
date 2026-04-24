@@ -135,8 +135,8 @@ class HadithTopicalSearchService:
         )
         self.thematic_passage_retriever = thematic_passage_retriever or HadithThematicPassageRetriever(database_url=database_url)
 
-    def normalize(self, raw_query: str, *, language_hint: str | None = None) -> HadithTopicalQuery:
-        return normalize_hadith_topical_query(raw_query, language_hint=language_hint)
+    def normalize(self, raw_query: str, *, language_hint: str | None = None, original_query: str | None = None) -> HadithTopicalQuery:
+        return normalize_hadith_topical_query(raw_query, language_hint=language_hint, original_query=original_query)
 
     def select(self, query: HadithTopicalQuery, candidates):
         reranked = self.reranker.rerank(query, list(candidates))
@@ -157,8 +157,9 @@ class HadithTopicalSearchService:
         limit: int = 5,
         lexical_hits: list[HadithLexicalHit] | None = None,
         language_hint: str | None = None,
+        original_query: str | None = None,
     ) -> HadithTopicalResult:
-        query = self.normalize(raw_query, language_hint=language_hint)
+        query = self.normalize(raw_query, language_hint=language_hint, original_query=original_query)
         family_decision = classify_hadith_topic_family(query)
         query.debug['retrieval_family'] = family_decision.family_id
         query.debug['family_decision'] = {

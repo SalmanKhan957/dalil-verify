@@ -133,7 +133,7 @@
     "fiqh.nikah.polygamy_jealousy": {
       "display_name": "Multiple wives, co-wife jealousy (ghira) and fairness between them",
       "family": "fiqh",
-      "vocabulary": ["ghira", "jealousy of co-wife", "wives", "fair division", "turn with his wife", "took for his bed"],
+      "vocabulary": ["ghira", "jealousy of co-wife", "co-wife", "co-wives", "fair division", "turn with his wife", "took for his bed"],
       "source_kitabs": ["Wedlock and Marriage (Nikah)"]
     },
     "fiqh.nikah.divorce_general": {
@@ -784,13 +784,13 @@
     "akhlaq.adab.envy_hasad": {
       "display_name": "Envy (hasad) and jealousy",
       "family": "akhlaq",
-      "vocabulary": ["envy", "envious", "jealousy", "jealous", "hasad"],
+      "vocabulary": ["envy", "envious", "envier", "jealousy", "jealous", "hasad", "malicious envy", "covet what another has"],
       "source_kitabs": ["Good Manners and Form (Al-Adab)"]
     },
     "akhlaq.adab.backbiting_ghayba": {
       "display_name": "Backbiting (ghayba) and tale-bearing (nameemah)",
       "family": "akhlaq",
-      "vocabulary": ["backbiting", "speaking ill of", "tale-bearer", "carries tales", "nameemah", "says behind his back"]
+      "vocabulary": ["backbiting", "backbite", "ghibah", "gheebah", "ghayba", "gossip", "speaking ill of", "speaks ill", "evil tongue", "tale-bearer", "tale-bearing", "carries tales", "nameemah", "two-faced", "says behind his back", "calumny", "calumnies"]
     },
     "akhlaq.adab.cursing_profanity": {
       "display_name": "Cursing, swearing and obscene speech",

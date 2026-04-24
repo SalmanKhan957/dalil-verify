@@ -10,7 +10,12 @@ from domains.query_intelligence.normalization import normalize_topic_query
 _WORD_RE = re.compile(r"[A-Za-z']+")
 
 
-def normalize_hadith_topical_query(raw_query: str, *, language_hint: str | None = None) -> HadithTopicalQuery:
+def normalize_hadith_topical_query(
+    raw_query: str,
+    *,
+    language_hint: str | None = None,
+    original_query: str | None = None,
+) -> HadithTopicalQuery:
     normalized = normalize_topic_query(raw_query)
     tokens = tuple(match.group(0).casefold() for match in _WORD_RE.finditer(normalized))
     concept_matches = link_query_to_concepts(raw_query, domain='hadith', max_results=4)
@@ -43,4 +48,5 @@ def normalize_hadith_topical_query(raw_query: str, *, language_hint: str | None 
         topic_family=topic_family,
         directive_biases=tuple(directive_biases),
         debug=debug,
+        original_query=original_query,
     )

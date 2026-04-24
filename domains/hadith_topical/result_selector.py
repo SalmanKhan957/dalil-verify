@@ -28,6 +28,12 @@ _HOW_DESCRIBE_PATTERNS = (
     r'\bprocedure\b',
     r'\bshow me\b',
     r'\bwhat is it like\b',
+    # "what did the prophet pray/do/perform/recite" asks for a practice
+    # description, which maps to Aisha-style narrative_incident records —
+    # NOT a direct teaching. Keep these on the procedural_descriptive track.
+    r"\bwhat did (?:the prophet|the messenger|he)\s+(?:do|pray|perform|recite|used to)\b",
+    r"\bwhat (?:was|were) (?:the prophet'?s|his)\s+(?:practice|habit|routine|way|manner|custom)\b",
+    r"\bused to (?:do|pray|perform|recite)\b",
 )
 _PROPHETIC_TEACHING_PATTERNS = (
     r"\bwhat did the prophet\s+(?:say|teach|advise|command)\b",
@@ -75,12 +81,16 @@ def detect_query_shape(query: HadithTopicalQuery) -> str:
     Shapes drive per-role bonuses in `_shape_role_bonus`. Order matters:
     most specific shape first. Broad queries fall through to 'broad'.
 
-    Uses raw_query FIRST because the Bukhari topical normalizer strips
-    shape-signal words ("how", "what did", "describe") as conversational
-    fluff. By the time the query reaches normalized_query, the shape is
-    lost — we need the original wording.
+    Uses original_query FIRST because the /ask planner strips shape-signal
+    words ("how", "what did", "describe") from the query string before it
+    ever reaches this service — the planner passes a stripped `topic_query`
+    ("pray at night") as raw_query. The original_query field carries the
+    verbatim user input through unchanged so shape detection still works
+    end-to-end. raw_query/normalized_query remain as the secondary fallbacks
+    for direct callers (smoke test, search-service callers) that don't go
+    through the planner.
     """
-    text = (query.raw_query or query.normalized_query or '').lower()
+    text = (query.original_query or query.raw_query or query.normalized_query or '').lower()
     if not text:
         return 'broad'
     if any(p.search(text) for p in _HOW_RE):
